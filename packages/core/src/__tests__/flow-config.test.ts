@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type Id } from '../index.js';
+import { Editor, type Ctx2D, type Id } from '../index.js';
 
 /** Build an editor with one flowing edge; returns the editor and edge id. */
 function build(): { ed: Editor; e: Id } {
@@ -60,5 +60,92 @@ describe('flow runtime config', () => {
   it('isFlowAnimating is false when no edge is flowing', () => {
     const ed = new Editor();
     expect(ed.isFlowAnimating()).toBe(false);
+  });
+});
+
+/** A recording Ctx2D capturing packet-dot arc() calls (mirrors flow.test.ts). */
+function mockCtx(): Ctx2D & { arcs: { x: number; y: number }[] } {
+  const arcs: { x: number; y: number }[] = [];
+  const noop = (): void => {};
+  return {
+    arcs,
+    save: noop, restore: noop, setTransform: noop, beginPath: noop, fill: noop, stroke: noop,
+    moveTo: noop, lineTo: noop, setLineDash: noop, closePath: noop,
+    arc: (x: number, y: number) => arcs.push({ x, y }),
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineDashOffset: 0, shadowColor: '', shadowBlur: 0,
+  } as unknown as Ctx2D & { arcs: { x: number; y: number }[] };
+}
+
+describe('flow config affects paintFlow rendering', () => {
+  it('enabled:false draws nothing', () => {
+    const { ed } = build();
+    ed.setFlowEnabled(false);
+    const c = mockCtx();
+    ed.paintFlow(c, 1, 0);
+    ed.paintFlow(c, 1, 100);
+    expect(c.arcs).toHaveLength(0);
+  });
+
+  it('paused freezes markers in place across advancing time', () => {
+    const { ed } = build();
+    // establish a non-zero clock position, then pause
+    ed.paintFlow(mockCtx(), 1, 0);
+    ed.paintFlow(mockCtx(), 1, 50);
+    ed.pauseFlow();
+    const a = mockCtx(); ed.paintFlow(a, 1, 100);
+    const b = mockCtx(); ed.paintFlow(b, 1, 900);
+    expect(a.arcs.length).toBeGreaterThan(0);
+    expect(b.arcs).toEqual(a.arcs); // identical — frozen despite 800ms passing
+  });
+
+  it('paused then resumed continues from the frozen phase (no jump-forward)', () => {
+    const { ed } = build();
+    ed.paintFlow(mockCtx(), 1, 0);
+    ed.paintFlow(mockCtx(), 1, 50);
+    const beforePause = mockCtx(); ed.paintFlow(beforePause, 1, 50);
+    ed.pauseFlow();
+    ed.paintFlow(mockCtx(), 1, 5000); // long pause, no motion
+    ed.resumeFlow();
+    const afterResume = mockCtx(); ed.paintFlow(afterResume, 1, 5000);
+    // resumes from where it froze (dt=0 this frame), not jumped forward by ~5s
+    expect(afterResume.arcs).toEqual(beforePause.arcs);
+  });
+
+  it('speedScale advances the animation faster', () => {
+    const mk = (scale: number) => {
+      const { ed } = build();
+      ed.setFlowSpeedScale(scale);
+      ed.paintFlow(mockCtx(), 1, 0); // prime prevTime at t=0
+      const c = mockCtx();
+      ed.paintFlow(c, 1, 40); // 40ms < adaptive clamp, integrated fully
+      return c.arcs[0]!.x;
+    };
+    // packets move along +x; larger scale => further along after the same 40ms
+    expect(mk(3)).not.toBeCloseTo(mk(1), 1);
+  });
+
+  it('respects reduced-motion by freezing, and honors the host override', () => {
+    const { ed } = build();
+    ed.paintFlow(mockCtx(), 1, 0);
+    ed.setReducedMotion(true);
+    const a = mockCtx(); ed.paintFlow(a, 1, 100);
+    const b = mockCtx(); ed.paintFlow(b, 1, 800);
+    expect(a.arcs.length).toBeGreaterThan(0);
+    expect(b.arcs).toEqual(a.arcs); // frozen
+
+    ed.setFlowConfig({ respectReducedMotion: false });
+    const c = mockCtx(); ed.paintFlow(c, 1, 1200);
+    expect(c.arcs).not.toEqual(a.arcs); // animates again (override)
+  });
+
+  it('clamps a large dt gap so it does not leap', () => {
+    const { ed } = build();
+    ed.paintFlow(mockCtx(), 1, 0);
+    const small = mockCtx(); ed.paintFlow(small, 1, 40); // 40ms
+    const { ed: ed2 } = build();
+    ed2.paintFlow(mockCtx(), 1, 0);
+    const huge = mockCtx(); ed2.paintFlow(huge, 1, 10000); // 10s, must clamp to 64ms
+    // clamped advance is small; a 10s unclamped advance would be far larger
+    expect(Math.abs(huge.arcs[0]!.x)).toBeLessThan(Math.abs(small.arcs[0]!.x) * 3);
   });
 });

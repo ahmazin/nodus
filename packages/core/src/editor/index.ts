@@ -1095,11 +1095,26 @@ export class Editor implements EngineHost {
   }
 
   /** Draw the animated flow markers for every visible flowing edge. `time` is a ms clock (the host
-   *  passes performance.now()). Culled to the viewport; a no-op when nothing visible is flowing. */
+   *  passes performance.now()). Advances the internal flow clock only while animating, so pause /
+   *  reduced-motion freeze in place and speedScale changes stay smooth. No-op draw when disabled. */
   paintFlow(ctx: Ctx2D, dpr: number, time: number): void {
+    const c = this.flowConfigAtom.peek();
+    const frameMs = c.maxFps && c.maxFps > 0 ? 1000 / c.maxFps : 1000 / 30;
+    const maxDt = Math.max(64, frameMs * 1.5);
+    const dt = this.flowPrevTime == null ? 0 : Math.max(0, Math.min(time - this.flowPrevTime, maxDt));
+    this.flowPrevTime = time;
+    if (!c.enabled) return; // draw nothing
+    const frozen = c.paused || (c.respectReducedMotion && this.reducedMotionAtom.peek());
+    if (!frozen) this.flowClock += dt * c.speedScale;
     const theme = this.themeAtom.peek();
     this.setWorldTransform(ctx, dpr);
-    for (const item of this.sceneIndex.visible(this.worldViewport())) {
+    this.drawFlowEdges(ctx, this.sceneIndex.visible(this.worldViewport()), theme, this.flowClock);
+  }
+
+  /** Shared per-edge flow draw: resolve each edge's spec against its live metric and paint markers at
+   *  `time`. Caller has already set the world transform and computed the effective (scaled) time. */
+  private drawFlowEdges(ctx: Ctx2D, items: Iterable<RenderItem>, theme: Theme, time: number): void {
+    for (const item of items) {
       if (item.kind !== 'edge') continue;
       const flow = (item.record as EdgeRecord).flow;
       if (flow) paintFlowMarkers(ctx, item, theme, time, resolveFlow(flow, this.flowMetrics.get(item.id)));
