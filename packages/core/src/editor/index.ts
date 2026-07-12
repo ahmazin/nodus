@@ -805,6 +805,8 @@ export class Editor implements EngineHost {
     this.events.emit({ type: 'camera', camera: cam });
   }
   setViewport(w: number, h: number): void {
+    const vp = this.viewportAtom.peek();
+    if (vp.w === w && vp.h === h) return;
     this.viewportAtom.set({ w, h });
   }
   panByScreen(dx: number, dy: number): void {

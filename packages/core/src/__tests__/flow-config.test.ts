@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type Ctx2D, type Id } from '../index.js';
+import { Editor, effect, type Ctx2D, type Id } from '../index.js';
 
 /** Build an editor with one flowing edge; returns the editor and edge id. */
 function build(): { ed: Editor; e: Id } {
@@ -196,5 +196,20 @@ describe('flow config affects the snapshot path (paintRegion)', () => {
     const live2 = mockCtx(); ed.paintFlow(live2, 1, 80);
     const live3ref = (() => { const { ed: e2 } = build(); e2.paintFlow(mockCtx(),1,0); e2.paintFlow(mockCtx(),1,40); const m = mockCtx(); e2.paintFlow(m,1,80); return m; })();
     expect(live2.arcs).toEqual(live3ref.arcs); // live clock advanced purely by paintFlow calls
+  });
+});
+
+describe('setViewport and the render-loop idle invariant', () => {
+  it('setViewport does not notify observers when dimensions are unchanged (lets the rAF loop idle so maxFps can throttle)', () => {
+    const ed = new Editor();
+    ed.setViewport(800, 600);
+    let runs = 0;
+    const stop = effect(() => { ed.viewportAtom.get(); runs++; }); // runs once on subscribe
+    expect(runs).toBe(1);
+    ed.setViewport(800, 600);       // same dims -> must NOT notify
+    expect(runs).toBe(1);
+    ed.setViewport(1024, 768);      // changed -> must notify
+    expect(runs).toBe(2);
+    stop();
   });
 });
