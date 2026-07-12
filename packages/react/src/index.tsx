@@ -49,13 +49,24 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
 
     let raf = 0;
+    let flowTimer = 0;
+    let lastFlowPaint = 0;
     const dpr = (): number => Math.max(1, Math.min(3, Math.floor(window.devicePixelRatio || 1)));
 
     const paint = (): void => {
       raf = 0;
       const rect = host.getBoundingClientRect();
-      editor.render(ctx, rect.width, rect.height, dpr(), true, performance.now());
-      if (editor.hasFlow()) schedule(); // keep the loop ticking while any edge is flowing (else idle)
+      const now = performance.now();
+      editor.render(ctx, rect.width, rect.height, dpr(), true, now);
+      lastFlowPaint = now;
+      if (editor.isFlowAnimating()) armFlow(); // keep ticking while flowing (throttled to maxFps)
+    };
+    const armFlow = (): void => {
+      clearTimeout(flowTimer);
+      const cap = editor.flowConfig().maxFps;
+      if (!cap || cap <= 0) { schedule(); return; }
+      const wait = Math.max(0, 1000 / cap - (performance.now() - lastFlowPaint));
+      flowTimer = setTimeout(schedule, wait) as unknown as number;
     };
     const schedule = (): void => {
       if (!raf) raf = requestAnimationFrame(paint);
@@ -85,8 +96,16 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
       editor.overlaysAtom.get();
       editor.viewportAtom.get();
       editor.snapGuidesAtom.get();
+      editor.flowConfigAtom.get();
+      editor.reducedMotionAtom.get();
       schedule();
     });
+
+    // honor OS prefers-reduced-motion; the headless core can't detect it, so feed it in
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    editor.setReducedMotion(mq.matches);
+    const onReducedMotion = (): void => editor.setReducedMotion(mq.matches);
+    mq.addEventListener('change', onReducedMotion);
 
     const ro = new ResizeObserver(resize);
     ro.observe(host);
@@ -195,6 +214,8 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
       ro.disconnect();
       stopReaction();
       cancelAnimationFrame(raf);
+      clearTimeout(flowTimer);
+      mq.removeEventListener('change', onReducedMotion);
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);

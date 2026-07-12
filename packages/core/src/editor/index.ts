@@ -15,6 +15,7 @@ import {
   type Change,
   type EdgeRecord,
   type Endpoint,
+  type FlowRuntimeConfig,
   type FlowSpec,
   type Id,
   type NodeRecord,
@@ -52,6 +53,13 @@ import { drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, stro
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
+
+const FLOW_DEFAULTS: FlowRuntimeConfig = {
+  enabled: true,
+  paused: false,
+  speedScale: 1,
+  respectReducedMotion: true,
+};
 
 export interface EditorOptions {
   theme?: Theme;
@@ -797,6 +805,8 @@ export class Editor implements EngineHost {
     this.events.emit({ type: 'camera', camera: cam });
   }
   setViewport(w: number, h: number): void {
+    const vp = this.viewportAtom.peek();
+    if (vp.w === w && vp.h === h) return;
     this.viewportAtom.set({ w, h });
   }
   panByScreen(dx: number, dy: number): void {
@@ -1053,12 +1063,60 @@ export class Editor implements EngineHost {
     this.flowMetrics.clear();
   }
 
+  /** Global ephemeral flow runtime config (enable/pause/speed/reduced-motion/fps). NOT serialized. */
+  readonly flowConfigAtom: Atom<FlowRuntimeConfig> = atom<FlowRuntimeConfig>({ ...FLOW_DEFAULTS });
+  /** Current OS reduced-motion state — the headless core can't detect it, so the host feeds it in. */
+  readonly reducedMotionAtom: Atom<boolean> = atom(false);
+  /** Integrated flow time (ms), advanced by paintFlow only while animating. */
+  private flowClock = 0;
+  private flowPrevTime: number | null = null;
+
+  flowConfig(): Readonly<FlowRuntimeConfig> {
+    return this.flowConfigAtom.peek();
+  }
+  /** Merge a partial config (clamps speedScale >= 0). Ephemeral: no undo entry. */
+  setFlowConfig(patch: Partial<FlowRuntimeConfig>): void {
+    const next: FlowRuntimeConfig = { ...this.flowConfigAtom.peek(), ...patch };
+    next.speedScale = Number.isFinite(next.speedScale) ? Math.max(0, next.speedScale) : 1;
+    this.flowConfigAtom.set(next);
+  }
+  pauseFlow(): void { this.setFlowConfig({ paused: true }); }
+  resumeFlow(): void { this.setFlowConfig({ paused: false }); }
+  setFlowEnabled(enabled: boolean): void { this.setFlowConfig({ enabled }); }
+  setFlowSpeedScale(speedScale: number): void { this.setFlowConfig({ speedScale }); }
+  /** Host feeds the OS prefers-reduced-motion state; headless default is false. */
+  setReducedMotion(active: boolean): void { this.reducedMotionAtom.set(active); }
+
+  /** True if flow should be actively animating right now — the rAF gate. Respects enabled/paused/
+   *  reduced-motion. (`hasFlow()` stays doc-truth: "any edge has a flow spec".) */
+  isFlowAnimating(): boolean {
+    const c = this.flowConfigAtom.peek();
+    if (!c.enabled || c.paused) return false;
+    if (c.respectReducedMotion && this.reducedMotionAtom.peek()) return false;
+    return this.hasFlow();
+  }
+
   /** Draw the animated flow markers for every visible flowing edge. `time` is a ms clock (the host
-   *  passes performance.now()). Culled to the viewport; a no-op when nothing visible is flowing. */
+   *  passes performance.now()). Advances the internal flow clock only while animating, so pause /
+   *  reduced-motion freeze in place and speedScale changes stay smooth. No-op draw when disabled. */
   paintFlow(ctx: Ctx2D, dpr: number, time: number): void {
+    const c = this.flowConfigAtom.peek();
+    const frameMs = c.maxFps && c.maxFps > 0 ? 1000 / c.maxFps : 1000 / 30;
+    const maxDt = Math.max(64, frameMs * 1.5);
+    const dt = this.flowPrevTime == null ? 0 : Math.max(0, Math.min(time - this.flowPrevTime, maxDt));
+    this.flowPrevTime = time;
+    if (!c.enabled) return; // draw nothing
+    const frozen = c.paused || (c.respectReducedMotion && this.reducedMotionAtom.peek());
+    if (!frozen) this.flowClock += dt * c.speedScale;
     const theme = this.themeAtom.peek();
     this.setWorldTransform(ctx, dpr);
-    for (const item of this.sceneIndex.visible(this.worldViewport())) {
+    this.drawFlowEdges(ctx, this.sceneIndex.visible(this.worldViewport()), theme, this.flowClock);
+  }
+
+  /** Shared per-edge flow draw: resolve each edge's spec against its live metric and paint markers at
+   *  `time`. Caller has already set the world transform and computed the effective (scaled) time. */
+  private drawFlowEdges(ctx: Ctx2D, items: Iterable<RenderItem>, theme: Theme, time: number): void {
+    for (const item of items) {
       if (item.kind !== 'edge') continue;
       const flow = (item.record as EdgeRecord).flow;
       if (flow) paintFlowMarkers(ctx, item, theme, time, resolveFlow(flow, this.flowMetrics.get(item.id)));
@@ -1066,7 +1124,7 @@ export class Editor implements EngineHost {
   }
 
   /** Convenience: paint the full frame (static + flow + overlays + optional interactive) onto one ctx.
-   *  Pass `time` (ms) to animate flow; the host keeps calling frames while `hasFlow()` is true. */
+   *  Pass `time` (ms) to animate flow; the host keeps calling frames while `isFlowAnimating()` is true. */
   render(ctx: Ctx2D, cssW: number, cssH: number, dpr = 1, interactive = false, time = 0): void {
     this.setViewport(cssW, cssH);
     this.paintStatic(ctx, cssW, cssH, dpr);
@@ -1100,13 +1158,11 @@ export class Editor implements EngineHost {
     for (const item of this.sceneIndex.paintOrder()) {
       paintItem(ctx, item, this.nodes, this.edges, theme);
     }
-    // optional flow snapshot at `time` (data-driven colors resolved from the live metrics)
+    // optional flow snapshot at `time` (stateless: honors enabled + speedScale; ignores pause/reduced-motion)
     if (opts.flow) {
-      const time = opts.time ?? 0;
-      for (const item of this.sceneIndex.paintOrder()) {
-        if (item.kind !== 'edge') continue;
-        const flow = (item.record as EdgeRecord).flow;
-        if (flow) paintFlowMarkers(ctx, item, theme, time, resolveFlow(flow, this.flowMetrics.get(item.id)));
+      const c = this.flowConfigAtom.peek();
+      if (c.enabled) {
+        this.drawFlowEdges(ctx, this.sceneIndex.paintOrder(), theme, (opts.time ?? 0) * c.speedScale);
       }
     }
   }
