@@ -92,6 +92,23 @@ export interface FlowSpec {
   data?: number;
 }
 
+/**
+ * Global, EPHEMERAL runtime knobs for the flow animation — owned by the editor, NOT serialized and
+ * NOT undoable (session/runtime state, like the camera). Per-edge `FlowSpec`/`FlowScale` are separate.
+ */
+export interface FlowRuntimeConfig {
+  /** false = draw NO flow markers (edges look static); loop idle. */
+  enabled: boolean;
+  /** true = freeze markers in place (still drawn, no motion); loop idle. */
+  paused: boolean;
+  /** Global multiplier applied to every edge's flow speed (clamped >= 0). */
+  speedScale: number;
+  /** Honor OS prefers-reduced-motion by freezing to a static frame. */
+  respectReducedMotion: boolean;
+  /** Optional cap (fps) on the self-perpetuating flow ticks; undefined = display refresh. */
+  maxFps?: number;
+}
+
 export interface BaseRecord<TN extends string = string> {
   id: Id<TN>;
   typeName: TN;

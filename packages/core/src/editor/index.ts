@@ -15,6 +15,7 @@ import {
   type Change,
   type EdgeRecord,
   type Endpoint,
+  type FlowRuntimeConfig,
   type FlowSpec,
   type Id,
   type NodeRecord,
@@ -52,6 +53,13 @@ import { drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, stro
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
+
+const FLOW_DEFAULTS: FlowRuntimeConfig = {
+  enabled: true,
+  paused: false,
+  speedScale: 1,
+  respectReducedMotion: true,
+};
 
 export interface EditorOptions {
   theme?: Theme;
@@ -1051,6 +1059,39 @@ export class Editor implements EngineHost {
   }
   clearFlowMetrics(): void {
     this.flowMetrics.clear();
+  }
+
+  /** Global ephemeral flow runtime config (enable/pause/speed/reduced-motion/fps). NOT serialized. */
+  readonly flowConfigAtom: Atom<FlowRuntimeConfig> = atom<FlowRuntimeConfig>({ ...FLOW_DEFAULTS });
+  /** Current OS reduced-motion state — the headless core can't detect it, so the host feeds it in. */
+  readonly reducedMotionAtom: Atom<boolean> = atom(false);
+  /** Integrated flow time (ms), advanced by paintFlow only while animating. */
+  private flowClock = 0;
+  private flowPrevTime: number | null = null;
+
+  flowConfig(): Readonly<FlowRuntimeConfig> {
+    return this.flowConfigAtom.peek();
+  }
+  /** Merge a partial config (clamps speedScale >= 0). Ephemeral: no undo entry. */
+  setFlowConfig(patch: Partial<FlowRuntimeConfig>): void {
+    const next: FlowRuntimeConfig = { ...this.flowConfigAtom.peek(), ...patch };
+    if (patch.speedScale != null) next.speedScale = Math.max(0, patch.speedScale);
+    this.flowConfigAtom.set(next);
+  }
+  pauseFlow(): void { this.setFlowConfig({ paused: true }); }
+  resumeFlow(): void { this.setFlowConfig({ paused: false }); }
+  setFlowEnabled(enabled: boolean): void { this.setFlowConfig({ enabled }); }
+  setFlowSpeedScale(speedScale: number): void { this.setFlowConfig({ speedScale }); }
+  /** Host feeds the OS prefers-reduced-motion state; headless default is false. */
+  setReducedMotion(active: boolean): void { this.reducedMotionAtom.set(active); }
+
+  /** True if flow should be actively animating right now — the rAF gate. Respects enabled/paused/
+   *  reduced-motion. (`hasFlow()` stays doc-truth: "any edge has a flow spec".) */
+  isFlowAnimating(): boolean {
+    const c = this.flowConfigAtom.peek();
+    if (!c.enabled || c.paused) return false;
+    if (c.respectReducedMotion && this.reducedMotionAtom.peek()) return false;
+    return this.hasFlow();
   }
 
   /** Draw the animated flow markers for every visible flowing edge. `time` is a ms clock (the host
