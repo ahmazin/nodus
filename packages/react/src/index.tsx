@@ -62,10 +62,10 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
       if (editor.isFlowAnimating()) armFlow(); // keep ticking while flowing (throttled to maxFps)
     };
     const armFlow = (): void => {
+      clearTimeout(flowTimer);
       const cap = editor.flowConfig().maxFps;
       if (!cap || cap <= 0) { schedule(); return; }
       const wait = Math.max(0, 1000 / cap - (performance.now() - lastFlowPaint));
-      clearTimeout(flowTimer);
       flowTimer = setTimeout(schedule, wait) as unknown as number;
     };
     const schedule = (): void => {

@@ -1077,7 +1077,7 @@ export class Editor implements EngineHost {
   /** Merge a partial config (clamps speedScale >= 0). Ephemeral: no undo entry. */
   setFlowConfig(patch: Partial<FlowRuntimeConfig>): void {
     const next: FlowRuntimeConfig = { ...this.flowConfigAtom.peek(), ...patch };
-    if (patch.speedScale != null) next.speedScale = Math.max(0, patch.speedScale);
+    next.speedScale = Number.isFinite(next.speedScale) ? Math.max(0, next.speedScale) : 1;
     this.flowConfigAtom.set(next);
   }
   pauseFlow(): void { this.setFlowConfig({ paused: true }); }
@@ -1124,7 +1124,7 @@ export class Editor implements EngineHost {
   }
 
   /** Convenience: paint the full frame (static + flow + overlays + optional interactive) onto one ctx.
-   *  Pass `time` (ms) to animate flow; the host keeps calling frames while `hasFlow()` is true. */
+   *  Pass `time` (ms) to animate flow; the host keeps calling frames while `isFlowAnimating()` is true. */
   render(ctx: Ctx2D, cssW: number, cssH: number, dpr = 1, interactive = false, time = 0): void {
     this.setViewport(cssW, cssH);
     this.paintStatic(ctx, cssW, cssH, dpr);

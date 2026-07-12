@@ -30,6 +30,16 @@ describe('flow runtime config', () => {
     expect(ed.flowConfig().maxFps).toBe(30);
   });
 
+  it('setFlowConfig keeps speedScale a finite number >= 0', () => {
+    const { ed } = build();
+    ed.setFlowConfig({ speedScale: -5 });
+    expect(ed.flowConfig().speedScale).toBe(0);
+    ed.setFlowConfig({ speedScale: undefined });               // explicit undefined must not poison it
+    expect(Number.isFinite(ed.flowConfig().speedScale)).toBe(true);
+    ed.setFlowConfig({ speedScale: Number.NaN });
+    expect(Number.isFinite(ed.flowConfig().speedScale)).toBe(true);
+  });
+
   it('sugar methods delegate to setFlowConfig', () => {
     const { ed } = build();
     ed.pauseFlow(); expect(ed.flowConfig().paused).toBe(true);
@@ -160,6 +170,7 @@ describe('flow config affects paintFlow rendering', () => {
     const ref = mockCtx(); ed2.paintFlow(ref, 1, 64);
     // Identical: both advanced the clock by exactly 64ms. Fails if the clamp were
     // removed (unclamped A would reach flowClock=10000 ≠ 64) or miscalculated.
+    expect(huge.arcs.length).toBeGreaterThan(0);
     expect(huge.arcs).toEqual(ref.arcs);
   });
 });
