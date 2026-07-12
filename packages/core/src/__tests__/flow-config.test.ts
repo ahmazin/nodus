@@ -138,14 +138,18 @@ describe('flow config affects paintFlow rendering', () => {
     expect(c.arcs).not.toEqual(a.arcs); // animates again (override)
   });
 
-  it('clamps a large dt gap so it does not leap', () => {
+  it('clamps a large dt gap to maxDt (64ms) so the clock does not leap', () => {
+    // Editor A: prime at t=0, then a 10s gap. The adaptive clamp caps this frame's
+    // advance at maxDt=64ms, so flowClock lands at exactly 64.
     const { ed } = build();
     ed.paintFlow(mockCtx(), 1, 0);
-    const small = mockCtx(); ed.paintFlow(small, 1, 40); // 40ms
+    const huge = mockCtx(); ed.paintFlow(huge, 1, 10000);
+    // Editor B: reference driven to exactly flowClock=64 (a clean 64ms frame).
     const { ed: ed2 } = build();
     ed2.paintFlow(mockCtx(), 1, 0);
-    const huge = mockCtx(); ed2.paintFlow(huge, 1, 10000); // 10s, must clamp to 64ms
-    // clamped advance is small; a 10s unclamped advance would be far larger
-    expect(Math.abs(huge.arcs[0]!.x)).toBeLessThan(Math.abs(small.arcs[0]!.x) * 3);
+    const ref = mockCtx(); ed2.paintFlow(ref, 1, 64);
+    // Identical: both advanced the clock by exactly 64ms. Fails if the clamp were
+    // removed (unclamped A would reach flowClock=10000 ≠ 64) or miscalculated.
+    expect(huge.arcs).toEqual(ref.arcs);
   });
 });
