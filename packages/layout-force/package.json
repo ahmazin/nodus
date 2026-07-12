@@ -1,0 +1,19 @@
+{
+  "name": "@nodus/layout-force",
+  "version": "0.1.0",
+  "description": "Force-directed layout adapter for Nodus (d3-force with rectangular collision).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "sideEffects": false,
+  "dependencies": { "@nodus/core": "workspace:*", "d3-force": "^3.0.0" },
+  "devDependencies": { "@types/d3-force": "^3.0.10" },
+  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
+  }
+}

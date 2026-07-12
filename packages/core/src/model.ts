@@ -1,0 +1,190 @@
+/**
+ * The serializable domain model — flat, tagged-union POJO records that are the single source
+ * of truth. Grouping and connectivity are expressed by id-reference, never by nesting.
+ */
+
+import type { StateTokens } from './theme/index.js';
+
+/** A branded, type-tagged identifier, e.g. `"node:abc123"`. */
+export type Id<T extends string = string> = `${T}:${string}`;
+
+export interface Vec2 {
+  x: number;
+  y: number;
+}
+
+/** An axis-aligned box in world space. */
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** A 2D affine matrix `[a, b, c, d, e, f]` (column-major like the Canvas2D API). */
+export type Mat2D = readonly [a: number, b: number, c: number, d: number, e: number, f: number];
+
+/** Pan (`x`, `y` = world point at the viewport's top-left) + zoom (`z`). */
+export interface Camera {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Visual status of a record. `state` is an open union so presets can add their own; the four
+ * built-in states come from the seed spec. `overlay` and `focused` compose on top of `state`.
+ */
+export type NodeState = 'accent' | 'solid' | 'ghost' | 'locked' | (string & {});
+
+export interface VisualState {
+  state: NodeState;
+  overlay?: string;
+  focused?: boolean;
+}
+
+/** A color stop for a data-driven flow scale, at a metric value in the scale's domain units. */
+export interface FlowColorStop {
+  at: number;
+  color: string;
+}
+
+/**
+ * Maps a scalar metric (throughput, health, utilization, latency…) to flow visuals, so an edge's
+ * animation reflects live data. `domain` is the metric's [min, max]; each visual range is interpolated
+ * across it. `colors` are stepped threshold bands by default (green/amber/red); set `gradient` to blend.
+ */
+export interface FlowScale {
+  domain: [number, number];
+  /** Packet speed (world u/s) across the domain — e.g. healthy links flow faster. */
+  speed?: [number, number];
+  /** Packet count across the domain. */
+  count?: [number, number];
+  /** Dot size across the domain. */
+  size?: [number, number];
+  /** Color stops in domain units (stepped bands unless `gradient`). */
+  colors?: FlowColorStop[];
+  gradient?: boolean;
+}
+
+/**
+ * Animated flow along an edge — moving "packets" (dots) or marching dashes, to visualize data/traffic
+ * direction. Rendered on a gated animation pass so it never dirties the static layer (idle = 0 paints).
+ * For DATA-DRIVEN flow, set `scale` and feed live values via `editor.setFlowMetric` (ephemeral), or a
+ * static `data` value; the effective speed/count/size/color are then derived from the metric each frame.
+ */
+export interface FlowSpec {
+  /** World units per second the markers travel (default 70). */
+  speed?: number;
+  /** Marker color; defaults to the edge's resolved stroke token. */
+  color?: string;
+  /** 'dots' = discrete packets (default); 'dash' = a marching-ants dashed overlay. */
+  style?: 'dots' | 'dash';
+  /** Dot radius / dash width in world units (default 3). */
+  size?: number;
+  /** Number of packets spaced along the edge (default derived from its length). */
+  count?: number;
+  /** Flow target→source instead of the default source→target. */
+  reverse?: boolean;
+  /** Data-driven mapping from a metric to the visuals above. */
+  scale?: FlowScale;
+  /** Static metric value used when no live metric is set for the edge. */
+  data?: number;
+}
+
+export interface BaseRecord<TN extends string = string> {
+  id: Id<TN>;
+  typeName: TN;
+  /** Per-record mutation counter — drives `diff()` and render caches only. */
+  version: number;
+  /** Per-element style overrides, merged last (highest priority) in `resolveTokens`. */
+  style?: Partial<StateTokens>;
+}
+
+export interface NodeRecord extends BaseRecord<'node'> {
+  /** Registry key selecting the `NodeUtil` (e.g. `"rect"`, `"infra.db"`). */
+  type: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation?: number;
+  /** Fractional z-index string for stable ordering. */
+  z: string;
+  /** Group/frame parent, by id-reference. */
+  parentId?: Id;
+  visual: VisualState;
+  label?: string;
+  /** Type-specific data, validated by the `NodeUtil`'s schema. */
+  props: Record<string, unknown>;
+  /** Host scratch space; the core never interprets this. */
+  meta?: Record<string, unknown>;
+}
+
+/**
+ * An edge endpoint:
+ *  - `node`    — bound to a fixed port/anchor on a node,
+ *  - `outline` — bound to a node but attaching at the nearest point on its outline (slides as it moves),
+ *  - `point`   — pinned to a free world point (a floating/unbound endpoint).
+ */
+export type Endpoint =
+  | { kind: 'node'; nodeId: Id<'node'>; portId?: string; anchor?: Vec2 }
+  | { kind: 'outline'; nodeId: Id<'node'> }
+  | { kind: 'point'; x: number; y: number };
+
+export interface EdgeRecord extends BaseRecord<'edge'> {
+  type: string;
+  from: Endpoint;
+  to: Endpoint;
+  visual: VisualState;
+  label?: string;
+  /** Optional animated flow (packets/dashes) traveling along the edge. */
+  flow?: FlowSpec;
+  /** Route points are *derived* from endpoints, never stored here. */
+  props: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+}
+
+export interface PageRecord extends BaseRecord<'page'> {
+  name: string;
+  index: string;
+}
+
+export type NodusRecord = NodeRecord | EdgeRecord | PageRecord;
+
+// ---- change channel ----
+
+/** The only mutation vocabulary the store accepts. */
+export type Change =
+  | { op: 'add'; record: NodusRecord }
+  | { op: 'update'; id: Id; patch: Record<string, unknown> }
+  | { op: 'remove'; id: Id };
+
+/** When a change should be recorded into undo history. */
+export type CapturePolicy = 'immediately' | 'later' | 'never';
+
+export type ChangeSource = 'user' | 'remote' | 'program';
+
+export interface ApplyOptions {
+  capture?: CapturePolicy;
+  source?: ChangeSource;
+}
+
+// ---- id helpers ----
+
+let idCounter = 0;
+/** Generate a stable, collision-resistant id for a record type. Not time/random dependent. */
+export function makeId<T extends string>(typeName: T, seed?: string): Id<T> {
+  const suffix = seed ?? `${(idCounter++).toString(36)}x${(idCounter * 2654435761 % 0xffffff).toString(36)}`;
+  return `${typeName}:${suffix}` as Id<T>;
+}
+
+export function isNode(r: NodusRecord): r is NodeRecord {
+  return r.typeName === 'node';
+}
+export function isEdge(r: NodusRecord): r is EdgeRecord {
+  return r.typeName === 'edge';
+}
+export function isPage(r: NodusRecord): r is PageRecord {
+  return r.typeName === 'page';
+}

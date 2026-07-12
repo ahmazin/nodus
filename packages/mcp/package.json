@@ -1,0 +1,28 @@
+{
+  "name": "@nodus/mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server around a headless Nodus Editor — lets an agent build, lay out, and export diagrams (incl. Mermaid import). Dependency-free MCP over stdio.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": { "nodus-mcp": "./dist/bin.js" },
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "dependencies": {
+    "@nodus/core": "workspace:*",
+    "@nodus/preset-diagrams": "workspace:*",
+    "@nodus/preset-infra": "workspace:*",
+    "@nodus/preset-draw": "workspace:*",
+    "@nodus/from-mermaid": "workspace:*",
+    "@nodus/layout-dagre": "workspace:*",
+    "@nodus/layout-elk": "workspace:*",
+    "@napi-rs/canvas": "^0.1.60"
+  },
+  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "bin": { "nodus-mcp": "./dist/bin.js" },
+    "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "nodus-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build-all.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:render": "tsx scripts/render-demo.ts",
+    "verify:all": "pnpm typecheck && pnpm test && pnpm verify:render",
+    "dev": "pnpm --filter nodus-example-browser dev",
+    "gallery": "tsx scripts/gallery.ts",
+    "artifact": "node scripts/build-artifact.mjs",
+    "serve": "node scripts/serve-playground.mjs",
+    "demos": "tsx scripts/demos.ts",
+    "leverage": "tsx scripts/leverage.ts",
+    "serve:docs": "node scripts/doc-server.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^0.1.60",
+    "@types/node": "^22.10.0",
+    "playwright-core": "1.61.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

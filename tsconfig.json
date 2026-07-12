@@ -1,0 +1,73 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@nodus/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@nodus/react": [
+        "packages/react/src/index.ts"
+      ],
+      "@nodus/preset-infra": [
+        "packages/preset-infra/src/index.ts"
+      ],
+      "@nodus/layout-dagre": [
+        "packages/layout-dagre/src/index.ts"
+      ],
+      "@nodus/layout-tree": [
+        "packages/layout-tree/src/index.ts"
+      ],
+      "@nodus/layout-force": [
+        "packages/layout-force/src/index.ts"
+      ],
+      "@nodus/layout-elk": [
+        "packages/layout-elk/src/index.ts"
+      ],
+      "@nodus/plugin-freehand": [
+        "packages/plugin-freehand/src/index.ts"
+      ],
+      "@nodus/preset-diagrams": [
+        "packages/preset-diagrams/src/index.ts"
+      ],
+      "@nodus/text-to-diagram": [
+        "packages/text-to-diagram/src/index.ts"
+      ],
+      "@nodus/import-infra": [
+        "packages/import-infra/src/index.ts"
+      ],
+      "@nodus/persistence": [
+        "packages/persistence/src/index.ts"
+      ],
+      "@nodus/preset-draw": [
+        "packages/preset-draw/src/index.ts"
+      ],
+      "@nodus/from-mermaid": [
+        "packages/from-mermaid/src/index.ts"
+      ],
+      "@nodus/mcp": [
+        "packages/mcp/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "examples"
+  ]
+}

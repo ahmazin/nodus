@@ -1,0 +1,13 @@
+{
+  "name": "@nodus/preset-diagrams",
+  "version": "0.1.0",
+  "description": "General diagram presets for Nodus: flowchart, state-machine, ERD, and org-chart node/edge types plus builder helpers.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "sideEffects": false,
+  "dependencies": { "@nodus/core": "workspace:*" },
+  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "publishConfig": { "main": "./dist/index.js", "module": "./dist/index.js", "types": "./dist/index.d.ts", "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } } }
+}

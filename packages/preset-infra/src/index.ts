@@ -1,0 +1,27 @@
+/**
+ * @nodus/preset-infra — the infra-architecture preset: six semantic node types, the dark theme,
+ * the connector edge, mode adapters, and the `InfraCanvas` facade. Built entirely on `@nodus/core`'s
+ * public API.
+ */
+
+export { darkInfraTheme, ACCENTS, INFRA_TYPES, infraTypeKey, type InfraKind } from './theme.js';
+export { infraNodeUtils } from './nodes.js';
+export { infraConnectorUtil } from './edge.js';
+export { installInfraPreset } from './install.js';
+export {
+  freeformMode,
+  revealMode,
+  stagesMode,
+  type RevealController,
+  type StagesController,
+} from './adapters.js';
+export {
+  InfraCanvas,
+  modelToRecords,
+  type InfraModel,
+  type InfraNodeSpec,
+  type InfraEdgeSpec,
+  type InfraMode,
+  type InfraCanvasOptions,
+  type InfraCanvasHandle,
+} from './facade.js';

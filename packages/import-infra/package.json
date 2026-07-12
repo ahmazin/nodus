@@ -1,0 +1,12 @@
+{
+  "name": "@nodus/import-infra",
+  "version": "0.1.0",
+  "description": "Import live infrastructure into a Nodus diagram: Terraform state/plan JSON and Kubernetes manifests -> infra records.",
+  "type": "module",
+  "main": "./src/index.ts", "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "sideEffects": false,
+  "dependencies": { "@nodus/core": "workspace:*", "@nodus/preset-infra": "workspace:*" },
+  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "publishConfig": { "main": "./dist/index.js", "module": "./dist/index.js", "types": "./dist/index.d.ts", "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } } }
+}
