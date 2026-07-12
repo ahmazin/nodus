@@ -1156,13 +1156,11 @@ export class Editor implements EngineHost {
     for (const item of this.sceneIndex.paintOrder()) {
       paintItem(ctx, item, this.nodes, this.edges, theme);
     }
-    // optional flow snapshot at `time` (data-driven colors resolved from the live metrics)
+    // optional flow snapshot at `time` (stateless: honors enabled + speedScale; ignores pause/reduced-motion)
     if (opts.flow) {
-      const time = opts.time ?? 0;
-      for (const item of this.sceneIndex.paintOrder()) {
-        if (item.kind !== 'edge') continue;
-        const flow = (item.record as EdgeRecord).flow;
-        if (flow) paintFlowMarkers(ctx, item, theme, time, resolveFlow(flow, this.flowMetrics.get(item.id)));
+      const c = this.flowConfigAtom.peek();
+      if (c.enabled) {
+        this.drawFlowEdges(ctx, this.sceneIndex.paintOrder(), theme, (opts.time ?? 0) * c.speedScale);
       }
     }
   }

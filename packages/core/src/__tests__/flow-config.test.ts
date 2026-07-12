@@ -63,16 +63,26 @@ describe('flow runtime config', () => {
   });
 });
 
-/** A recording Ctx2D capturing packet-dot arc() calls (mirrors flow.test.ts). */
+/** A recording Ctx2D capturing packet-dot arc() calls (mirrors flow.test.ts). Implements the full
+ *  Ctx2D surface as no-ops (paintRegion also paints the static scene, which needs more of the
+ *  surface than paintFlow's marker-only path does) so it can stand in for a real canvas context. */
 function mockCtx(): Ctx2D & { arcs: { x: number; y: number }[] } {
   const arcs: { x: number; y: number }[] = [];
   const noop = (): void => {};
   return {
     arcs,
-    save: noop, restore: noop, setTransform: noop, beginPath: noop, fill: noop, stroke: noop,
-    moveTo: noop, lineTo: noop, setLineDash: noop, closePath: noop,
+    save: noop, restore: noop, scale: noop, translate: noop, rotate: noop,
+    setTransform: noop, transform: noop,
+    clearRect: noop, fillRect: noop, strokeRect: noop,
+    beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     arc: (x: number, y: number) => arcs.push({ x, y }),
-    fillStyle: '', strokeStyle: '', lineWidth: 0, lineDashOffset: 0, shadowColor: '', shadowBlur: 0,
+    arcTo: noop, ellipse: noop, quadraticCurveTo: noop, bezierCurveTo: noop, rect: noop,
+    fill: noop, stroke: noop, clip: noop,
+    fillText: noop, strokeText: noop, measureText: () => ({ width: 0 }),
+    setLineDash: noop,
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '', lineDashOffset: 0,
+    font: '', textAlign: '', textBaseline: '', globalAlpha: 1,
+    shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
   } as unknown as Ctx2D & { arcs: { x: number; y: number }[] };
 }
 
@@ -151,5 +161,40 @@ describe('flow config affects paintFlow rendering', () => {
     // Identical: both advanced the clock by exactly 64ms. Fails if the clamp were
     // removed (unclamped A would reach flowClock=10000 ≠ 64) or miscalculated.
     expect(huge.arcs).toEqual(ref.arcs);
+  });
+});
+
+describe('flow config affects the snapshot path (paintRegion)', () => {
+  const region = { x: -50, y: -50, w: 600, h: 200 };
+
+  it('enabled:false suppresses flow in snapshots', () => {
+    const { ed } = build();
+    ed.setFlowEnabled(false);
+    const c = mockCtx();
+    ed.paintRegion(c, region, 1, { flow: true, time: 100 });
+    expect(c.arcs).toHaveLength(0);
+  });
+
+  it('draws flow when enabled, and speedScale shifts the static phase', () => {
+    const { ed } = build();
+    const c1 = mockCtx();
+    ed.paintRegion(c1, region, 1, { flow: true, time: 100 });
+    expect(c1.arcs.length).toBeGreaterThan(0);
+
+    ed.setFlowSpeedScale(2);
+    const c2 = mockCtx();
+    ed.paintRegion(c2, region, 1, { flow: true, time: 100 });
+    // effective time doubles => different packet positions
+    expect(c2.arcs).not.toEqual(c1.arcs);
+  });
+
+  it('snapshot does not disturb the live flow clock', () => {
+    const { ed } = build();
+    ed.paintFlow(mockCtx(), 1, 0);
+    const live1 = mockCtx(); ed.paintFlow(live1, 1, 40);
+    ed.paintRegion(mockCtx(), region, 1, { flow: true, time: 999999 }); // stateless
+    const live2 = mockCtx(); ed.paintFlow(live2, 1, 80);
+    const live3ref = (() => { const { ed: e2 } = build(); e2.paintFlow(mockCtx(),1,0); e2.paintFlow(mockCtx(),1,40); const m = mockCtx(); e2.paintFlow(m,1,80); return m; })();
+    expect(live2.arcs).toEqual(live3ref.arcs); // live clock advanced purely by paintFlow calls
   });
 });
