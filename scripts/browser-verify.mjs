@@ -141,7 +141,130 @@ async function main() {
   assert(posAfter.x !== posBefore.x || posAfter.y !== posBefore.y, 'auto-layout moved nodes');
   await page.screenshot({ path: join(OUT, 'browser-2-edited.png') });
 
-  console.log('7) console error check ...');
+  console.log('7) flow authoring (panel + scale + metric) ...');
+  // give the tall Properties+Flow panel room so every control is on-screen for interaction
+  await page.setViewportSize({ width: 1280, height: 1200 });
+  const edgeId = await page.evaluate(() => {
+    const ed = window.__editor;
+    const e = ed.store.edges()[0];
+    ed.setFlow([e.id], null); // ensure a clean starting state
+    ed.select([e.id]);
+    return e.id;
+  });
+  await page.waitForSelector('[data-testid="flow-animate"]', { timeout: 5000 });
+
+  // Animate on → edge gains a dots flow spec
+  await page.getByTestId('flow-animate').check();
+  let flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(!!flow && flow.style === 'dots', 'Animate on adds a dots flow spec');
+
+  // the preview strip animates (a keyframe animation is active) under default motion
+  const animName = await page.evaluate(() => {
+    const el = document.querySelector('.nodus-flow-anim');
+    return el ? getComputedStyle(el).animationName : null;
+  });
+  assert(!!animName && animName !== 'none', `preview strip animates (animation-name=${animName})`);
+
+  // Style → dash
+  await page.getByTestId('flow-style').selectOption('dash');
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(flow.style === 'dash', 'Style select sets flow.style=dash');
+
+  // Reverse toggle, then undo reverts it in one step
+  await page.getByTestId('flow-reverse').check();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(flow.reverse === true, 'Reverse sets flow.reverse=true');
+  await page.evaluate(() => window.__editor.undo());
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(!flow.reverse, 'undo reverts reverse in one step');
+
+  // Advanced disclosure → data-driven → a 3-stop scale
+  await page.getByTestId('flow-advanced-toggle').click();
+  await page.waitForTimeout(250); // let the grid-rows disclosure settle
+  await page.getByTestId('flow-datadriven').check();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(!!flow.scale && Array.isArray(flow.scale.colors) && flow.scale.colors.length === 3, 'Data-driven sets a 3-stop scale');
+
+  // Gradient toggle
+  await page.getByTestId('flow-gradient').check();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(flow.scale.gradient === true, 'Gradient toggles flow.scale.gradient');
+
+  // Add a color stop
+  await page.getByTestId('flow-stop-add').click();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(flow.scale.colors.length === 4, 'Add stop appends a color stop');
+
+  // Undo granularity: a field edit (blur suppressed) + a ramp-handle drag are TWO undo entries
+  const dMin = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  await page.getByTestId('flow-domain-min').fill(String(dMin + 5)); // opens a 'later' group, keeps focus (no blur)
+  const hb = await page.getByTestId('flow-ramp-handle-1').boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + 60, hb.y + hb.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(80);
+  await page.evaluate(() => window.__editor.undo());
+  const afterU1 = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  assert(afterU1 === dMin + 5, 'undo reverts only the ramp drag, leaving the prior field edit (separate undo entries)');
+  await page.evaluate(() => window.__editor.undo());
+  const afterU2 = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  assert(afterU2 === dMin, 'a second undo reverts the field edit');
+
+  // Metric scrubber → ephemeral flowMetric reflects it (React-controlled range input)
+  await page.getByTestId('flow-metric').evaluate((el) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(el, '42');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const metric = await page.evaluate((id) => window.__editor.flowMetric(id), edgeId);
+  assert(metric === 42, `Metric scrubber drives ephemeral flowMetric (=${metric})`);
+
+  // Clear via setFlow(null)
+  await page.evaluate((id) => window.__editor.setFlow([id], null), edgeId);
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(!flow, 'setFlow(null) clears flow');
+
+  // Right-click the edge → the context-menu flow quick-toggles
+  const edgePt = await page.evaluate((id) => {
+    const ed = window.__editor;
+    ed.zoomToFit(60); // ensure the edge is in view and clear of the panels
+    const item = ed.sceneIndex.getItem(id);
+    const route = item && item.route ? item.route : null;
+    const pt = route && route.length ? route[Math.floor(route.length / 2)] : null;
+    const cam = ed.cameraAtom.peek();
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    return pt ? { x: r.left + (pt.x - cam.x) * cam.z, y: r.top + (pt.y - cam.y) * cam.z } : null;
+  }, edgeId);
+  await page.mouse.click(edgePt.x, edgePt.y, { button: 'right' });
+  await page.waitForTimeout(150);
+  const sawFlowOn = await page.getByText('Flow: on', { exact: true }).count();
+  assert(sawFlowOn === 1, 'right-click edge shows "Flow: on"');
+  await page.getByText('Flow: on', { exact: true }).click();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(!!flow, 'context-menu "Flow: on" enables flow');
+  // re-open: now the on-state items appear; toggle reverse
+  await page.mouse.click(edgePt.x, edgePt.y, { button: 'right' });
+  await page.waitForTimeout(150);
+  const sawReverse = await page.getByText('Flow: reverse', { exact: true }).count();
+  assert(sawReverse === 1, 'right-click edge (flow on) shows "Flow: reverse"');
+  await page.getByText('Flow: reverse', { exact: true }).click();
+  flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
+  assert(flow.reverse === true, 'context-menu "Flow: reverse" toggles reverse');
+  await page.evaluate((id) => { const ed = window.__editor; ed.setFlow([id], null); ed.select([id]); }, edgeId);
+
+  // prefers-reduced-motion → the preview animation is disabled (static frame)
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByTestId('flow-animate').check();
+  const reducedAnim = await page.evaluate(() => {
+    const el = document.querySelector('.nodus-flow-anim');
+    return el ? getComputedStyle(el).animationName : null;
+  });
+  assert(reducedAnim === 'none', `reduced-motion freezes the preview (animation-name=${reducedAnim})`);
+  await page.emulateMedia({ reducedMotion: null });
+  await page.screenshot({ path: join(OUT, 'browser-3-flow.png') });
+
+  console.log('8) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
 
