@@ -10,6 +10,7 @@ import { ALLOWLIST } from '../allowlist.js';
 import { awsPack } from '../generated/aws-pack.js';
 import { azurePack } from '../generated/azure-pack.js';
 import { gcpPack } from '../generated/gcp-pack.js';
+import { cloudIconCatalog } from '../catalog.js';
 
 const packs = { aws: awsPack, azure: azurePack, gcp: gcpPack } as const;
 
@@ -49,5 +50,17 @@ describe('generated pack integrity', () => {
     expect(prov.length, 'provenance count').toBe(ALLOWLIST.length);
     const provNames = new Set(prov.map((p) => p.name));
     for (const e of ALLOWLIST) expect(provNames.has(e.name), `${e.name} absent from provenance`).toBe(true);
+  });
+});
+
+describe('cloudIconCatalog', () => {
+  it('mirrors the allowlist one-to-one (name/provider/service/category)', () => {
+    expect(cloudIconCatalog.length).toBe(ALLOWLIST.length);
+    const byName = new Map(cloudIconCatalog.map((c) => [c.name, c]));
+    for (const e of ALLOWLIST) {
+      const c = byName.get(e.name);
+      expect(c, `${e.name} present in catalog`).toBeDefined();
+      expect(c).toEqual({ name: e.name, provider: e.provider, service: e.service, category: e.category });
+    }
   });
 });

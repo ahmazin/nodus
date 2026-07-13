@@ -6,6 +6,7 @@ export { installAwsIcons, awsPack } from './aws.js';
 export { installAzureIcons, azurePack } from './azure.js';
 export { installGcpIcons, gcpPack } from './gcp.js';
 export { installPack } from './install.js';
+export { cloudIconCatalog, type IconCatalogEntry } from './catalog.js';
 
 export function installCloudIcons(): void {
   installAwsIcons();
