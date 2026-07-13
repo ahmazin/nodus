@@ -52,7 +52,7 @@ const BTN: CSSProperties = {
   padding: '6px 10px', fontSize: 12, cursor: 'pointer',
 };
 
-/** A canvas preview that redraws the registered glyph when the icon or dpr changes. */
+/** A canvas preview that redraws the registered glyph when the icon name or color changes. */
 function Preview({ name, color }: { name: string; color: string }): ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -127,6 +127,11 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
+  // Invariant that makes this safe: the effect intentionally attaches window listeners once per
+  // drag session (keyed on ghost !== null), not on every ghost update. onMove/onUp read live drag
+  // state from dragRef (a ref, not a dep) and placeAtClient/placeAtCenter close over only the
+  // stable `editor` prop, so there's no stale closure. If a future edit makes a placement helper
+  // depend on `query`, `provider`, or other changing state, this disable must be revisited.
   }, [ghost !== null]); // eslint-disable-line react-hooks/exhaustive-deps -- add/remove once per drag
 
   // close on Escape or outside pointerdown (never while dragging)
@@ -146,6 +151,13 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   }, [open]);
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('');
+      setProvider('all');
+    }
+  }, [open]);
 
   const onTilePointerDown = (entry: IconCatalogEntry, e: React.PointerEvent): void => {
     e.preventDefault();

@@ -319,6 +319,44 @@ async function main() {
   );
   await page.screenshot({ path: join(OUT, 'browser-4-cloud.png') });
 
+  console.log('8b) cloud icon picker: click (no drag) places at viewport center ...');
+  // the popover auto-closes on outside pointerdown / after the previous drop; reopen it and
+  // re-search so the aws:lambda tile is present again.
+  const panelOpen = await page.locator('[data-testid="cloud-picker-panel"]').count();
+  if (!panelOpen) {
+    await page.click('[data-testid="cloud-picker-button"]');
+    await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+    await page.waitForTimeout(120);
+  }
+  const beforeClick = (await snap(page)).nodes;
+  const clickTile = await page.locator('[data-testid="cloud-tile-aws:lambda"]').boundingBox();
+  const cx = clickTile.x + clickTile.width / 2;
+  const cy = clickTile.y + clickTile.height / 2;
+  // move + down + up at the SAME point (no movement past DRAG_THRESHOLD) -> click branch (placeAtCenter)
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const afterClick = await snap(page);
+  assert(afterClick.nodes === beforeClick + 1, 'clicking (no drag) a cloud icon adds one node');
+  const clickCheck = await page.evaluate(() => {
+    const ed = window.__editor;
+    const vp = ed.worldViewport();
+    const expected = { x: vp.x + vp.w / 2, y: vp.y + vp.h / 2 };
+    const ns = ed.store.nodes();
+    const n = ns[ns.length - 1];
+    return {
+      icon: n?.props?.icon,
+      dx: n.x + n.w / 2 - expected.x,
+      dy: n.y + n.h / 2 - expected.y,
+    };
+  });
+  assert(clickCheck.icon === 'aws:lambda', 'clicked node carries the clicked icon (aws:lambda)');
+  assert(
+    Math.abs(clickCheck.dx) < 2 && Math.abs(clickCheck.dy) < 2,
+    `clicked node landed at the viewport center (placeAtCenter, not drag path) (dx=${clickCheck.dx.toFixed(1)}, dy=${clickCheck.dy.toFixed(1)})`,
+  );
+
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
