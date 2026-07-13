@@ -188,6 +188,16 @@ export class Editor implements EngineHost {
       }),
     );
 
+    // flow data sources: auto-unbind a source whose edge is gone (delete/undo), and tear down all on dispose
+    this.disposers.push(
+      this.onChange(() => {
+        for (const id of [...this.flowSources.keys()]) {
+          if (!this.store.peek(id)) this.unbindFlowSource(id);
+        }
+      }),
+      () => this.clearFlowSources(),
+    );
+
     if (opts.records && opts.records.length > 0) {
       this.store.load(opts.records);
       this.sceneIndex.rebuild(this.store.allRecords());

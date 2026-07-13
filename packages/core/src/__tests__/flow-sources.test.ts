@@ -132,3 +132,32 @@ describe('flow data sources — pull', () => {
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('flow data sources — lifecycle', () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('auto-unbinds a source when its edge is deleted (interval stops)', async () => {
+    vi.useFakeTimers();
+    const { ed, e } = build();
+    const poll = vi.fn(() => 3);
+    ed.bindFlowSource(e, { poll, intervalMs: 1000 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(poll).toHaveBeenCalledTimes(1);
+    ed.deleteRecords([e]);
+    const before = poll.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(poll.mock.calls.length).toBe(before); // no polls after the edge is gone
+  });
+
+  it('dispose() tears down all sources (intervals cleared)', async () => {
+    vi.useFakeTimers();
+    const { ed, e } = build();
+    const poll = vi.fn(() => 3);
+    ed.bindFlowSource(e, { poll, intervalMs: 1000 });
+    await vi.advanceTimersByTimeAsync(0);
+    const before = poll.mock.calls.length;
+    ed.dispose();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(poll.mock.calls.length).toBe(before);
+  });
+});
