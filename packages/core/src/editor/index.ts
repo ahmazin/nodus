@@ -1078,7 +1078,9 @@ export class Editor implements EngineHost {
   private readonly flowSources = new Map<Id, () => void>();
 
   /** Bind a declarative live feed to an edge's flow metric. Replaces any existing binding for `id`.
-   *  Returns a `Dispose` that unbinds. EPHEMERAL — not serialized, not undoable. */
+   *  Returns a `Dispose` that unbinds. EPHEMERAL — not serialized, not undoable. Binding is permissive
+   *  (any id, even one with no live edge record, is accepted), but a source bound to an id with no live
+   *  edge record is auto-unbound on the next store change — so bind AFTER the edge exists. */
   bindFlowSource(id: Id, source: FlowSource): Dispose {
     this.unbindFlowSource(id);
     let stopped = false;

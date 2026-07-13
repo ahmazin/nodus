@@ -47,6 +47,18 @@ describe('flow data sources — push', () => {
     ed.bindFlowSource(e, { subscribe: () => () => {} });
     expect(unsub1).toHaveBeenCalledTimes(1);
   });
+
+  it('a stale Dispose from a superseded binding does not tear down the new source', () => {
+    const { ed, e } = build();
+    const disposeA = ed.bindFlowSource(e, { subscribe: () => () => {} });
+    let emitB!: (v: number) => void;
+    const unsubB = vi.fn();
+    ed.bindFlowSource(e, { subscribe: (fn) => { emitB = fn; return unsubB; } }); // rebind to B
+    disposeA();                                  // stale handle -> must be a no-op
+    expect(unsubB).not.toHaveBeenCalled();       // B was NOT torn down
+    emitB(55);
+    expect(ed.flowMetric(e)).toBe(55);           // B is still live
+  });
 });
 
 describe('flow data sources — pull', () => {
