@@ -2,6 +2,7 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Editor, Id, NodeRecord, StateTokens } from '@nodus/core';
 import { useValue } from './use-value.js';
+import { FlowControls } from './flow-controls.js';
 
 const NODE_STATES = ['accent', 'solid', 'ghost', 'locked'];
 
@@ -88,6 +89,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
       <button style={btn} onClick={() => { editor.clearStyle(ids, { capture: 'later' }); commit(); }}>
         Clear style
       </button>
+      <FlowControls editor={editor} ids={ids} />
     </div>
   );
 }
