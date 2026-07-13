@@ -195,6 +195,22 @@ async function main() {
   flow = await page.evaluate((id) => window.__editor.store.peek(id).flow, edgeId);
   assert(flow.scale.colors.length === 4, 'Add stop appends a color stop');
 
+  // Undo granularity: a field edit (blur suppressed) + a ramp-handle drag are TWO undo entries
+  const dMin = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  await page.getByTestId('flow-domain-min').fill(String(dMin + 5)); // opens a 'later' group, keeps focus (no blur)
+  const hb = await page.getByTestId('flow-ramp-handle-1').boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + 60, hb.y + hb.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(80);
+  await page.evaluate(() => window.__editor.undo());
+  const afterU1 = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  assert(afterU1 === dMin + 5, 'undo reverts only the ramp drag, leaving the prior field edit (separate undo entries)');
+  await page.evaluate(() => window.__editor.undo());
+  const afterU2 = await page.evaluate((id) => window.__editor.store.peek(id).flow.scale.domain[0], edgeId);
+  assert(afterU2 === dMin, 'a second undo reverts the field edit');
+
   // Metric scrubber → ephemeral flowMetric reflects it (React-controlled range input)
   await page.getByTestId('flow-metric').evaluate((el) => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;

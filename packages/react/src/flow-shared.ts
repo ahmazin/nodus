@@ -3,21 +3,34 @@
 import type { CSSProperties } from 'react';
 import type { FlowColorStop, FlowScale, FlowSpec } from '@nodus/core';
 
-/** Pure: build a CSS `background` string for the ramp. gradient=true → one stop per color;
- *  gradient=false → stepped bands (doubled boundaries) matching colorForValue's floor rule. */
+export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
+/** A 6-digit hex color — the only form core's parseHex can interpolate (else it steps). */
+export const isHex6 = (c: string): boolean => /^#[0-9a-f]{6}$/i.test(c);
+
+/** Pure: build a CSS `background` string for the ramp, faithfully mirroring core's colorForValue.
+ *  gradient=false → stepped bands (doubled boundaries, floor rule). gradient=true → smooth blend,
+ *  but a segment whose endpoints aren't BOTH 6-digit hex is hard-stepped (core's parseHex can't
+ *  interpolate those, so it renders that band as a step — the ramp must not lie about it). */
 export function buildRampCss(stops: FlowColorStop[], domain: [number, number], gradient = false): string {
   const [min, max] = domain;
   const span = max - min;
   const pct = (at: number): number => {
     const p = span === 0 ? 0 : (at - min) / span;
-    const c = p < 0 ? 0 : p > 1 ? 1 : p;
-    return +(c * 100).toFixed(2);
+    return +(clamp(p, 0, 1) * 100).toFixed(2);
   };
   const sorted = [...stops].sort((a, b) => a.at - b.at);
   if (sorted.length === 0) return 'transparent';
   if (sorted.length === 1) return `linear-gradient(90deg, ${sorted[0]!.color} 0%, ${sorted[0]!.color} 100%)`;
   if (gradient) {
-    return `linear-gradient(90deg, ${sorted.map((s) => `${s.color} ${pct(s.at)}%`).join(', ')})`;
+    // CSS clamps below-first/above-last, matching colorForValue's end clamp.
+    const parts: string[] = [`${sorted[0]!.color} ${pct(sorted[0]!.at)}%`];
+    for (let i = 1; i < sorted.length; i++) {
+      const p = pct(sorted[i]!.at);
+      const hard = !(isHex6(sorted[i - 1]!.color) && isHex6(sorted[i]!.color));
+      if (hard) parts.push(`${sorted[i - 1]!.color} ${p}%`); // hold prev color to the boundary → hard step
+      parts.push(`${sorted[i]!.color} ${p}%`);
+    }
+    return `linear-gradient(90deg, ${parts.join(', ')})`;
   }
   const parts: string[] = [`${sorted[0]!.color} 0%`];
   for (let i = 1; i < sorted.length; i++) {
@@ -41,10 +54,9 @@ export const DEFAULT_SCALE: FlowScale = {
 };
 
 // ---- palette (inherit the panel; add ONE flow accent) ----
-export const BG = '#0d1310';
-export const FIELD_BG = '#12161c';
+const FIELD_BG = '#12161c'; // panel field bg — used only by the style consts below
+const TEXT = '#cdd5d0';
 export const BORDER = '#28322c';
-export const TEXT = '#cdd5d0';
 export const ROW_LABEL = '#8b958f';
 export const MICRO = '#556058';
 export const FLOW = '#2dd4bf'; // teal — "live signal"

@@ -3,11 +3,8 @@
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus/core';
 import { useValue } from './use-value.js';
-import { BORDER, buildRampCss, DEFAULT_FLOW, FLOW, flowMicro, flowRowCss, FLOW_STYLE, flowSelect, ghostBtn, MICRO, ROW_LABEL, swatch } from './flow-shared.js';
+import { BORDER, buildRampCss, clamp, DEFAULT_FLOW, FLOW, flowMicro, flowRowCss, FLOW_STYLE, flowSelect, ghostBtn, isHex6, MICRO, ROW_LABEL, swatch } from './flow-shared.js';
 import { FlowScaleEditor } from './flow-scale-editor.js';
-
-const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
-const isHex6 = (c: string): boolean => /^#[0-9a-f]{6}$/i.test(c);
 
 export interface FlowControlsProps {
   editor: Editor;
@@ -138,15 +135,23 @@ export function FlowControls({ editor, ids }: FlowControlsProps): ReactElement |
   );
 }
 
-// resolved edge stroke — the fallback color the renderer uses when flow.color is unset.
-export function resolvedStroke(editor: Editor, edgeId: Id): string {
+// resolved edge stroke/width — the fallbacks the renderer uses when flow.color/size are unset.
+function resolvedStroke(editor: Editor, edgeId: Id): string {
   const rec = editor.store.peek(edgeId) as EdgeRecord | undefined;
   if (!rec) return '#7a8a80';
   try {
-    const t = resolveTokens(editor.themeAtom.peek(), rec.visual, rec.type, rec.style);
-    return t.stroke ?? '#7a8a80';
+    return resolveTokens(editor.themeAtom.peek(), rec.visual, rec.type, rec.style).stroke ?? '#7a8a80';
   } catch {
     return '#7a8a80';
+  }
+}
+function resolvedStrokeWidth(editor: Editor, edgeId: Id): number {
+  const rec = editor.store.peek(edgeId) as EdgeRecord | undefined;
+  if (!rec) return 1.5;
+  try {
+    return resolveTokens(editor.themeAtom.peek(), rec.visual, rec.type, rec.style).strokeWidth ?? 1.5;
+  } catch {
+    return 1.5;
   }
 }
 
@@ -159,12 +164,13 @@ function FlowPreview({ editor, edgeId, flow }: { editor: Editor; edgeId: Id; flo
   if (!flow) {
     return <div style={{ ...track, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MICRO, fontSize: 10.5 }}>flow off</div>;
   }
-  const color = flow.color && isHex6(flow.color) ? flow.color : resolvedStroke(editor, edgeId);
+  // mirror paintFlowMarkers: any set color is honored (not only 6-hex); else the resolved stroke.
+  const color = flow.color ?? resolvedStroke(editor, edgeId);
   const speed = clamp(flow.speed ?? 70, 1, 400);
   const reverse = !!flow.reverse;
 
   if (flow.style === 'dash') {
-    const lineW = clamp(flow.size ?? 1.5, 1, 8);
+    const lineW = clamp(flow.size ?? resolvedStrokeWidth(editor, edgeId), 1, 8);
     const dashLen = clamp((flow.size ?? 6) * 2, 4, 40);
     const period = dashLen * 2;
     const dur = clamp(period / speed, 0.15, 4);

@@ -37,6 +37,15 @@ describe('buildRampCss', () => {
   it('guards a zero-width domain', () => {
     expect(buildRampCss([{ at: 5, color: '#111111' }, { at: 5, color: '#222222' }], [5, 5], true)).toBe('linear-gradient(90deg, #111111 0%, #222222 0%)');
   });
+
+  it('hard-steps a gradient segment whose endpoints are not both 6-digit hex (mirrors colorForValue)', () => {
+    // #0f0 (3-digit) can't be interpolated by core's parseHex → that band renders as a hard step.
+    expect(buildRampCss([{ at: 0, color: '#0f0' }, { at: 100, color: '#f00' }], [0, 100], true))
+      .toBe('linear-gradient(90deg, #0f0 0%, #0f0 100%, #f00 100%)');
+    // mixed: the 6-hex segment blends, the segment ending in a named color hard-steps.
+    expect(buildRampCss([{ at: 0, color: '#00ff00' }, { at: 50, color: '#ffff00' }, { at: 100, color: 'red' }], [0, 100], true))
+      .toBe('linear-gradient(90deg, #00ff00 0%, #ffff00 50%, #ffff00 100%, red 100%)');
+  });
 });
 
 describe('flow defaults', () => {

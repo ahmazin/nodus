@@ -2,10 +2,14 @@
  *  visual ranges, Gradient, the stops list, and the live metric scrubber. */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Editor, EdgeRecord, FlowColorStop, FlowScale, FlowSpec, Id } from '@nodus/core';
-import { BORDER, buildRampCss, DEFAULT_SCALE, FLOW, flowMicro, flowRowCss, ghostBtn, numField, ROW_LABEL, swatch } from './flow-shared.js';
+import { BORDER, buildRampCss, clamp, DEFAULT_SCALE, FLOW, flowMicro, flowRowCss, ghostBtn, isHex6, numField, ROW_LABEL, swatch } from './flow-shared.js';
 
-const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
-const isHex6 = (c: string): boolean => /^#[0-9a-f]{6}$/i.test(c);
+// Parse a number field, treating empty/NaN as "no change" — so clearing a field to retype it
+// doesn't write 0 (and re-stamp "0" under the caret) into the scale.
+const num = (s: string): number | null => {
+  const n = Number(s);
+  return s.trim() === '' || !Number.isFinite(n) ? null : n;
+};
 
 export interface FlowScaleEditorProps {
   editor: Editor;
@@ -62,8 +66,8 @@ export function FlowScaleEditor({ editor, edgeIds, firstEdge }: FlowScaleEditorP
           {row(
             'Domain',
             <span style={{ display: 'flex', gap: 6 }}>
-              <input data-testid="flow-domain-min" type="number" style={numField} value={domain[0]} onChange={(e) => patchScale({ domain: [Number(e.target.value), domain[1]] })} onBlur={commit} />
-              <input data-testid="flow-domain-max" type="number" style={numField} value={domain[1]} onChange={(e) => patchScale({ domain: [domain[0], Number(e.target.value)] })} onBlur={commit} />
+              <input data-testid="flow-domain-min" type="number" style={numField} value={domain[0]} onChange={(e) => { const n = num(e.target.value); if (n !== null) patchScale({ domain: [n, domain[1]] }); }} onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} onBlur={commit} />
+              <input data-testid="flow-domain-max" type="number" style={numField} value={domain[1]} onChange={(e) => { const n = num(e.target.value); if (n !== null) patchScale({ domain: [domain[0], n] }); }} onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} onBlur={commit} />
             </span>,
           )}
 
@@ -128,7 +132,9 @@ function RampStrip({ scale, onDrag, onCommit }: {
           <span
             key={i}
             data-testid={`flow-ramp-handle-${i}`}
-            onPointerDown={(e) => { e.preventDefault(); setDragIdx(i); }}
+            // seal any open 'later' group (e.g. a number field edited just before, whose blur our
+            // preventDefault suppresses) so this drag becomes its own single undo entry.
+            onPointerDown={(e) => { e.preventDefault(); onCommit(); setDragIdx(i); }}
             title={`${s.at}`}
             style={{ position: 'absolute', top: -3, left: `${pos(s.at)}%`, width: 10, height: 30, transform: 'translateX(-50%)', borderRadius: 3, border: `1.5px solid ${FLOW}`, background: isHex6(s.color) ? s.color : '#000', cursor: 'ew-resize', boxSizing: 'border-box' }}
           />
@@ -155,14 +161,17 @@ function RangeRow({ label, testid, value, fallback, onToggle, onEdit, onCommit }
       <span style={{ color: ROW_LABEL }}>{label}</span>
       <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <input data-testid={`flow-range-${testid}`} type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked ? fallback : undefined)} />
-        <input type="number" style={{ ...numField, opacity: on ? 1 : 0.4 }} value={v[0]} disabled={!on} onChange={(e) => onEdit([Number(e.target.value), v[1]])} onBlur={onCommit} />
-        <input type="number" style={{ ...numField, opacity: on ? 1 : 0.4 }} value={v[1]} disabled={!on} onChange={(e) => onEdit([v[0], Number(e.target.value)])} onBlur={onCommit} />
+        <input type="number" style={{ ...numField, opacity: on ? 1 : 0.4 }} value={v[0]} disabled={!on} onChange={(e) => { const n = num(e.target.value); if (n !== null) onEdit([n, v[1]]); }} onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); }} onBlur={onCommit} />
+        <input type="number" style={{ ...numField, opacity: on ? 1 : 0.4 }} value={v[1]} disabled={!on} onChange={(e) => { const n = num(e.target.value); if (n !== null) onEdit([v[0], n]); }} onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); }} onBlur={onCommit} />
       </span>
     </label>
   );
 }
 
-// ---- color stops list (sorted by at; add / edit at / edit color / remove) ----
+// ---- color stops list. Rows are kept in the stored (raw) order and edited by that stable index —
+//      NOT sorted for display: re-sorting on each keystroke would rebind the focused input to a
+//      different stop when an `at` edit crosses a neighbor. buildRampCss/the ramp sort internally,
+//      and RampStrip's handles use this same raw order, so the two surfaces agree on stop identity.
 function StopsList({ scale, domain, onChange, onCommit }: {
   scale: FlowScale;
   domain: [number, number];
@@ -170,7 +179,7 @@ function StopsList({ scale, domain, onChange, onCommit }: {
   onCommit: () => void;
 }): ReactElement {
   const [min, max] = domain;
-  const stops = [...(scale.colors ?? [])].sort((a, b) => a.at - b.at);
+  const stops = scale.colors ?? [];
   const editAt = (i: number, at: number): void => {
     onChange(stops.map((s, j) => (j === i ? { ...s, at: clamp(at, min, max) } : s)), 'later');
   };
@@ -188,7 +197,7 @@ function StopsList({ scale, domain, onChange, onCommit }: {
       {stops.map((s, i) => (
         <div key={i} data-testid={`flow-stop-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ color: FLOW }}>●</span>
-          <input data-testid={`flow-stop-at-${i}`} type="number" style={numField} value={s.at} onChange={(e) => editAt(i, Number(e.target.value))} onBlur={onCommit} />
+          <input data-testid={`flow-stop-at-${i}`} type="number" style={numField} value={s.at} onChange={(e) => { const n = num(e.target.value); if (n !== null) editAt(i, n); }} onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); }} onBlur={onCommit} />
           <input data-testid={`flow-stop-color-${i}`} type="color" style={swatch} value={isHex6(s.color) ? s.color : '#2dd4bf'} onChange={(e) => editColor(i, e.target.value)} onBlur={onCommit} />
           <button data-testid={`flow-stop-remove-${i}`} style={ghostBtn} title="Remove stop" onClick={() => remove(i)}>✕</button>
         </div>
