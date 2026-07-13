@@ -2,6 +2,7 @@
  *  an animated preview strip; an Advanced disclosure holds the data-driven scale editor. */
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus/core';
+import { useValue } from './use-value.js';
 import { BORDER, buildRampCss, DEFAULT_FLOW, FLOW, flowMicro, flowRowCss, FLOW_STYLE, flowSelect, ghostBtn, MICRO, ROW_LABEL, swatch } from './flow-shared.js';
 import { FlowScaleEditor } from './flow-scale-editor.js';
 
@@ -14,6 +15,19 @@ export interface FlowControlsProps {
 }
 
 export function FlowControls({ editor, ids }: FlowControlsProps): ReactElement | null {
+  // Re-render on selection change AND on flow edits to the selected edges. The parent panel's
+  // snapshot is only the selection string, so a same-selection value change (adding/editing flow)
+  // wouldn't re-render this subtree — and React would then snap our controlled inputs back to their
+  // stale values. Depend on the version + each selected edge's flow so our snapshot changes too.
+  useValue(() => {
+    editor.sceneIndex.version.get();
+    let s = '';
+    for (const id of editor.selectedAtom.get()) {
+      const r = editor.store.peek(id);
+      if (r?.typeName === 'edge') s += `${id}:${JSON.stringify((r as EdgeRecord).flow ?? 0)};`;
+    }
+    return s;
+  });
   const edgeIds = ids.filter((id) => editor.store.peek(id)?.typeName === 'edge');
   const first = edgeIds[0];
   const [advOpen, setAdvOpen] = useState(false);
