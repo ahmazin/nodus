@@ -1,6 +1,7 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
 import type { ReactElement } from 'react';
-import type { Editor, Id, RenderItem } from '@nodus/core';
+import type { Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
+import { DEFAULT_FLOW } from './flow-shared.js';
 
 export interface MenuItem {
   label: string;
@@ -28,11 +29,23 @@ export function contextMenuItems(editor: Editor, target: RenderItem | null): Men
   }
   const id = target.id as Id;
   if (target.kind === 'edge') {
+    const flow = (editor.store.peek(id) as EdgeRecord | undefined)?.flow;
+    const flowItems: MenuItem[] = [
+      { label: flow ? 'Flow: off' : 'Flow: on', run: () => editor.setFlow([id], flow ? null : DEFAULT_FLOW) },
+    ];
+    if (flow) {
+      const base: FlowSpec = flow;
+      flowItems.push(
+        { label: base.style === 'dash' ? 'Flow: dots' : 'Flow: dash', run: () => editor.setFlow([id], { ...base, style: base.style === 'dash' ? 'dots' : 'dash' }) },
+        { label: 'Flow: reverse', run: () => editor.setFlow([id], { ...base, reverse: !base.reverse }) },
+      );
+    }
     return [
       { label: 'Edit label', run: () => editor.beginEdit(id) },
       { label: 'Router → orthogonal', run: () => editor.setEdgeRouter(id, 'orthogonal') },
       { label: 'Router → straight', run: () => editor.setEdgeRouter(id, 'straight') },
       { label: 'Router → bezier', run: () => editor.setEdgeRouter(id, 'bezier') },
+      ...flowItems,
       ...styleItems(editor, [id]),
       { label: 'Delete edge', danger: true, run: () => editor.deleteRecords([id]) },
     ];
