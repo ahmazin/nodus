@@ -93,6 +93,17 @@ export interface FlowSpec {
 }
 
 /**
+ * A declarative live feed for a data-driven edge's flow metric — bound via `editor.bindFlowSource`.
+ * EPHEMERAL: never serialized or historied. Two shapes:
+ *  - pull: `poll` every `intervalMs` (engine-owned timer); overlapping in-flight polls are skipped.
+ *  - push: `subscribe(emit)` returns an unsubscribe; the source pushes values on its own cadence.
+ * A poll/subscribe error is swallowed (last metric kept, feed keeps running) and reported to `onError`.
+ */
+export type FlowSource =
+  | { poll: () => number | Promise<number>; intervalMs: number; onError?: (err: unknown) => void }
+  | { subscribe: (emit: (value: number) => void) => (() => void); onError?: (err: unknown) => void };
+
+/**
  * Global, EPHEMERAL runtime knobs for the flow animation — owned by the editor, NOT serialized and
  * NOT undoable (session/runtime state, like the camera). Per-edge `FlowSpec`/`FlowScale` are separate.
  */

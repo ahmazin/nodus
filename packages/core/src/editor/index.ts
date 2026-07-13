@@ -16,6 +16,7 @@ import {
   type EdgeRecord,
   type Endpoint,
   type FlowRuntimeConfig,
+  type FlowSource,
   type FlowSpec,
   type Id,
   type NodeRecord,
@@ -1061,6 +1062,68 @@ export class Editor implements EngineHost {
   }
   clearFlowMetrics(): void {
     this.flowMetrics.clear();
+  }
+
+  /** id -> teardown (clears the interval for a pull source, or calls unsubscribe for a push source). */
+  private readonly flowSources = new Map<Id, () => void>();
+
+  /** Bind a declarative live feed to an edge's flow metric. Replaces any existing binding for `id`.
+   *  Returns a `Dispose` that unbinds. EPHEMERAL — not serialized, not undoable. */
+  bindFlowSource(id: Id, source: FlowSource): Dispose {
+    this.unbindFlowSource(id);
+    const emit = (value: number): void => {
+      if (Number.isFinite(value)) this.setFlowMetric(id, value);
+    };
+    let teardown: () => void;
+    if ('poll' in source) {
+      let inFlight = false;
+      const tick = async (): Promise<void> => {
+        if (inFlight) return; // skip overlapping polls
+        inFlight = true;
+        try {
+          emit(await source.poll());
+        } catch (err) {
+          source.onError?.(err); // keep last metric, keep polling
+        } finally {
+          inFlight = false;
+        }
+      };
+      void tick(); // immediate first poll
+      const handle = setInterval(() => void tick(), source.intervalMs);
+      teardown = () => clearInterval(handle);
+    } else {
+      let unsub: () => void = () => {};
+      try {
+        const u = source.subscribe(emit);
+        if (typeof u === 'function') unsub = u;
+      } catch (err) {
+        source.onError?.(err);
+      }
+      teardown = () => {
+        try {
+          unsub();
+        } catch (err) {
+          source.onError?.(err);
+        }
+      };
+    }
+    this.flowSources.set(id, teardown);
+    return () => this.unbindFlowSource(id);
+  }
+
+  /** Stop and remove the source bound to `id` (idempotent). */
+  unbindFlowSource(id: Id): void {
+    const teardown = this.flowSources.get(id);
+    if (teardown) {
+      teardown();
+      this.flowSources.delete(id);
+    }
+  }
+
+  /** Unbind every source. */
+  clearFlowSources(): void {
+    for (const teardown of this.flowSources.values()) teardown();
+    this.flowSources.clear();
   }
 
   /** Global ephemeral flow runtime config (enable/pause/speed/reduced-motion/fps). NOT serialized. */
