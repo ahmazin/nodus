@@ -6,7 +6,9 @@
 
 import {
   Editor,
+  STENCIL,
   makeId,
+  measureStencil,
   type Ctx2D,
   type CreateCanvas,
   type Dispose,
@@ -89,8 +91,8 @@ export function modelToRecords(model: InfraModel, overlays?: Record<string, stri
       type,
       x: spec.x,
       y: spec.y,
-      w: spec.w ?? 132,
-      h: spec.h ?? 46,
+      w: spec.w ?? measureStencil(spec.label ?? String(spec.type)).w,
+      h: spec.h ?? STENCIL.NODE_H,
       z: (z++).toString(36).padStart(10, '0'),
       visual: {
         state: spec.state ?? 'accent',

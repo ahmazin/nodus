@@ -36,7 +36,7 @@ export interface Ctx2D {
   bezierCurveTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): void;
   rect(x: number, y: number, w: number, h: number): void;
 
-  fill(): void;
+  fill(fillRule?: 'nonzero' | 'evenodd'): void;
   stroke(): void;
   clip(): void;
 

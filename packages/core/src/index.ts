@@ -154,15 +154,19 @@ export { rectNodeUtil, lineEdgeUtil, groupNodeUtil, drawEdgeLabel } from './buil
 export { DrawApi, type FillOpts, type StrokeOpts, type LabelOpts } from './renderer/draw-api.js';
 export type { Ctx2D } from './renderer/context.js';
 export { fillBackground, drawGrid, paintItem, strokeWorldBox, fillHandle } from './renderer/paint.js';
+export { drawStencil, measureStencil, STENCIL, type StencilOpts } from './renderer/stencil.js';
+export { drawVectorIcon, OP, type VectorIcon, type VectorSubpath } from './icons/vector.js';
 
 // icons
 export {
   registerIcon,
   getIcon,
+  getIconMeta,
   drawIcon,
   iconNames,
   installDefaultIcons,
   type IconDraw,
+  type IconMeta,
 } from './icons/index.js';
 
 // serialization
