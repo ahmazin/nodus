@@ -16,6 +16,7 @@ import {
   type EdgeRecord,
   type Endpoint,
   type FlowRuntimeConfig,
+  type FlowSource,
   type FlowSpec,
   type Id,
   type NodeRecord,
@@ -185,6 +186,16 @@ export class Editor implements EngineHost {
         this.history.record(info);
         this.events.emit({ type: 'change', info });
       }),
+    );
+
+    // flow data sources: auto-unbind a source whose edge is gone (delete/undo), and tear down all on dispose
+    this.disposers.push(
+      this.onChange(() => {
+        for (const id of [...this.flowSources.keys()]) {
+          if (!this.store.peek(id)) this.unbindFlowSource(id);
+        }
+      }),
+      () => this.clearFlowSources(),
     );
 
     if (opts.records && opts.records.length > 0) {
@@ -1061,6 +1072,71 @@ export class Editor implements EngineHost {
   }
   clearFlowMetrics(): void {
     this.flowMetrics.clear();
+  }
+
+  /** id -> teardown (clears the interval for a pull source, or calls unsubscribe for a push source). */
+  private readonly flowSources = new Map<Id, () => void>();
+
+  /** Bind a declarative live feed to an edge's flow metric. Replaces any existing binding for `id`.
+   *  Returns a `Dispose` that unbinds. EPHEMERAL — not serialized, not undoable. Binding is permissive
+   *  (any id, even one with no live edge record, is accepted), but a source bound to an id with no live
+   *  edge record is auto-unbound on the next store change — so bind AFTER the edge exists. */
+  bindFlowSource(id: Id, source: FlowSource): Dispose {
+    this.unbindFlowSource(id);
+    let stopped = false;
+    const emit = (value: number): void => {
+      if (!stopped && Number.isFinite(value)) this.setFlowMetric(id, value);
+    };
+    const reportError = (err: unknown): void => {
+      if (source.onError) { try { source.onError(err); } catch { /* a bad onError must not break the feed */ } }
+    };
+    let teardown: () => void;
+    if ('poll' in source) {
+      let inFlight = false;
+      const tick = async (): Promise<void> => {
+        if (inFlight) return; // skip overlapping polls
+        inFlight = true;
+        try {
+          emit(await source.poll());
+        } catch (err) {
+          reportError(err); // keep last metric, keep polling
+        } finally {
+          inFlight = false;
+        }
+      };
+      void tick(); // immediate first poll
+      const handle = setInterval(() => void tick(), source.intervalMs);
+      teardown = () => { stopped = true; clearInterval(handle); };
+    } else {
+      let unsub: () => void = () => {};
+      try {
+        const u = source.subscribe(emit);
+        if (typeof u === 'function') unsub = u;
+      } catch (err) {
+        reportError(err);
+      }
+      teardown = () => {
+        stopped = true;
+        try { unsub(); } catch (err) { reportError(err); }
+      };
+    }
+    this.flowSources.set(id, teardown);
+    return () => { if (this.flowSources.get(id) === teardown) this.unbindFlowSource(id); };
+  }
+
+  /** Stop and remove the source bound to `id` (idempotent). */
+  unbindFlowSource(id: Id): void {
+    const teardown = this.flowSources.get(id);
+    if (teardown) {
+      teardown();
+      this.flowSources.delete(id);
+    }
+  }
+
+  /** Unbind every source. */
+  clearFlowSources(): void {
+    for (const teardown of this.flowSources.values()) teardown();
+    this.flowSources.clear();
   }
 
   /** Global ephemeral flow runtime config (enable/pause/speed/reduced-motion/fps). NOT serialized. */
