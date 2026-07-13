@@ -20,7 +20,8 @@
     "serve": "node scripts/serve-playground.mjs",
     "demos": "tsx scripts/demos.ts",
     "leverage": "tsx scripts/leverage.ts",
-    "serve:docs": "node scripts/doc-server.mjs"
+    "serve:docs": "node scripts/doc-server.mjs",
+    "build:icons": "tsx scripts/build-icon-packs.ts"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^0.1.60",

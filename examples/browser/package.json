@@ -12,6 +12,8 @@
     "@nodus/core": "workspace:*",
     "@nodus/react": "workspace:*",
     "@nodus/preset-infra": "workspace:*",
+    "@nodus/preset-diagrams": "workspace:*",
+    "@nodus/icons-cloud": "workspace:*",
     "@nodus/layout-dagre": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
