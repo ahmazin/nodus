@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Editor, type Id } from '../index.js';
+import { Editor, type FlowSource, type Id } from '../index.js';
 
 /** An editor with one data-driven edge (has a scale so metrics are meaningful). */
 function build(): { ed: Editor; e: Id } {
@@ -100,5 +100,35 @@ describe('flow data sources — pull', () => {
     mode = 'ok'; okVal = 12;
     await vi.advanceTimersByTimeAsync(1000);
     expect(ed.flowMetric(e)).toBe(12);        // resumed polling after the error
+  });
+
+  it('a poll resolving after rebind does not clobber the new source (in-flight gated)', async () => {
+    vi.useFakeTimers();
+    const { ed, e } = build();
+    let resolveA!: (v: number) => void;
+    ed.bindFlowSource(e, { poll: () => new Promise<number>((r) => { resolveA = r; }), intervalMs: 1000 });
+    await vi.advanceTimersByTimeAsync(0);            // A's poll now pending
+    let emitB!: (v: number) => void;
+    ed.bindFlowSource(e, { subscribe: (fn) => { emitB = fn; return () => {}; } }); // rebind
+    emitB(99);
+    expect(ed.flowMetric(e)).toBe(99);
+    resolveA(1);                                     // stale A resolves after rebind
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ed.flowMetric(e)).toBe(99);               // stale value did NOT land
+    vi.useRealTimers();
+  });
+
+  it('tolerates a subscribe returning a non-function (JS callers)', () => {
+    const { ed, e } = build();
+    const bad = { subscribe: () => undefined } as unknown as FlowSource;
+    const dispose = ed.bindFlowSource(e, bad);
+    expect(() => dispose()).not.toThrow();
+  });
+
+  it('reports a throwing subscribe via onError without throwing', () => {
+    const { ed, e } = build();
+    const onError = vi.fn();
+    expect(() => ed.bindFlowSource(e, { subscribe: () => { throw new Error('x'); }, onError })).not.toThrow();
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 });

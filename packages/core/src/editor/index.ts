@@ -1071,8 +1071,12 @@ export class Editor implements EngineHost {
    *  Returns a `Dispose` that unbinds. EPHEMERAL — not serialized, not undoable. */
   bindFlowSource(id: Id, source: FlowSource): Dispose {
     this.unbindFlowSource(id);
+    let stopped = false;
     const emit = (value: number): void => {
-      if (Number.isFinite(value)) this.setFlowMetric(id, value);
+      if (!stopped && Number.isFinite(value)) this.setFlowMetric(id, value);
+    };
+    const reportError = (err: unknown): void => {
+      if (source.onError) { try { source.onError(err); } catch { /* a bad onError must not break the feed */ } }
     };
     let teardown: () => void;
     if ('poll' in source) {
@@ -1083,32 +1087,29 @@ export class Editor implements EngineHost {
         try {
           emit(await source.poll());
         } catch (err) {
-          source.onError?.(err); // keep last metric, keep polling
+          reportError(err); // keep last metric, keep polling
         } finally {
           inFlight = false;
         }
       };
       void tick(); // immediate first poll
       const handle = setInterval(() => void tick(), source.intervalMs);
-      teardown = () => clearInterval(handle);
+      teardown = () => { stopped = true; clearInterval(handle); };
     } else {
       let unsub: () => void = () => {};
       try {
         const u = source.subscribe(emit);
         if (typeof u === 'function') unsub = u;
       } catch (err) {
-        source.onError?.(err);
+        reportError(err);
       }
       teardown = () => {
-        try {
-          unsub();
-        } catch (err) {
-          source.onError?.(err);
-        }
+        stopped = true;
+        try { unsub(); } catch (err) { reportError(err); }
       };
     }
     this.flowSources.set(id, teardown);
-    return () => this.unbindFlowSource(id);
+    return () => { if (this.flowSources.get(id) === teardown) this.unbindFlowSource(id); };
   }
 
   /** Stop and remove the source bound to `id` (idempotent). */
