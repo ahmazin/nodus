@@ -315,5 +315,7 @@ export { FlowControls, type FlowControlsProps } from './flow-controls.js';
 export { FlowScaleEditor, type FlowScaleEditorProps } from './flow-scale-editor.js';
 export { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from './flow-shared.js';
 export { copyImage, downloadImage, renderPngBlob, type ImageExportOptions } from './clipboard.js';
+export { CloudIconPicker, type CloudIconPickerProps } from './cloud-icon-picker.js';
+export { filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 
 export type { Editor, Id };
