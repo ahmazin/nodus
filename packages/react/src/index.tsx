@@ -13,6 +13,7 @@ import {
   type ReactElement,
 } from 'react';
 import { useValue } from './use-value.js';
+import { registerCanvas, unregisterCanvas } from './canvas-registry.js';
 import {
   effect,
   worldToScreen,
@@ -47,6 +48,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     const canvas = canvasRef.current;
     if (!host || !canvas) return;
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
+    registerCanvas(editor, canvas);
 
     let raf = 0;
     let flowTimer = 0;
@@ -211,6 +213,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     window.addEventListener('keyup', onKeyUp);
 
     return () => {
+      unregisterCanvas(editor);
       ro.disconnect();
       stopReaction();
       cancelAnimationFrame(raf);
