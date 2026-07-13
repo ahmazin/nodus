@@ -264,7 +264,33 @@ async function main() {
   await page.emulateMedia({ reducedMotion: null });
   await page.screenshot({ path: join(OUT, 'browser-3-flow.png') });
 
-  console.log('8) console error check ...');
+  console.log('8) cloud icon picker: open, search, drag onto canvas ...');
+  const beforeCloud = (await snap(page)).nodes;
+  await page.click('[data-testid="cloud-picker-button"]');
+  await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+  await page.waitForTimeout(120);
+  const tile = await page.locator('[data-testid="cloud-tile-aws:lambda"]').boundingBox();
+  const cRect = await page.evaluate(() => {
+    const r = document.querySelector('canvas').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  });
+  const dropX = cRect.x + cRect.w * 0.5;
+  const dropY = cRect.y + cRect.h * 0.6;
+  await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dropX, dropY, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const afterCloud = await snap(page);
+  assert(afterCloud.nodes === beforeCloud + 1, 'dragging a cloud icon adds one node');
+  const placed = await page.evaluate(() => {
+    const ns = window.__editor.store.nodes();
+    return ns[ns.length - 1]?.props?.icon;
+  });
+  assert(placed === 'aws:lambda', 'placed node carries the dragged icon (aws:lambda)');
+  await page.screenshot({ path: join(OUT, 'browser-4-cloud.png') });
+
+  console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
 

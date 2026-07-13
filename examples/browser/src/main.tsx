@@ -1,15 +1,12 @@
 import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Editor } from '@nodus/core';
-import { CommandPalette, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
+import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
 import { INFRA_TYPES, installInfraPreset, modelToRecords, type InfraKind } from '@nodus/preset-infra';
 import { iconNode } from '@nodus/preset-diagrams';
-import { installCloudIcons } from '@nodus/icons-cloud';
+import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
 import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
 import { dagreLayout } from '@nodus/layout-dagre';
-
-/** Fixture cloud-icon names shipped by @nodus/icons-cloud today — the full curated set lands later. */
-const CLOUD_ICON_NAMES = ['aws:lambda', 'azure:functions', 'gcp:run'] as const;
 
 function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
@@ -66,19 +63,6 @@ function App(): ReactElement {
   const editor = useMemo(buildEditor, []);
   const [tool, setToolState] = useState('select');
   const [createType, setCreateType] = useState<InfraKind>('service');
-  const [cloudIcon, setCloudIcon] = useState<string>(CLOUD_ICON_NAMES[0]);
-
-  const addCloudIcon = (): void => {
-    const vp = editor.worldViewport();
-    const util = editor.nodes.get('icon');
-    const size = util?.getDefaultSize?.({ icon: cloudIcon }) ?? { w: 74, h: 74 };
-    editor.createNode({
-      type: 'icon',
-      x: vp.x + vp.w / 2 - size.w / 2,
-      y: vp.y + vp.h / 2 - size.h / 2,
-      props: { icon: cloudIcon },
-    });
-  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -143,21 +127,7 @@ function App(): ReactElement {
           ))}
         </select>
         <span style={{ width: 1, height: 22, background: '#1c2320' }} />
-        <select
-          data-testid="cloud-icon-select"
-          value={cloudIcon}
-          onChange={(e) => setCloudIcon(e.target.value)}
-          style={{ ...BTN, padding: '6px' }}
-        >
-          {CLOUD_ICON_NAMES.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <button data-testid="add-cloud-icon" style={BTN} onClick={addCloudIcon}>
-          Add icon
-        </button>
+        <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
         <span style={{ width: 1, height: 22, background: '#1c2320' }} />
         <button data-testid="undo" style={BTN} disabled={!canUndo} onClick={() => editor.undo()}>
           Undo
