@@ -270,12 +270,24 @@ async function main() {
   await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
   await page.waitForTimeout(120);
   const tile = await page.locator('[data-testid="cloud-tile-aws:lambda"]').boundingBox();
+  // pick the MAIN editing canvas, not a 46x46 tile-preview canvas inside the open popover: the
+  // editing canvas is by far the largest-area <canvas> on the page (popover previews and the
+  // minimap are tiny by comparison).
   const cRect = await page.evaluate(() => {
-    const r = document.querySelector('canvas').getBoundingClientRect();
+    const cs = [...document.querySelectorAll('canvas')];
+    const c = cs.reduce((a, b) => {
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      return rb.width * rb.height > ra.width * ra.height ? b : a;
+    });
+    const r = c.getBoundingClientRect();
     return { x: r.left, y: r.top, w: r.width, h: r.height };
   });
-  const dropX = cRect.x + cRect.w * 0.5;
-  const dropY = cRect.y + cRect.h * 0.6;
+  // an off-center drop point: if the component mistakenly fell back to the CLICK path
+  // (placeAtCenter, which places at the viewport center), the placed node would land far from
+  // this point, so the third assertion below would catch it.
+  const dropX = cRect.x + cRect.w * 0.3;
+  const dropY = cRect.y + cRect.h * 0.72;
   await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
   await page.mouse.down();
   await page.mouse.move(dropX, dropY, { steps: 10 });
@@ -288,6 +300,23 @@ async function main() {
     return ns[ns.length - 1]?.props?.icon;
   });
   assert(placed === 'aws:lambda', 'placed node carries the dragged icon (aws:lambda)');
+  // prove the DRAG branch actually ran (placeAtClient -> screenToWorld -> canvas-registry),
+  // not the click fallback (placeAtCenter): the placed node's center should equal the drop
+  // point converted to world space, which is clearly different from the viewport center.
+  const dragCheck = await page.evaluate(
+    ([dx, dy, left, top]) => {
+      const ed = window.__editor;
+      const expected = ed.screenToWorld({ x: dx - left, y: dy - top });
+      const ns = ed.store.nodes();
+      const n = ns[ns.length - 1];
+      return { dx: n.x + n.w / 2 - expected.x, dy: n.y + n.h / 2 - expected.y };
+    },
+    [dropX, dropY, cRect.x, cRect.y],
+  );
+  assert(
+    Math.abs(dragCheck.dx) < 6 && Math.abs(dragCheck.dy) < 6,
+    `dragged node landed at the drop point (drag path, not click fallback) (dx=${dragCheck.dx.toFixed(1)}, dy=${dragCheck.dy.toFixed(1)})`,
+  );
   await page.screenshot({ path: join(OUT, 'browser-4-cloud.png') });
 
   console.log('9) console error check ...');
