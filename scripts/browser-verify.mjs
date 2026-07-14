@@ -384,6 +384,29 @@ async function main() {
   const awsDb = await chipNum('aws');
   assert(awsDb > 0 && awsDb < awsFull, `chip counts are query-aware (AWS 'database' ${awsDb} < ${awsFull})`);
 
+  console.log('8d) cloud icon picker: empty state, clear button, Enter-to-add ...');
+  await page.fill('[data-testid="cloud-picker-search"]', 'zzzzz');
+  await page.waitForTimeout(100);
+  assert(
+    await page.locator('[data-testid="cloud-picker-empty"]').isVisible(),
+    'a no-match search shows the empty state (not a blank grid)',
+  );
+  await page.click('[data-testid="cloud-picker-clear"]');
+  await page.waitForTimeout(80);
+  assert((await page.inputValue('[data-testid="cloud-picker-search"]')) === '', 'the clear button empties the search');
+  await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+  await page.waitForTimeout(100);
+  const beforeEnter = (await snap(page)).nodes;
+  await page.focus('[data-testid="cloud-picker-search"]');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  assert((await snap(page)).nodes === beforeEnter + 1, 'pressing Enter adds the top match as a node');
+  const enterIcon = await page.evaluate(() => {
+    const n = window.__editor.store.nodes();
+    return n[n.length - 1]?.props?.icon;
+  });
+  assert(enterIcon === 'aws:lambda', 'Enter-added node is the top match (aws:lambda)');
+
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));

@@ -34,9 +34,19 @@ const PANEL: CSSProperties = {
   background: '#0b0e13', border: '1px solid #2a323a', borderRadius: 8, padding: 10,
   boxShadow: '0 12px 32px -12px rgba(0,0,0,0.8)',
 };
+const SEARCH_WRAP: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' };
 const INPUT: CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: '#12161c', color: '#e5e7eb',
-  border: '1px solid #2a323a', borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none',
+  border: '1px solid #2a323a', borderRadius: 6, padding: '6px 26px 6px 8px', fontSize: 12, outline: 'none',
+};
+const CLEAR_BTN: CSSProperties = {
+  position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+  width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', borderRadius: 999, background: '#2a323a', color: '#cbd5e1',
+  fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: 0,
+};
+const EMPTY: CSSProperties = {
+  marginTop: 8, padding: '30px 12px', textAlign: 'center', color: '#6b7280', fontSize: 12,
 };
 const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: boolean): CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -51,7 +61,13 @@ const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: bool
 const CHIP_COUNT: CSSProperties = { opacity: 0.7, fontVariantNumeric: 'tabular-nums' };
 // Tile hover via a stylesheet (avoids re-rendering all 92 tiles on pointer move); !important beats
 // the inline base styles. Injected once inside the panel.
-const HOVER_CSS = '[data-cloud-tile]:hover{border-color:#3a4654!important;background:#171c24!important}';
+const HOVER_CSS =
+  '[data-cloud-tile]:hover{border-color:#3a4654!important;background:#171c24!important}' +
+  '[data-cloud-grid]{scrollbar-width:thin;scrollbar-color:#2a323a transparent}' +
+  '[data-cloud-grid]::-webkit-scrollbar{width:8px}' +
+  '[data-cloud-grid]::-webkit-scrollbar-thumb{background:#2a323a;border-radius:8px}' +
+  '[data-cloud-grid]::-webkit-scrollbar-thumb:hover{background:#3a4654}' +
+  '[data-cloud-grid]::-webkit-scrollbar-track{background:transparent}';
 const GRID: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 8,
   maxHeight: 300, overflowY: 'auto',
@@ -245,14 +261,33 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
       {open && (
         <div data-testid="cloud-picker-panel" style={PANEL} onPointerDown={(e) => e.stopPropagation()}>
           <style>{HOVER_CSS}</style>
-          <input
-            ref={inputRef}
-            data-testid="cloud-picker-search"
-            style={INPUT}
-            placeholder="Search services… (lambda, database, gcp)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div style={SEARCH_WRAP}>
+            <input
+              ref={inputRef}
+              data-testid="cloud-picker-search"
+              style={INPUT}
+              placeholder="Search services… (lambda, database, gcp)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && results.length > 0) {
+                  e.preventDefault();
+                  placeAtCenter(results[0]!); // quick-add the top match at the viewport center
+                }
+              }}
+            />
+            {query && (
+              <button
+                data-testid="cloud-picker-clear"
+                style={CLEAR_BTN}
+                onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
             {PROVIDERS.map((p) => (
               <button
@@ -270,23 +305,29 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               </button>
             ))}
           </div>
-          <div data-testid="cloud-picker-grid" style={GRID}>
-            {results.map((entry) => (
-              <div
-                key={entry.name}
-                data-testid={`cloud-tile-${entry.name}`}
-                data-cloud-tile=""
-                title={entry.name}
-                style={TILE_BTN}
-                onPointerDown={(e) => onTilePointerDown(entry, e)}
-              >
-                <Preview name={entry.name} color={glyphColor} />
-                <span style={TILE_LABEL}>{entry.service}</span>
-              </div>
-            ))}
-          </div>
+          {results.length === 0 ? (
+            <div data-testid="cloud-picker-empty" style={EMPTY}>
+              No {provider === 'all' ? '' : `${provider.toUpperCase()} `}services match “{query.trim()}”
+            </div>
+          ) : (
+            <div data-testid="cloud-picker-grid" data-cloud-grid="" style={GRID}>
+              {results.map((entry) => (
+                <div
+                  key={entry.name}
+                  data-testid={`cloud-tile-${entry.name}`}
+                  data-cloud-tile=""
+                  title={entry.name}
+                  style={TILE_BTN}
+                  onPointerDown={(e) => onTilePointerDown(entry, e)}
+                >
+                  <Preview name={entry.name} color={glyphColor} />
+                  <span style={TILE_LABEL}>{entry.service}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ marginTop: 6, fontSize: 10, color: '#3a423f' }}>
-            {results.length} of {catalog.length} · drag onto the canvas
+            {results.length} of {catalog.length} · drag, or press Enter to add the top match
           </div>
         </div>
       )}
