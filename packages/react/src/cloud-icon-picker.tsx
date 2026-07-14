@@ -20,8 +20,8 @@ const TILE = 46; // preview size in css px
 const DRAG_THRESHOLD = 4;
 const PROVIDERS: ProviderFilter[] = ['all', 'aws', 'azure', 'gcp'];
 
-// Provider brand accents — the active chip fills/borders with these; a small dot carries the
-// identity even when inactive. `all` uses the app's accent green.
+// Provider brand accents — the active chip fills/borders with these; the ProviderMark badge carries
+// the identity even when inactive. `all` uses the app's accent green.
 const BRAND: Record<ProviderFilter, string> = {
   all: '#10b981',
   aws: '#ff9900',
@@ -30,7 +30,7 @@ const BRAND: Record<ProviderFilter, string> = {
 };
 
 const PANEL: CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 344, zIndex: 20,
+  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 368, zIndex: 20,
   background: '#0b0e13', border: '1px solid #2a323a', borderRadius: 8, padding: 10,
   boxShadow: '0 12px 32px -12px rgba(0,0,0,0.8)',
 };
@@ -38,19 +38,20 @@ const INPUT: CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: '#12161c', color: '#e5e7eb',
   border: '1px solid #2a323a', borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none',
 };
-const chipStyle = (brand: string, active: boolean, empty: boolean): CSSProperties => ({
+const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: boolean): CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 5,
-  background: active ? `${brand}22` : '#12161c',
-  color: active ? brand : '#9ca3af',
-  border: `1px solid ${active ? brand : '#2a323a'}`,
+  background: active ? `${brand}22` : hovered ? '#171c24' : '#12161c',
+  color: active ? brand : hovered ? '#e5e7eb' : '#9ca3af',
+  border: `1px solid ${active ? brand : hovered ? `${brand}88` : '#2a323a'}`,
   borderRadius: 999, padding: '3px 8px', fontSize: 11, lineHeight: 1.4,
   cursor: 'pointer', textTransform: 'uppercase',
   opacity: empty && !active ? 0.4 : 1,
-});
-const CHIP_DOT = (brand: string): CSSProperties => ({
-  width: 6, height: 6, borderRadius: 999, background: brand, flex: '0 0 auto',
+  transition: 'background 120ms, border-color 120ms, color 120ms',
 });
 const CHIP_COUNT: CSSProperties = { opacity: 0.7, fontVariantNumeric: 'tabular-nums' };
+// Tile hover via a stylesheet (avoids re-rendering all 92 tiles on pointer move); !important beats
+// the inline base styles. Injected once inside the panel.
+const HOVER_CSS = '[data-cloud-tile]:hover{border-color:#3a4654!important;background:#171c24!important}';
 const GRID: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 8,
   maxHeight: 300, overflowY: 'auto',
@@ -68,6 +69,54 @@ const BTN: CSSProperties = {
   background: '#12161c', color: '#e5e5e5', border: '1px solid #2a322f', borderRadius: 6,
   padding: '6px 10px', fontSize: 12, cursor: 'pointer',
 };
+
+/**
+ * Small brand badge for a provider chip — a recognizable, trademark-safe mark (not the official
+ * logo): AWS orange smile, Azure blue "A", Google's four brand colors, and app-green for All.
+ */
+function ProviderMark({ p }: { p: ProviderFilter }): ReactElement {
+  const svg: CSSProperties = { flex: '0 0 auto', display: 'block' };
+  if (p === 'aws') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 16 16" style={svg} aria-hidden="true">
+        <rect width="16" height="16" rx="4" fill="#ff9900" />
+        <path d="M3.6 9c2.4 1.9 6.4 1.9 8.8 0" fill="none" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+        <path d="M11.1 8.5l1.9.4-.6 1.8z" fill="#fff" />
+      </svg>
+    );
+  }
+  if (p === 'azure') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 16 16" style={svg} aria-hidden="true">
+        <rect width="16" height="16" rx="4" fill="#0078d4" />
+        <path d="M8 3.6 12 12.4 4 12.4Z" fill="none" stroke="#fff" strokeWidth="1.3" strokeLinejoin="round" />
+        <path d="M6.3 9.9h3.4" fill="none" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (p === 'gcp') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 16 16" style={svg} aria-hidden="true">
+        <clipPath id="nodusGcpMark"><rect width="16" height="16" rx="4" /></clipPath>
+        <g clipPath="url(#nodusGcpMark)">
+          <rect x="0" y="0" width="8" height="8" fill="#ea4335" />
+          <rect x="8" y="0" width="8" height="8" fill="#4285f4" />
+          <rect x="0" y="8" width="8" height="8" fill="#fbbc04" />
+          <rect x="8" y="8" width="8" height="8" fill="#34a853" />
+        </g>
+      </svg>
+    );
+  }
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" style={svg} aria-hidden="true">
+      <rect width="16" height="16" rx="4" fill="#10b981" />
+      <circle cx="5.6" cy="5.6" r="1.35" fill="#fff" />
+      <circle cx="10.4" cy="5.6" r="1.35" fill="#fff" />
+      <circle cx="5.6" cy="10.4" r="1.35" fill="#fff" />
+      <circle cx="10.4" cy="10.4" r="1.35" fill="#fff" />
+    </svg>
+  );
+}
 
 /** A canvas preview that redraws the registered glyph when the icon name or color changes. */
 function Preview({ name, color }: { name: string; color: string }): ReactElement {
@@ -94,6 +143,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState<ProviderFilter>('all');
+  const [hoveredChip, setHoveredChip] = useState<ProviderFilter | null>(null);
   const [ghost, setGhost] = useState<{ entry: IconCatalogEntry; x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +244,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
       </button>
       {open && (
         <div data-testid="cloud-picker-panel" style={PANEL} onPointerDown={(e) => e.stopPropagation()}>
+          <style>{HOVER_CSS}</style>
           <input
             ref={inputRef}
             data-testid="cloud-picker-search"
@@ -207,11 +258,13 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               <button
                 key={p}
                 data-testid={`cloud-chip-${p}`}
-                style={chipStyle(BRAND[p], provider === p, counts[p] === 0)}
+                style={chipStyle(BRAND[p], provider === p, counts[p] === 0, hoveredChip === p)}
                 onClick={() => setProvider(p)}
+                onMouseEnter={() => setHoveredChip(p)}
+                onMouseLeave={() => setHoveredChip((h) => (h === p ? null : h))}
                 title={`${counts[p]} ${p === 'all' ? 'services' : p.toUpperCase()}`}
               >
-                <span style={CHIP_DOT(BRAND[p])} />
+                <ProviderMark p={p} />
                 <span>{p}</span>
                 <span style={CHIP_COUNT}>{counts[p]}</span>
               </button>
@@ -222,6 +275,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               <div
                 key={entry.name}
                 data-testid={`cloud-tile-${entry.name}`}
+                data-cloud-tile=""
                 title={entry.name}
                 style={TILE_BTN}
                 onPointerDown={(e) => onTilePointerDown(entry, e)}

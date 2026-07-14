@@ -357,6 +357,33 @@ async function main() {
     `clicked node landed at the viewport center (placeAtCenter, not drag path) (dx=${clickCheck.dx.toFixed(1)}, dy=${clickCheck.dy.toFixed(1)})`,
   );
 
+  console.log('8c) cloud icon picker: provider chips filter + live counts ...');
+  // popover is still open from 8b; clear the search so the chips show full totals
+  await page.fill('[data-testid="cloud-picker-search"]', '');
+  await page.waitForTimeout(100);
+  const chipNum = (p) =>
+    page.evaluate(
+      (sel) => Number((document.querySelector(sel)?.textContent || '').replace(/\D/g, '')),
+      `[data-testid="cloud-chip-${p}"]`,
+    );
+  const awsFull = await chipNum('aws');
+  assert(awsFull === 36, `AWS chip shows its service count (${awsFull} === 36)`);
+  await page.click('[data-testid="cloud-chip-aws"]');
+  await page.waitForTimeout(120);
+  const grid = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('[data-testid^="cloud-tile-"]')];
+    return {
+      count: tiles.length,
+      allAws: tiles.length > 0 && tiles.every((t) => (t.getAttribute('data-testid') || '').startsWith('cloud-tile-aws:')),
+    };
+  });
+  assert(grid.count === 36 && grid.allAws, `AWS chip filters the grid to 36 AWS-only tiles (got ${grid.count})`);
+  // counts are query-aware: narrowing the search lowers the chip number
+  await page.fill('[data-testid="cloud-picker-search"]', 'database');
+  await page.waitForTimeout(120);
+  const awsDb = await chipNum('aws');
+  assert(awsDb > 0 && awsDb < awsFull, `chip counts are query-aware (AWS 'database' ${awsDb} < ${awsFull})`);
+
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
