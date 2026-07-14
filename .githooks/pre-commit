@@ -1,0 +1,22 @@
+#!/bin/sh
+# Nodus pre-commit hook — block commits that would stage a non-canonical *.nodus.json, so every
+# committed diagram has a clean, minimal git diff. Enable once per clone with:
+#
+#   git config core.hooksPath .githooks
+#
+staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.nodus.json')
+[ -z "$staged" ] && exit 0
+
+fail=0
+# split on newlines only, so paths with spaces survive
+IFS='
+'
+for f in $staged; do
+  [ -z "$f" ] && continue
+  pnpm -s nodus fmt --check "$f" || fail=1
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "✗ Non-canonical diagram(s) staged. Run 'pnpm nodus fmt <file>' and re-stage." >&2
+  exit 1
+fi

@@ -1,6 +1,7 @@
 {
   "name": "@nodus/plugin-freehand",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Freehand/sketch drawing for Nodus — a pen tool + stroke node type, registered entirely through the public plugin API.",
   "type": "module",
   "main": "./src/index.ts",

@@ -1,6 +1,7 @@
 {
   "name": "@nodus/text-to-diagram",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Turn an LLM's structured output into a Nodus diagram. Ships an Anthropic tool schema + a records converter. No LLM/network deps.",
   "type": "module",
   "main": "./src/index.ts", "types": "./src/index.ts",

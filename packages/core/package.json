@@ -1,6 +1,7 @@
 {
   "name": "@nodus/core",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Headless, framework-agnostic, extensible diagram engine (Canvas-2D).",
   "type": "module",
   "main": "./src/index.ts",

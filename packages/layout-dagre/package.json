@@ -1,6 +1,7 @@
 {
   "name": "@nodus/layout-dagre",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Dagre layered auto-layout adapter for Nodus.",
   "type": "module",
   "main": "./src/index.ts",

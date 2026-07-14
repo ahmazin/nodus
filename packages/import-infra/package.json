@@ -1,6 +1,7 @@
 {
   "name": "@nodus/import-infra",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Import live infrastructure into a Nodus diagram: Terraform state/plan JSON and Kubernetes manifests -> infra records.",
   "type": "module",
   "main": "./src/index.ts", "types": "./src/index.ts",

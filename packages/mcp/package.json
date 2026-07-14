@@ -1,6 +1,7 @@
 {
   "name": "@nodus/mcp",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Model Context Protocol server around a headless Nodus Editor — lets an agent build, lay out, and export diagrams (incl. Mermaid import). Dependency-free MCP over stdio.",
   "type": "module",
   "main": "./src/index.ts",

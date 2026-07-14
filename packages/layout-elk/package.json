@@ -1,6 +1,7 @@
 {
   "name": "@nodus/layout-elk",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "ELK (Eclipse Layout Kernel) adapter for Nodus — layered, orthogonal, and nested layouts.",
   "type": "module",
   "main": "./src/index.ts",

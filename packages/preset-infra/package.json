@@ -1,6 +1,7 @@
 {
   "name": "@nodus/preset-infra",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Infra-architecture preset for Nodus: semantic node types, dark theme, and Studio/Reverse/Evolution mode adapters.",
   "type": "module",
   "main": "./src/index.ts",

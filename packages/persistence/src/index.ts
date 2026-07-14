@@ -7,7 +7,7 @@
  * The document format is the versioned `Snapshot` with defensive restore, so this is a thin layer.
  */
 
-import { effect, type Dispose, type Editor, type Snapshot } from '@nodus/core';
+import { effect, toCanonicalString, type Dispose, type Editor, type Snapshot } from '@nodus/core';
 
 export interface DocMeta {
   name: string;
@@ -97,7 +97,10 @@ export class HttpDocStore implements DocStore {
     return (await r.json()) as Snapshot;
   }
   async save(name: string, snapshot: Snapshot): Promise<void> {
-    const r = await fetch(this.url(name), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(snapshot) });
+    // Git-facing writer: emit canonical bytes so the committed file has a clean, minimal diff.
+    // (LocalDocStore/MemoryDocStore stay on JSON.stringify — their doc-list sort reads meta.updated,
+    // which canonical bytes intentionally drop.)
+    const r = await fetch(this.url(name), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: toCanonicalString(snapshot) });
     if (!r.ok) throw new Error(`save failed: ${r.status}`);
   }
   async remove(name: string): Promise<void> {

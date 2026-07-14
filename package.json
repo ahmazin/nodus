@@ -1,6 +1,7 @@
 {
   "name": "nodus-monorepo",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.1.2",
@@ -13,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:render": "tsx scripts/render-demo.ts",
+    "nodus": "tsx packages/cli/src/bin.ts",
     "verify:all": "pnpm typecheck && pnpm test && pnpm verify:render",
     "dev": "pnpm --filter nodus-example-browser dev",
     "gallery": "tsx scripts/gallery.ts",

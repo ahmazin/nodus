@@ -6,7 +6,7 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
-import { Editor, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord } from '@nodus/core';
+import { Editor, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord } from '@nodus/core';
 import { diagramsTheme, installDiagrams } from '@nodus/preset-diagrams';
 import { installInfraPreset } from '@nodus/preset-infra';
 import { installDrawTools } from '@nodus/preset-draw';
@@ -376,12 +376,13 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
         return { content };
       }
       case 'export_json': {
-        return text(JSON.stringify(ed.toJSON({ exportedBy: 'nodus-mcp' })));
+        return text(toCanonicalString(ed.toJSON({ exportedBy: 'nodus-mcp' })));
       }
       case 'save_doc': {
         const docName = String(args.name ?? '');
         if (!NAME_RE.test(docName)) return fail('invalid doc name (allowed: letters, digits, space, . _ -, ≤64 chars)');
-        writeFileSync(join(session.docsDir, `${docName}.json`), JSON.stringify(ed.toJSON({ updated: Date.now() })));
+        // Canonical bytes: the saved doc is git-trackable with a clean, minimal diff.
+        writeFileSync(join(session.docsDir, `${docName}.json`), toCanonicalString(ed.toJSON({ updated: Date.now() })));
         return json({ ok: true, name: docName });
       }
       case 'load_doc': {

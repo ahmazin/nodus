@@ -27,6 +27,61 @@ export function serializeRecords(records: NodusRecord[], meta?: Record<string, u
   return { schemaVersion: SCHEMA_VERSION, document: { records: clean }, ...(meta ? { meta } : {}) };
 }
 
+/**
+ * Order-insensitive canonical stringify: object keys are emitted in sorted order and
+ * undefined-valued keys are dropped (`{label:undefined}` ≡ no label). Array order IS preserved —
+ * it is meaningful (route waypoints, flow colour stops). This is the single, shared definition of
+ * "canonical" that every git-facing writer (`toCanonicalString`, the CLI, a future merge driver)
+ * routes through, so the on-disk byte format is defined in exactly one place.
+ */
+export function stableStringify(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .filter((k) => o[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableStringify(o[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+// A record's file position must depend ONLY on its identity, so a content edit (e.g. moving a node)
+// changes exactly that record's line and nothing else. Pages first (they scope nodes), then nodes,
+// then edges (which reference nodes). NEVER sort spatially: a spatial key would relocate a node's
+// record block on every move and churn the diff — defeating the whole point.
+const TYPE_RANK: Record<string, number> = { page: 0, node: 1, edge: 2 };
+
+export function compareRecords(a: NodusRecord, b: NodusRecord): number {
+  const ra = TYPE_RANK[a.typeName] ?? 99;
+  const rb = TYPE_RANK[b.typeName] ?? 99;
+  if (ra !== rb) return ra - rb;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+/** On-disk shape of one record: the churny per-record `version` counter is dropped (every load
+ *  path already defaults it via `num(r.version)`), so an edit that only bumps `version` — or a
+ *  reload that resets it — produces no diff. */
+function canonicalRecord(r: NodusRecord): Record<string, unknown> {
+  const { version: _version, ...rest } = r;
+  return rest;
+}
+
+/**
+ * The on-disk byte contract for a diagram: deterministic, minimal-diff, and still valid JSON
+ * (so GitHub renders it with syntax highlighting + intra-line word-diff, and `restore()` can
+ * `JSON.parse` it). Records are sorted by identity and emitted one-per-line, so an add is +1 line,
+ * a delete is −1 line, and an in-place edit changes exactly one line. `meta` is excluded entirely:
+ * every current meta key (`updated`, `exportedBy`) is volatile and would churn every save.
+ */
+export function toCanonicalString(snapshot: Snapshot): string {
+  const sorted = [...snapshot.document.records].sort(compareRecords);
+  const lines = sorted.map((r) => stableStringify(canonicalRecord(r)));
+  const body = lines.length ? `\n${lines.join(',\n')}\n` : '';
+  return `{"schemaVersion":${snapshot.schemaVersion},"document":{"records":[${body}]}}\n`;
+}
+
 function num(v: unknown, fallback = 0): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }

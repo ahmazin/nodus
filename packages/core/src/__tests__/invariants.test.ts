@@ -7,7 +7,7 @@
  * A seeded PRNG makes any failure reproducible from its seed.
  */
 import { describe, expect, it } from 'vitest';
-import { Editor, type EdgeRecord, type Id, type NodeRecord } from '../index.js';
+import { Editor, stableStringify, type EdgeRecord, type Id, type NodeRecord } from '../index.js';
 
 function mulberry32(seed: number): () => number {
   return () => {
@@ -19,29 +19,16 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** Order-insensitive deep stringify. Key order and undefined-valued keys are irrelevant to document
- *  identity (`{label:undefined}` ≡ no label — JSON.stringify drops such keys on toJSON anyway). */
-function stable(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return `{${Object.keys(o)
-      .filter((k) => o[k] !== undefined)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${stable(o[k])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(v);
-}
-
-/** Canonical document string, stripped of per-record `version` (which legitimately differs after undo). */
+/** Canonical document string, stripped of per-record `version` (which legitimately differs after
+ *  undo). Uses the production `stableStringify` (promoted from this test's former local `stable`),
+ *  so this fuzz suite doubles as the regression guard for that promotion. */
 function canon(ed: Editor): string {
   const recs = ed.store
     .allRecords()
     .filter((r) => r.typeName === 'node' || r.typeName === 'edge')
     .map(({ version, ...r }) => r as Record<string, unknown>)
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-  return stable(recs);
+  return stableStringify(recs);
 }
 
 function assertConsistent(ed: Editor, label: string): void {

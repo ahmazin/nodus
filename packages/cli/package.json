@@ -1,20 +1,26 @@
 {
-  "name": "@nodus/from-mermaid",
+  "name": "@nodus/cli",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Import a Mermaid diagram (flowchart / state / ER subsets) into Nodus records — reuses @nodus/preset-diagrams builders + any registered layout engine (ELK).",
+  "description": "The `nodus` CLI: canonicalize (fmt), render to PNG, and semantically diff Nodus diagram files — the git-native toolchain for diagrams you can code-review.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "bin": { "nodus": "./dist/bin.js" },
   "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
-  "sideEffects": false,
-  "dependencies": { "@nodus/core": "workspace:*", "@nodus/preset-diagrams": "workspace:*" },
-  "devDependencies": { "@nodus/layout-elk": "workspace:*" },
+  "dependencies": {
+    "@nodus/core": "workspace:*",
+    "@nodus/preset-diagrams": "workspace:*",
+    "@nodus/preset-infra": "workspace:*",
+    "@nodus/preset-draw": "workspace:*",
+    "@napi-rs/canvas": "^0.1.60"
+  },
   "scripts": { "build": "tsup", "clean": "rm -rf dist" },
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
+    "bin": { "nodus": "./dist/bin.js" },
     "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
   }
 }

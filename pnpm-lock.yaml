@@ -61,6 +61,24 @@ importers:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@22.20.1)
 
+  packages/cli:
+    dependencies:
+      '@napi-rs/canvas':
+        specifier: ^0.1.60
+        version: 0.1.100
+      '@nodus/core':
+        specifier: workspace:*
+        version: link:../core
+      '@nodus/preset-diagrams':
+        specifier: workspace:*
+        version: link:../preset-diagrams
+      '@nodus/preset-draw':
+        specifier: workspace:*
+        version: link:../preset-draw
+      '@nodus/preset-infra':
+        specifier: workspace:*
+        version: link:../preset-infra
+
   packages/core:
     dependencies:
       rbush:

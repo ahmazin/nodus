@@ -1,6 +1,7 @@
 {
   "name": "@nodus/persistence",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Document persistence for Nodus: debounced autosave + named docs over an HTTP doc API, localStorage, or memory.",
   "type": "module",
   "main": "./src/index.ts", "types": "./src/index.ts",

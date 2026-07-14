@@ -1,6 +1,7 @@
 {
   "name": "@nodus/layout-force",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Force-directed layout adapter for Nodus (d3-force with rectangular collision).",
   "type": "module",
   "main": "./src/index.ts",

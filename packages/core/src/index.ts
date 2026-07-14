@@ -170,6 +170,9 @@ export {
   serializeRecords,
   restore,
   SCHEMA_VERSION,
+  stableStringify,
+  toCanonicalString,
+  compareRecords,
   type Snapshot,
   type RestoreResult,
 } from './serialization/index.js';

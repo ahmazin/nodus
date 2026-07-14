@@ -173,4 +173,4 @@ Still deferred by design: the a11y mirror-DOM depth, dirty-rect compositing, and
 
 ## License
 
-MIT (intended).
+MIT — see [LICENSE](./LICENSE).
