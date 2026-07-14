@@ -32,7 +32,7 @@ const BRAND: Record<ProviderFilter, string> = {
 };
 
 const PANEL: CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 368, zIndex: 20,
+  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 404, zIndex: 20,
   background: '#0b0e13', border: '1px solid #2a323a', borderRadius: 8, padding: 10,
   boxShadow: '0 12px 32px -12px rgba(0,0,0,0.8)',
 };
@@ -60,7 +60,18 @@ const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: bool
   opacity: empty && !active ? 0.4 : 1,
   transition: 'background 120ms, border-color 120ms, color 120ms',
 });
-const CHIP_COUNT: CSSProperties = { opacity: 0.7, fontVariantNumeric: 'tabular-nums' };
+const chipCountStyle = (active: boolean, brand: string): CSSProperties => ({
+  fontVariantNumeric: 'tabular-nums', fontSize: 10, padding: '1px 5px', borderRadius: 999,
+  minWidth: 12, textAlign: 'center', background: '#00000033', color: active ? brand : '#9ca3af',
+});
+const RECENT_LABEL: CSSProperties = {
+  fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6b7280', margin: '10px 0 4px',
+};
+const RECENT_ROW: CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap' };
+const RECENT_TILE: CSSProperties = {
+  display: 'flex', padding: 4, background: '#12161c', borderWidth: 1, borderStyle: 'solid',
+  borderColor: '#1c2320', borderRadius: 6, cursor: 'grab', touchAction: 'none', userSelect: 'none',
+};
 // Tile hover via a stylesheet (avoids re-rendering all 92 tiles on pointer move); !important beats
 // the inline base styles. Injected once inside the panel.
 // Tile highlight is unified through activeIndex (set by hover AND arrow keys), so no :hover rule
@@ -167,6 +178,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   const [provider, setProvider] = useState<ProviderFilter>('all');
   const [hoveredChip, setHoveredChip] = useState<ProviderFilter | null>(null);
   const [activeIndex, setActiveIndex] = useState(0); // keyboard cursor into the results grid
+  const [recents, setRecents] = useState<IconCatalogEntry[]>([]); // session-recent placements, newest first
   const [ghost, setGhost] = useState<{ entry: IconCatalogEntry; x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +192,8 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
     const util = editor.nodes.get('icon');
     const size = util?.getDefaultSize?.({ icon: entry.name }) ?? { w: 74, h: 74 };
     editor.createNode({ type: 'icon', x: cx - size.w / 2, y: cy - size.h / 2, props: { icon: entry.name } });
+    // functional update → no dependency on `recents`, so the drag-effect closure stays stable
+    setRecents((prev) => [entry, ...prev.filter((e) => e.name !== entry.name)].slice(0, RECENT_MAX));
   };
   const placeAtClient = (entry: IconCatalogEntry, clientX: number, clientY: number): void => {
     const canvas = getCanvas(editor);
@@ -222,8 +236,9 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   // Invariant that makes this safe: the effect intentionally attaches window listeners once per
   // drag session (keyed on ghost !== null), not on every ghost update. onMove/onUp read live drag
   // state from dragRef (a ref, not a dep) and placeAtClient/placeAtCenter close over only the
-  // stable `editor` prop, so there's no stale closure. If a future edit makes a placement helper
-  // depend on `query`, `provider`, or other changing state, this disable must be revisited.
+  // stable `editor` prop and stable state setters (setGhost/setRecents), so there's no stale
+  // closure. If a future edit makes a placement helper depend on `query`, `provider`, or other
+  // changing state, this disable must be revisited.
   }, [ghost !== null]); // eslint-disable-line react-hooks/exhaustive-deps -- add/remove once per drag
 
   // close on Escape or outside pointerdown (never while dragging)
@@ -334,10 +349,29 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               >
                 <ProviderMark p={p} />
                 <span>{p}</span>
-                <span style={CHIP_COUNT}>{counts[p]}</span>
+                <span style={chipCountStyle(provider === p, BRAND[p])}>{counts[p]}</span>
               </button>
             ))}
           </div>
+          {query.trim() === '' && recents.length > 0 && (
+            <div>
+              <div style={RECENT_LABEL}>Recent</div>
+              <div style={RECENT_ROW}>
+                {recents.map((entry) => (
+                  <div
+                    key={`recent-${entry.name}`}
+                    data-testid={`cloud-recent-${entry.name}`}
+                    data-cloud-tile=""
+                    title={entry.name}
+                    style={RECENT_TILE}
+                    onPointerDown={(e) => onTilePointerDown(entry, e)}
+                  >
+                    <Preview name={entry.name} color={glyphColor} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {results.length === 0 ? (
             <div data-testid="cloud-picker-empty" style={EMPTY}>
               No {provider === 'all' ? '' : `${provider.toUpperCase()} `}services match “{query.trim()}”

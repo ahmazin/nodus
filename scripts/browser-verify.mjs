@@ -436,6 +436,18 @@ async function main() {
     `Enter places the highlighted tile (${navPlaced.icon}), not the top match`,
   );
 
+  console.log('8f) cloud icon picker: recent strip ...');
+  await page.fill('[data-testid="cloud-picker-search"]', ''); // recents show only when the search is empty
+  await page.waitForTimeout(80);
+  assert(
+    await page.locator('[data-testid="cloud-recent-aws:ebs"]').isVisible(),
+    'a recently placed icon (aws:ebs) appears in the Recent strip',
+  );
+  const beforeRecent = (await snap(page)).nodes;
+  await page.locator('[data-testid="cloud-recent-aws:ebs"]').click();
+  await page.waitForTimeout(120);
+  assert((await snap(page)).nodes === beforeRecent + 1, 'clicking a recent re-places it as a node');
+
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
