@@ -191,7 +191,8 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   const createIcon = (entry: IconCatalogEntry, cx: number, cy: number): void => {
     const util = editor.nodes.get('icon');
     const size = util?.getDefaultSize?.({ icon: entry.name }) ?? { w: 74, h: 74 };
-    editor.createNode({ type: 'icon', x: cx - size.w / 2, y: cy - size.h / 2, props: { icon: entry.name } });
+    // label the node with its service name (matches the picker tile) so the glyph is self-describing
+    editor.createNode({ type: 'icon', x: cx - size.w / 2, y: cy - size.h / 2, props: { icon: entry.name }, label: entry.service });
     // functional update → no dependency on `recents`, so the drag-effect closure stays stable
     setRecents((prev) => [entry, ...prev.filter((e) => e.name !== entry.name)].slice(0, RECENT_MAX));
   };

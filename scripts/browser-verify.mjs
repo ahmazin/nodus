@@ -296,10 +296,12 @@ async function main() {
   const afterCloud = await snap(page);
   assert(afterCloud.nodes === beforeCloud + 1, 'dragging a cloud icon adds one node');
   const placed = await page.evaluate(() => {
-    const ns = window.__editor.store.nodes();
-    return ns[ns.length - 1]?.props?.icon;
+    const n = window.__editor.store.nodes();
+    const last = n[n.length - 1];
+    return { icon: last?.props?.icon, label: last?.label };
   });
-  assert(placed === 'aws:lambda', 'placed node carries the dragged icon (aws:lambda)');
+  assert(placed.icon === 'aws:lambda', 'placed node carries the dragged icon (aws:lambda)');
+  assert(placed.label === 'lambda', 'placed node is labeled with its service name (lambda)');
   // prove the DRAG branch actually ran (placeAtClient -> screenToWorld -> canvas-registry),
   // not the click fallback (placeAtCenter): the placed node's center should equal the drop
   // point converted to world space, which is clearly different from the viewport center.
