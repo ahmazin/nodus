@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { getIcon, type Ctx2D, type Editor } from '@nodus/core';
 import { getCanvas } from './canvas-registry.js';
-import { filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
+import { catalogCounts, filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 
 export interface CloudIconPickerProps {
   editor: Editor;
@@ -20,8 +20,17 @@ const TILE = 46; // preview size in css px
 const DRAG_THRESHOLD = 4;
 const PROVIDERS: ProviderFilter[] = ['all', 'aws', 'azure', 'gcp'];
 
+// Provider brand accents — the active chip fills/borders with these; a small dot carries the
+// identity even when inactive. `all` uses the app's accent green.
+const BRAND: Record<ProviderFilter, string> = {
+  all: '#10b981',
+  aws: '#ff9900',
+  azure: '#0078d4',
+  gcp: '#4285f4',
+};
+
 const PANEL: CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 320, zIndex: 20,
+  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 344, zIndex: 20,
   background: '#0b0e13', border: '1px solid #2a323a', borderRadius: 8, padding: 10,
   boxShadow: '0 12px 32px -12px rgba(0,0,0,0.8)',
 };
@@ -29,11 +38,19 @@ const INPUT: CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: '#12161c', color: '#e5e7eb',
   border: '1px solid #2a323a', borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none',
 };
-const CHIP = (active: boolean): CSSProperties => ({
-  background: active ? '#10b98122' : '#12161c', color: active ? '#10b981' : '#9ca3af',
-  border: `1px solid ${active ? '#10b981' : '#2a323a'}`, borderRadius: 999, padding: '3px 10px',
-  fontSize: 11, cursor: 'pointer', textTransform: 'uppercase',
+const chipStyle = (brand: string, active: boolean, empty: boolean): CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', gap: 5,
+  background: active ? `${brand}22` : '#12161c',
+  color: active ? brand : '#9ca3af',
+  border: `1px solid ${active ? brand : '#2a323a'}`,
+  borderRadius: 999, padding: '3px 8px', fontSize: 11, lineHeight: 1.4,
+  cursor: 'pointer', textTransform: 'uppercase',
+  opacity: empty && !active ? 0.4 : 1,
 });
+const CHIP_DOT = (brand: string): CSSProperties => ({
+  width: 6, height: 6, borderRadius: 999, background: brand, flex: '0 0 auto',
+});
+const CHIP_COUNT: CSSProperties = { opacity: 0.7, fontVariantNumeric: 'tabular-nums' };
 const GRID: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 8,
   maxHeight: 300, overflowY: 'auto',
@@ -83,6 +100,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   const dragRef = useRef<{ entry: IconCatalogEntry; x: number; y: number; sx: number; sy: number; moved: boolean } | null>(null);
 
   const results = useMemo(() => filterCatalog(catalog, query, provider), [catalog, query, provider]);
+  const counts = useMemo(() => catalogCounts(catalog, query), [catalog, query]);
 
   const createIcon = (entry: IconCatalogEntry, cx: number, cy: number): void => {
     const util = editor.nodes.get('icon');
@@ -184,10 +202,18 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
             {PROVIDERS.map((p) => (
-              <button key={p} style={CHIP(provider === p)} onClick={() => setProvider(p)}>
-                {p}
+              <button
+                key={p}
+                data-testid={`cloud-chip-${p}`}
+                style={chipStyle(BRAND[p], provider === p, counts[p] === 0)}
+                onClick={() => setProvider(p)}
+                title={`${counts[p]} ${p === 'all' ? 'services' : p.toUpperCase()}`}
+              >
+                <span style={CHIP_DOT(BRAND[p])} />
+                <span>{p}</span>
+                <span style={CHIP_COUNT}>{counts[p]}</span>
               </button>
             ))}
           </div>
