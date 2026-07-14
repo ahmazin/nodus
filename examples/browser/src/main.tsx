@@ -1,8 +1,10 @@
 import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Editor } from '@nodus/core';
-import { CommandPalette, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
+import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
 import { INFRA_TYPES, installInfraPreset, modelToRecords, type InfraKind } from '@nodus/preset-infra';
+import { iconNode } from '@nodus/preset-diagrams';
+import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
 import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
 import { dagreLayout } from '@nodus/layout-dagre';
 
@@ -10,6 +12,8 @@ function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
   installInfraPreset(editor);
   installDrawTools(editor);
+  installCloudIcons();
+  editor.registerNodeType(iconNode);
   editor.registerLayout(dagreLayout);
   const records = modelToRecords({
     nodes: [
@@ -122,6 +126,8 @@ function App(): ReactElement {
             </option>
           ))}
         </select>
+        <span style={{ width: 1, height: 22, background: '#1c2320' }} />
+        <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
         <span style={{ width: 1, height: 22, background: '#1c2320' }} />
         <button data-testid="undo" style={BTN} disabled={!canUndo} onClick={() => editor.undo()}>
           Undo

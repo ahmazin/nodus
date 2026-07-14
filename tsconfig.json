@@ -16,6 +16,9 @@
       "@nodus/core": [
         "packages/core/src/index.ts"
       ],
+      "@nodus/icons-cloud": [
+        "packages/icons-cloud/src/index.ts"
+      ],
       "@nodus/react": [
         "packages/react/src/index.ts"
       ],

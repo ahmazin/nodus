@@ -8,6 +8,9 @@ import {
   Ellipse2d,
   Polygon2d,
   Rectangle2d,
+  STENCIL,
+  drawStencil,
+  measureStencil,
   orthogonalRouter,
   type DrawApi,
   type EdgeRecord,
@@ -156,20 +159,17 @@ export const cardNode: NodeUtil = {
   },
 };
 
-/** A generic node that renders an icon glyph (`props.icon`) + label — great for cloud/service diagrams. */
+/** A generic node that renders an icon glyph (`props.icon`) symbol-forward — a large glyph on an
+ * accent tile with the label below. Great for cloud/service architecture diagrams. */
 export const iconNode: NodeUtil = {
   type: 'icon',
   getDefaultProps: () => ({ icon: 'box' }),
-  getDefaultSize: () => ({ w: 156, h: 52 }),
+  getDefaultSize: () => ({ w: STENCIL.DEFAULT_W, h: STENCIL.NODE_H }),
+  measure: (n) => measureStencil(n.label ?? ''),
   getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
   getPorts: rectPorts,
   draw: (api, n, t) => {
-    const box = { x: n.x, y: n.y, w: n.w, h: n.h };
-    api.fillRoundRect(box, 8, t.fill, { glow: t.glow ?? undefined });
-    api.strokeRoundRect(box, 8, t.stroke, { width: t.strokeWidth });
-    const is = 20;
-    api.icon((n.props.icon as string) ?? 'box', { x: n.x + 12, y: n.y + n.h / 2 - is / 2, w: is, h: is }, t.stroke);
-    api.label(n.label ?? '', { x: n.x + 20 + (n.w - 20) / 2, y: n.y + n.h / 2 }, { weight: '500' });
+    drawStencil(api, n, t, { icon: (n.props.icon as string) ?? 'box', label: n.label ?? '' });
   },
 };
 

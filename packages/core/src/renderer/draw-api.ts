@@ -191,9 +191,9 @@ export class DrawApi {
     return this;
   }
 
-  /** Draw a registered icon glyph inside `box` in the given color. */
-  icon(name: string, box: Box, color: string): this {
-    drawIcon(this.ctx, name, box, color);
+  /** Draw a registered icon glyph inside `box`. `color` is the outline; `fill` tints the body. */
+  icon(name: string, box: Box, color: string, fill?: string): this {
+    drawIcon(this.ctx, name, box, color, fill);
     return this;
   }
 

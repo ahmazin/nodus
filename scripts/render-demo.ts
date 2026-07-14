@@ -9,7 +9,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type Ctx2D } from '@nodus/core';
+import { Editor, STENCIL, measureStencil, type Ctx2D } from '@nodus/core';
 import { InfraCanvas, darkInfraTheme, installInfraPreset, type InfraModel } from '@nodus/preset-infra';
 import { dagreLayout } from '@nodus/layout-dagre';
 
@@ -24,7 +24,7 @@ const OUT = join(process.cwd(), 'examples', 'output');
 mkdirSync(OUT, { recursive: true });
 
 function labelWidth(label: string): number {
-  return Math.max(110, Math.round(label.length * 7.4 + 34));
+  return measureStencil(label).w;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ const N = (
   x: number,
   y: number,
   extra: Partial<InfraModel['nodes'][number]> = {},
-): InfraModel['nodes'][number] => ({ key, type, label, x, y, w: labelWidth(label), h: 46, ...extra });
+): InfraModel['nodes'][number] => ({ key, type, label, x, y, w: labelWidth(label), h: STENCIL.NODE_H, ...extra });
 
 const model: InfraModel = {
   nodes: [

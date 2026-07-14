@@ -1,0 +1,27 @@
+@nodus/icons-cloud — third-party icon attribution notice
+=========================================================
+
+This package includes a curated subset of official cloud-provider service icons and compact
+"vector pack" data derived from them. These icons are the property of their respective providers
+and are used under each provider's architecture-icon terms, which permit use in architecture
+diagrams. They are NOT covered by this repository's LICENSE.
+
+The committed artwork is combined from the following official toolkits. Each is the property of
+its respective provider, subject to that provider's own terms — not the license of this repository:
+
+- **AWS Architecture Icons** — Amazon Web Services, Inc.
+  Toolkit & terms: https://aws.amazon.com/architecture/icons/
+
+- **Azure Architecture Icons** — Microsoft Corporation.
+  Toolkit & terms: https://learn.microsoft.com/en-us/azure/architecture/icons/
+
+- **Google Cloud icons** — Google LLC.
+  Toolkit & terms: https://cloud.google.com/icons
+
+Only the specific files referenced by `src/allowlist.ts` are committed under
+`packages/icons-cloud/svg/<provider>/`; the full downloaded toolkits are not vendored (bulk
+downloads belong under the gitignored `vendor/icons/`). This repository, its authors, and its
+LICENSE do not grant you any rights to these providers' trademarks or artwork. Before
+redistributing this package or building on the curated subset, you must review and accept each
+provider's current icon usage terms yourself — see `packages/icons-cloud/LICENSES/{aws,azure,gcp}.md`
+and `packages/icons-cloud/README.md`.

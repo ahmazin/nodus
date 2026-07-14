@@ -12,6 +12,8 @@ import {
   Ellipse2d,
   Polygon2d,
   Rectangle2d,
+  iconNames,
+  measureStencil,
   type Ctx2D,
   type DrawApi,
   type EdgeRecord,
@@ -26,6 +28,8 @@ import {
 } from '@nodus/core';
 import { InfraCanvas, darkInfraTheme } from '@nodus/preset-infra';
 import { dagreLayout } from '@nodus/layout-dagre';
+import { iconNode } from '@nodus/preset-diagrams';
+import { installCloudIcons } from '@nodus/icons-cloud';
 
 (GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();
 const MONO = 'Noto Sans Mono, monospace';
@@ -336,6 +340,40 @@ async function orgChart(): Promise<void> {
   render(ed, 'org-chart.png', 980, 560);
 }
 
+// Cloud-provider icon grid: proves @nodus/icons-cloud packs resolve through iconNode (props.icon)
+// once installCloudIcons() has registered them. Only fixture packs exist today (one glyph per
+// provider); the grid derives its list from the registry itself so it grows with the real packs.
+function cloudIcons(): void {
+  installCloudIcons();
+  const names = iconNames().filter((n) => n.includes(':')).sort();
+  const cols = Math.max(1, Math.ceil(Math.sqrt(names.length)));
+  const cellW = 160;
+  const cellH = 120;
+  const ed = new Editor({ nodeTypes: [iconNode], builtins: false });
+  ed.setTheme(theme({ byType: { icon: { stroke: '#2dd4bf', text: '#e5e7eb', glow: '#2dd4bf' } } }));
+  names.forEach((name, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const size = measureStencil(name);
+    ed.createNode(
+      {
+        id: `node:${name.replace(':', '-')}` as NodeRecord['id'],
+        type: 'icon',
+        label: name,
+        x: col * cellW,
+        y: row * cellH,
+        w: size.w,
+        h: size.h,
+        props: { icon: name },
+        visual: { state: 'accent' },
+      },
+      { capture: 'never' },
+    );
+  });
+  const rows = Math.ceil(names.length / cols);
+  render(ed, 'cloud-icons.png', cols * cellW + 60, rows * cellH + 60);
+}
+
 async function main(): Promise<void> {
   console.log('rendering capability gallery ...');
   // infra (preset) for completeness in the gallery folder
@@ -362,6 +400,7 @@ async function main(): Promise<void> {
   erd();
   await stateMachine();
   await orgChart();
+  cloudIcons();
   console.log('\nGallery in examples/output/gallery/');
 }
 

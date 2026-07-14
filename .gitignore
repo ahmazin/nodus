@@ -6,3 +6,6 @@ out/
 .remember/logs/
 coverage/
 docs-data/
+
+# bulk vendored icon toolkits (only curated packages/icons-cloud/svg/** is committed)
+vendor/icons/

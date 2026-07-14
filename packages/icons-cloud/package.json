@@ -1,0 +1,35 @@
+{
+  "name": "@nodus/icons-cloud",
+  "version": "0.1.0",
+  "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Ships fixture placeholders; real packs are produced by codegen.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./aws": {
+      "types": "./src/aws.ts",
+      "default": "./src/aws.ts"
+    },
+    "./azure": {
+      "types": "./src/azure.ts",
+      "default": "./src/azure.ts"
+    },
+    "./gcp": {
+      "types": "./src/gcp.ts",
+      "default": "./src/gcp.ts"
+    }
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@nodus/core": "workspace:*"
+  },
+  "devDependencies": {
+    "svgpath": "^2.6.0",
+    "svgson": "^5.3.1"
+  }
+}

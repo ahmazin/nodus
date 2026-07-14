@@ -264,7 +264,193 @@ async function main() {
   await page.emulateMedia({ reducedMotion: null });
   await page.screenshot({ path: join(OUT, 'browser-3-flow.png') });
 
-  console.log('8) console error check ...');
+  console.log('8) cloud icon picker: open, search, drag onto canvas ...');
+  const beforeCloud = (await snap(page)).nodes;
+  await page.click('[data-testid="cloud-picker-button"]');
+  await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+  await page.waitForTimeout(120);
+  const tile = await page.locator('[data-testid="cloud-tile-aws:lambda"]').boundingBox();
+  // pick the MAIN editing canvas, not a 46x46 tile-preview canvas inside the open popover: the
+  // editing canvas is by far the largest-area <canvas> on the page (popover previews and the
+  // minimap are tiny by comparison).
+  const cRect = await page.evaluate(() => {
+    const cs = [...document.querySelectorAll('canvas')];
+    const c = cs.reduce((a, b) => {
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      return rb.width * rb.height > ra.width * ra.height ? b : a;
+    });
+    const r = c.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  });
+  // an off-center drop point: if the component mistakenly fell back to the CLICK path
+  // (placeAtCenter, which places at the viewport center), the placed node would land far from
+  // this point, so the third assertion below would catch it.
+  const dropX = cRect.x + cRect.w * 0.3;
+  const dropY = cRect.y + cRect.h * 0.72;
+  await page.mouse.move(tile.x + tile.width / 2, tile.y + tile.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dropX, dropY, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const afterCloud = await snap(page);
+  assert(afterCloud.nodes === beforeCloud + 1, 'dragging a cloud icon adds one node');
+  const placed = await page.evaluate(() => {
+    const n = window.__editor.store.nodes();
+    const last = n[n.length - 1];
+    return { icon: last?.props?.icon, label: last?.label };
+  });
+  assert(placed.icon === 'aws:lambda', 'placed node carries the dragged icon (aws:lambda)');
+  assert(placed.label === 'lambda', 'placed node is labeled with its service name (lambda)');
+  // prove the DRAG branch actually ran (placeAtClient -> screenToWorld -> canvas-registry),
+  // not the click fallback (placeAtCenter): the placed node's center should equal the drop
+  // point converted to world space, which is clearly different from the viewport center.
+  const dragCheck = await page.evaluate(
+    ([dx, dy, left, top]) => {
+      const ed = window.__editor;
+      const expected = ed.screenToWorld({ x: dx - left, y: dy - top });
+      const ns = ed.store.nodes();
+      const n = ns[ns.length - 1];
+      return { dx: n.x + n.w / 2 - expected.x, dy: n.y + n.h / 2 - expected.y };
+    },
+    [dropX, dropY, cRect.x, cRect.y],
+  );
+  assert(
+    Math.abs(dragCheck.dx) < 6 && Math.abs(dragCheck.dy) < 6,
+    `dragged node landed at the drop point (drag path, not click fallback) (dx=${dragCheck.dx.toFixed(1)}, dy=${dragCheck.dy.toFixed(1)})`,
+  );
+  await page.screenshot({ path: join(OUT, 'browser-4-cloud.png') });
+
+  console.log('8b) cloud icon picker: click (no drag) places at viewport center ...');
+  // the popover auto-closes on outside pointerdown / after the previous drop; reopen it and
+  // re-search so the aws:lambda tile is present again.
+  const panelOpen = await page.locator('[data-testid="cloud-picker-panel"]').count();
+  if (!panelOpen) {
+    await page.click('[data-testid="cloud-picker-button"]');
+    await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+    await page.waitForTimeout(120);
+  }
+  const beforeClick = (await snap(page)).nodes;
+  const clickTile = await page.locator('[data-testid="cloud-tile-aws:lambda"]').boundingBox();
+  const cx = clickTile.x + clickTile.width / 2;
+  const cy = clickTile.y + clickTile.height / 2;
+  // move + down + up at the SAME point (no movement past DRAG_THRESHOLD) -> click branch (placeAtCenter)
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const afterClick = await snap(page);
+  assert(afterClick.nodes === beforeClick + 1, 'clicking (no drag) a cloud icon adds one node');
+  const clickCheck = await page.evaluate(() => {
+    const ed = window.__editor;
+    const vp = ed.worldViewport();
+    const expected = { x: vp.x + vp.w / 2, y: vp.y + vp.h / 2 };
+    const ns = ed.store.nodes();
+    const n = ns[ns.length - 1];
+    return {
+      icon: n?.props?.icon,
+      dx: n.x + n.w / 2 - expected.x,
+      dy: n.y + n.h / 2 - expected.y,
+    };
+  });
+  assert(clickCheck.icon === 'aws:lambda', 'clicked node carries the clicked icon (aws:lambda)');
+  assert(
+    Math.abs(clickCheck.dx) < 2 && Math.abs(clickCheck.dy) < 2,
+    `clicked node landed at the viewport center (placeAtCenter, not drag path) (dx=${clickCheck.dx.toFixed(1)}, dy=${clickCheck.dy.toFixed(1)})`,
+  );
+
+  console.log('8c) cloud icon picker: provider chips filter + live counts ...');
+  // popover is still open from 8b; clear the search so the chips show full totals
+  await page.fill('[data-testid="cloud-picker-search"]', '');
+  await page.waitForTimeout(100);
+  const chipNum = (p) =>
+    page.evaluate(
+      (sel) => Number((document.querySelector(sel)?.textContent || '').replace(/\D/g, '')),
+      `[data-testid="cloud-chip-${p}"]`,
+    );
+  const awsFull = await chipNum('aws');
+  assert(awsFull === 36, `AWS chip shows its service count (${awsFull} === 36)`);
+  await page.click('[data-testid="cloud-chip-aws"]');
+  await page.waitForTimeout(120);
+  const grid = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('[data-testid^="cloud-tile-"]')];
+    return {
+      count: tiles.length,
+      allAws: tiles.length > 0 && tiles.every((t) => (t.getAttribute('data-testid') || '').startsWith('cloud-tile-aws:')),
+    };
+  });
+  assert(grid.count === 36 && grid.allAws, `AWS chip filters the grid to 36 AWS-only tiles (got ${grid.count})`);
+  // counts are query-aware: narrowing the search lowers the chip number
+  await page.fill('[data-testid="cloud-picker-search"]', 'database');
+  await page.waitForTimeout(120);
+  const awsDb = await chipNum('aws');
+  assert(awsDb > 0 && awsDb < awsFull, `chip counts are query-aware (AWS 'database' ${awsDb} < ${awsFull})`);
+
+  console.log('8d) cloud icon picker: empty state, clear button, Enter-to-add ...');
+  await page.fill('[data-testid="cloud-picker-search"]', 'zzzzz');
+  await page.waitForTimeout(100);
+  assert(
+    await page.locator('[data-testid="cloud-picker-empty"]').isVisible(),
+    'a no-match search shows the empty state (not a blank grid)',
+  );
+  await page.click('[data-testid="cloud-picker-clear"]');
+  await page.waitForTimeout(80);
+  assert((await page.inputValue('[data-testid="cloud-picker-search"]')) === '', 'the clear button empties the search');
+  await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
+  await page.waitForTimeout(100);
+  const beforeEnter = (await snap(page)).nodes;
+  await page.focus('[data-testid="cloud-picker-search"]');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  assert((await snap(page)).nodes === beforeEnter + 1, 'pressing Enter adds the top match as a node');
+  const enterIcon = await page.evaluate(() => {
+    const n = window.__editor.store.nodes();
+    return n[n.length - 1]?.props?.icon;
+  });
+  assert(enterIcon === 'aws:lambda', 'Enter-added node is the top match (aws:lambda)');
+
+  console.log('8e) cloud icon picker: arrow-key grid navigation ...');
+  await page.fill('[data-testid="cloud-picker-search"]', '');
+  await page.click('[data-testid="cloud-chip-all"]');
+  await page.waitForTimeout(80);
+  await page.focus('[data-testid="cloud-picker-search"]');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(80);
+  const nav = await page.evaluate(() => {
+    const clean = (el) => el?.getAttribute('data-testid')?.replace('cloud-tile-', '') ?? null;
+    return {
+      active: clean(document.querySelector('[role="option"][aria-selected="true"]')),
+      top: clean(document.querySelector('[data-idx="0"]')),
+    };
+  });
+  assert(nav.active && nav.active !== nav.top, `arrow keys move the cursor off the top match (active=${nav.active}, top=${nav.top})`);
+  const beforeNav = (await snap(page)).nodes;
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(120);
+  const navPlaced = await page.evaluate(() => {
+    const n = window.__editor.store.nodes();
+    return { count: n.length, icon: n[n.length - 1]?.props?.icon };
+  });
+  assert(
+    navPlaced.count === beforeNav + 1 && navPlaced.icon === nav.active,
+    `Enter places the highlighted tile (${navPlaced.icon}), not the top match`,
+  );
+
+  console.log('8f) cloud icon picker: recent strip ...');
+  await page.fill('[data-testid="cloud-picker-search"]', ''); // recents show only when the search is empty
+  await page.waitForTimeout(80);
+  assert(
+    await page.locator('[data-testid="cloud-recent-aws:ebs"]').isVisible(),
+    'a recently placed icon (aws:ebs) appears in the Recent strip',
+  );
+  const beforeRecent = (await snap(page)).nodes;
+  await page.locator('[data-testid="cloud-recent-aws:ebs"]').click();
+  await page.waitForTimeout(120);
+  assert((await snap(page)).nodes === beforeRecent + 1, 'clicking a recent re-places it as a node');
+
+  console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
 

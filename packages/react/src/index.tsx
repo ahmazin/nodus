@@ -13,6 +13,7 @@ import {
   type ReactElement,
 } from 'react';
 import { useValue } from './use-value.js';
+import { registerCanvas, unregisterCanvas } from './canvas-registry.js';
 import {
   effect,
   worldToScreen,
@@ -47,6 +48,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     const canvas = canvasRef.current;
     if (!host || !canvas) return;
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
+    registerCanvas(editor, canvas);
 
     let raf = 0;
     let flowTimer = 0;
@@ -211,6 +213,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     window.addEventListener('keyup', onKeyUp);
 
     return () => {
+      unregisterCanvas(editor);
       ro.disconnect();
       stopReaction();
       cancelAnimationFrame(raf);
@@ -312,5 +315,7 @@ export { FlowControls, type FlowControlsProps } from './flow-controls.js';
 export { FlowScaleEditor, type FlowScaleEditorProps } from './flow-scale-editor.js';
 export { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from './flow-shared.js';
 export { copyImage, downloadImage, renderPngBlob, type ImageExportOptions } from './clipboard.js';
+export { CloudIconPicker, type CloudIconPickerProps } from './cloud-icon-picker.js';
+export { filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 
 export type { Editor, Id };
