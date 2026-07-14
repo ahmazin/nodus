@@ -18,6 +18,8 @@ export interface CloudIconPickerProps {
 
 const TILE = 46; // preview size in css px
 const DRAG_THRESHOLD = 4;
+const GRID_COLS = 4; // must match the GRID template's column count (keyboard row nav depends on it)
+const RECENT_MAX = 6;
 const PROVIDERS: ProviderFilter[] = ['all', 'aws', 'azure', 'gcp'];
 
 // Provider brand accents — the active chip fills/borders with these; the ProviderMark badge carries
@@ -61,8 +63,9 @@ const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: bool
 const CHIP_COUNT: CSSProperties = { opacity: 0.7, fontVariantNumeric: 'tabular-nums' };
 // Tile hover via a stylesheet (avoids re-rendering all 92 tiles on pointer move); !important beats
 // the inline base styles. Injected once inside the panel.
-const HOVER_CSS =
-  '[data-cloud-tile]:hover{border-color:#3a4654!important;background:#171c24!important}' +
+// Tile highlight is unified through activeIndex (set by hover AND arrow keys), so no :hover rule
+// here — just the scrollbar theming, which can't be expressed with inline styles.
+const GRID_CSS =
   '[data-cloud-grid]{scrollbar-width:thin;scrollbar-color:#2a323a transparent}' +
   '[data-cloud-grid]::-webkit-scrollbar{width:8px}' +
   '[data-cloud-grid]::-webkit-scrollbar-thumb{background:#2a323a;border-radius:8px}' +
@@ -74,16 +77,19 @@ const GRID: CSSProperties = {
 };
 const TILE_BTN: CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: 4,
-  background: '#12161c', border: '1px solid #1c2320', borderRadius: 6, cursor: 'grab',
-  touchAction: 'none', userSelect: 'none',
+  background: '#12161c', borderWidth: 1, borderStyle: 'solid', borderColor: '#1c2320', borderRadius: 6,
+  cursor: 'grab', touchAction: 'none', userSelect: 'none',
 };
+// The keyboard-cursor tile: an accent ring so arrow navigation is visible.
+const tileStyle = (active: boolean): CSSProperties =>
+  active ? { ...TILE_BTN, borderColor: '#10b981', background: '#10b98114' } : TILE_BTN;
 const TILE_LABEL: CSSProperties = {
   fontSize: 9, color: '#9ca3af', maxWidth: TILE + 14, overflow: 'hidden',
   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 const BTN: CSSProperties = {
-  background: '#12161c', color: '#e5e5e5', border: '1px solid #2a322f', borderRadius: 6,
-  padding: '6px 10px', fontSize: 12, cursor: 'pointer',
+  background: '#12161c', color: '#e5e5e5', borderWidth: 1, borderStyle: 'solid', borderColor: '#2a322f',
+  borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
 };
 
 /**
@@ -160,9 +166,11 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState<ProviderFilter>('all');
   const [hoveredChip, setHoveredChip] = useState<ProviderFilter | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0); // keyboard cursor into the results grid
   const [ghost, setGhost] = useState<{ entry: IconCatalogEntry; x: number; y: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ entry: IconCatalogEntry; x: number; y: number; sx: number; sy: number; moved: boolean } | null>(null);
 
   const results = useMemo(() => filterCatalog(catalog, query, provider), [catalog, query, provider]);
@@ -243,6 +251,15 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
     }
   }, [open]);
 
+  // reset the keyboard cursor to the top whenever the result set changes (or the popover reopens)
+  useEffect(() => { setActiveIndex(0); }, [query, provider, open]);
+
+  // keep the keyboard-cursor tile scrolled into view as it moves
+  useEffect(() => {
+    if (!open) return;
+    gridRef.current?.querySelector(`[data-idx="${activeIndex}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, open]);
+
   const onTilePointerDown = (entry: IconCatalogEntry, e: React.PointerEvent): void => {
     e.preventDefault();
     dragRef.current = { entry, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false };
@@ -260,7 +277,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
       </button>
       {open && (
         <div data-testid="cloud-picker-panel" style={PANEL} onPointerDown={(e) => e.stopPropagation()}>
-          <style>{HOVER_CSS}</style>
+          <style>{GRID_CSS}</style>
           <div style={SEARCH_WRAP}>
             <input
               ref={inputRef}
@@ -268,12 +285,28 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               style={INPUT}
               placeholder="Search services… (lambda, database, gcp)"
               value={query}
+              role="combobox"
+              aria-expanded
+              aria-controls="cloud-picker-grid"
+              aria-activedescendant={results.length ? `cloud-opt-${activeIndex}` : undefined}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && results.length > 0) {
-                  e.preventDefault();
-                  placeAtCenter(results[0]!); // quick-add the top match at the viewport center
+                if (e.key === 'Enter') {
+                  if (results.length) { e.preventDefault(); placeAtCenter(results[activeIndex] ?? results[0]!); }
+                  return;
                 }
+                if (!results.length) return;
+                const last = results.length - 1;
+                let next: number | null = null;
+                if (e.key === 'ArrowRight') next = Math.min(last, activeIndex + 1);
+                else if (e.key === 'ArrowLeft') next = Math.max(0, activeIndex - 1);
+                else if (e.key === 'ArrowDown') next = Math.min(last, activeIndex + GRID_COLS);
+                else if (e.key === 'ArrowUp') next = Math.max(0, activeIndex - GRID_COLS);
+                else if (e.key === 'Home') next = 0;
+                else if (e.key === 'End') next = last;
+                if (next === null) return;
+                e.preventDefault();
+                setActiveIndex(next);
               }}
             />
             {query && (
@@ -310,15 +343,20 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               No {provider === 'all' ? '' : `${provider.toUpperCase()} `}services match “{query.trim()}”
             </div>
           ) : (
-            <div data-testid="cloud-picker-grid" data-cloud-grid="" style={GRID}>
-              {results.map((entry) => (
+            <div ref={gridRef} id="cloud-picker-grid" data-testid="cloud-picker-grid" data-cloud-grid="" role="listbox" style={GRID}>
+              {results.map((entry, i) => (
                 <div
                   key={entry.name}
+                  id={`cloud-opt-${i}`}
                   data-testid={`cloud-tile-${entry.name}`}
                   data-cloud-tile=""
+                  data-idx={i}
+                  role="option"
+                  aria-selected={i === activeIndex}
                   title={entry.name}
-                  style={TILE_BTN}
+                  style={tileStyle(i === activeIndex)}
                   onPointerDown={(e) => onTilePointerDown(entry, e)}
+                  onMouseEnter={() => setActiveIndex(i)}
                 >
                   <Preview name={entry.name} color={glyphColor} />
                   <span style={TILE_LABEL}>{entry.service}</span>
@@ -327,7 +365,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
             </div>
           )}
           <div style={{ marginTop: 6, fontSize: 10, color: '#3a423f' }}>
-            {results.length} of {catalog.length} · drag, or press Enter to add the top match
+            {results.length} of {catalog.length} · ↑↓←→ to move · Enter to add · drag to place
           </div>
         </div>
       )}

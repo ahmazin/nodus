@@ -407,6 +407,35 @@ async function main() {
   });
   assert(enterIcon === 'aws:lambda', 'Enter-added node is the top match (aws:lambda)');
 
+  console.log('8e) cloud icon picker: arrow-key grid navigation ...');
+  await page.fill('[data-testid="cloud-picker-search"]', '');
+  await page.click('[data-testid="cloud-chip-all"]');
+  await page.waitForTimeout(80);
+  await page.focus('[data-testid="cloud-picker-search"]');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(80);
+  const nav = await page.evaluate(() => {
+    const clean = (el) => el?.getAttribute('data-testid')?.replace('cloud-tile-', '') ?? null;
+    return {
+      active: clean(document.querySelector('[role="option"][aria-selected="true"]')),
+      top: clean(document.querySelector('[data-idx="0"]')),
+    };
+  });
+  assert(nav.active && nav.active !== nav.top, `arrow keys move the cursor off the top match (active=${nav.active}, top=${nav.top})`);
+  const beforeNav = (await snap(page)).nodes;
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(120);
+  const navPlaced = await page.evaluate(() => {
+    const n = window.__editor.store.nodes();
+    return { count: n.length, icon: n[n.length - 1]?.props?.icon };
+  });
+  assert(
+    navPlaced.count === beforeNav + 1 && navPlaced.icon === nav.active,
+    `Enter places the highlighted tile (${navPlaced.icon}), not the top match`,
+  );
+
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);
   if (errors.length) errors.slice(0, 5).forEach((e) => console.error('     ', e));
