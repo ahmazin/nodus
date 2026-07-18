@@ -1,7 +1,10 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
-import type { ReactElement } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
 import type { Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
 import { DEFAULT_FLOW } from './flow-shared.js';
+import { useUiTokens } from './ui/tokens.js';
+import { UiTokensProvider, Menu, MenuItem as UiMenuItem } from './ui/primitives.js';
+import { injectGlobalStyles } from './ui/global-styles.js';
 
 export interface MenuItem {
   label: string;
@@ -73,26 +76,84 @@ export interface NodusContextMenuProps {
   onClose: () => void;
 }
 
+const MENU_ID = 'nodus-context-menu';
+
+/** Pure keyboard cursor movement for a `role=menu`: wrap on arrows, jump on Home/End, else hold. */
+export function nextMenuIndex(current: number, count: number, key: string): number {
+  if (count <= 0) return -1;
+  switch (key) {
+    case 'ArrowDown':
+      return (current + 1) % count;
+    case 'ArrowUp':
+      return (current - 1 + count) % count;
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return current;
+  }
+}
+
 export function NodusContextMenu({ editor, x, y, target, onClose }: NodusContextMenuProps): ReactElement {
   const items = contextMenuItems(editor, target);
+  const t = useUiTokens(editor);
+  const [active, setActive] = useState(0);
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => { injectGlobalStyles(); }, []);
+  // Focus management: move focus onto the menu on open (so keys are captured and aria-activedescendant
+  // is announced against the role=menu element), and restore focus to the opener on close.
+  useEffect(() => {
+    restoreRef.current = (document.activeElement as HTMLElement | null) ?? null;
+    document.getElementById(MENU_ID)?.focus();
+    return () => { restoreRef.current?.focus?.(); };
+  }, []);
+
+  const activate = (i: number): void => {
+    const it = items[i];
+    if (it) { it.run(); onClose(); }
+  };
+  const onKeyDown = (e: ReactKeyboardEvent): void => {
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(active); return; }
+    if (e.key === 'Tab') { e.preventDefault(); return; } // trap focus within the open menu
+    const ni = nextMenuIndex(active, items.length, e.key);
+    if (ni !== active) { e.preventDefault(); setActive(ni); }
+  };
+
   return (
-    <div onPointerDown={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} style={{ position: 'absolute', inset: 0, zIndex: 900 }}>
+    <UiTokensProvider tokens={t}>
       <div
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{ position: 'absolute', left: x, top: y, minWidth: 172, background: '#0d1310', border: '1px solid #28322c', borderRadius: 9, padding: 5, boxShadow: '0 14px 40px -16px rgba(0,0,0,0.8)', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }}
+        data-nodus-ui=""
+        onPointerDown={onClose}
+        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
+        style={{ position: 'absolute', inset: 0, zIndex: 900 }}
       >
-        {items.map((it, i) => (
-          <div
-            key={i}
-            onPointerDown={(e) => { e.preventDefault(); it.run(); onClose(); }}
-            style={{ padding: '7px 10px', borderRadius: 6, cursor: 'pointer', color: it.danger ? '#f87171' : '#cdd5d0' }}
-            onPointerEnter={(e) => (e.currentTarget.style.background = it.danger ? 'rgba(248,113,113,0.12)' : 'rgba(16,185,129,0.12)')}
-            onPointerLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >
-            {it.label}
-          </div>
-        ))}
+        <Menu
+          id={MENU_ID}
+          tabIndex={-1}
+          aria-label="Actions"
+          aria-activedescendant={items.length ? `${MENU_ID}-item-${active}` : undefined}
+          onKeyDown={onKeyDown}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{ position: 'absolute', left: x, top: y, minWidth: 172, outline: 'none' }}
+        >
+          {items.map((it, i) => (
+            <UiMenuItem
+              key={i}
+              id={`${MENU_ID}-item-${i}`}
+              tabIndex={-1}
+              danger={it.danger}
+              selected={i === active}
+              onMouseEnter={() => setActive(i)}
+              onPointerDown={(e) => { e.preventDefault(); activate(i); }}
+            >
+              {it.label}
+            </UiMenuItem>
+          ))}
+        </Menu>
       </div>
-    </div>
+    </UiTokensProvider>
   );
 }

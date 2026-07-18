@@ -1,7 +1,11 @@
-/** Shared flow-authoring tokens, defaults, and the injected keyframe stylesheet. Kept in its own
- *  module so `flow-controls` and `flow-scale-editor` can both depend on it without a cycle. */
+/** Shared flow-authoring styles, defaults, and the injected keyframe stylesheet. Kept in its own
+ *  module so `flow-controls` and `flow-scale-editor` can both depend on it without a cycle.
+ *
+ *  Styling is derived from the shared `UiTokens` (see `flowStyles`) rather than a private grey
+ *  scale, so the whole Flow section re-skins with the theme and meets WCAG AA in light + dark. */
 import type { CSSProperties } from 'react';
 import type { FlowColorStop, FlowScale, FlowSpec } from '@nodus/core';
+import type { UiMode, UiTokens } from './ui/tokens.js';
 
 export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 /** A 6-digit hex color — the only form core's parseHex can interpolate (else it steps). */
@@ -53,23 +57,54 @@ export const DEFAULT_SCALE: FlowScale = {
   ],
 };
 
-// ---- palette (inherit the panel; add ONE flow accent) ----
-const FIELD_BG = '#12161c'; // panel field bg — used only by the style consts below
-const TEXT = '#cdd5d0';
-export const BORDER = '#28322c';
-export const ROW_LABEL = '#8b958f';
-export const MICRO = '#556058';
-export const FLOW = '#2dd4bf'; // teal — "live signal"
+// ---- the dedicated "live signal" flow accent (distinct from the app accent), mode-aware for AA ----
+// The bright teal reads well on dark panels but fails 4.5:1 on white; light mode uses teal-700
+// (>= 4.5:1 on the light surface) so stop bullets, handles, and the metric readout stay legible.
+export const flowAccent = (mode: UiMode): string => (mode === 'light' ? '#0f766e' : '#2dd4bf');
 
-export const flowRowCss: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 26 };
-export const flowMicro: CSSProperties = { fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase', color: MICRO };
-export const swatch: CSSProperties = { width: 34, height: 20, padding: 0, border: `1px solid ${BORDER}`, background: 'transparent', borderRadius: 4 };
-export const flowSelect: CSSProperties = { background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 5, fontSize: 12, padding: '2px 4px' };
-export const numField: CSSProperties = { width: 52, background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 5, fontSize: 11.5, padding: '2px 4px' };
-export const ghostBtn: CSSProperties = { background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '3px 7px', fontSize: 11, cursor: 'pointer' };
-// Range inputs have a fixed intrinsic width (~129px) and won't shrink by default, so in the narrow
-// 210px panel they overflow off the right edge. flex:1 + minWidth:0 makes them fit the row exactly.
-export const flowSlider: CSSProperties = { flex: 1, minWidth: 0 };
+/** Token-derived styles for the flow controls. Built once per render from the active `UiTokens`. */
+export interface FlowStyles {
+  /** The mode-aware flow accent (teal), for handles / bullets / the metric readout. */
+  accent: string;
+  rowCss: CSSProperties;
+  micro: CSSProperties;
+  /** Row label span color. */
+  labelColor: string;
+  /** Muted placeholder color (e.g. the "flow off" preview text). */
+  faintColor: string;
+  border: string;
+  swatch: CSSProperties;
+  select: CSSProperties;
+  numField: CSSProperties;
+  ghostBtn: CSSProperties;
+  /** Range inputs have a fixed intrinsic width (~129px) and won't shrink by default, so in the
+   *  narrow 210px panel they overflow off the right edge. flex:1 + minWidth:0 makes them fit. */
+  slider: CSSProperties;
+  /** `accent-color` for native checkboxes so they read as themed, not browser-blue. */
+  checkbox: CSSProperties;
+}
+
+export function flowStyles(t: UiTokens): FlowStyles {
+  const accent = flowAccent(t.mode);
+  const field: CSSProperties = {
+    background: t.color.surface, color: t.color.text, border: `1px solid ${t.color.border}`,
+    borderRadius: t.radius.sm, fontSize: t.font.size.xs, padding: '2px 4px',
+  };
+  return {
+    accent,
+    rowCss: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 26 },
+    micro: { fontSize: t.font.size.xs, letterSpacing: '.08em', textTransform: 'uppercase', color: t.color.textMuted },
+    labelColor: t.color.textMuted,
+    faintColor: t.color.textFaint,
+    border: t.color.border,
+    swatch: { width: 34, height: 20, padding: 0, border: `1px solid ${t.color.border}`, background: 'transparent', borderRadius: t.radius.sm, cursor: 'pointer' },
+    select: { ...field },
+    numField: { ...field, width: 52 },
+    ghostBtn: { background: t.color.surface, color: t.color.text, border: `1px solid ${t.color.border}`, borderRadius: t.radius.md, padding: '3px 7px', fontSize: t.font.size.xs, cursor: 'pointer' },
+    slider: { flex: 1, minWidth: 0, accentColor: accent },
+    checkbox: { accentColor: accent },
+  };
+}
 
 // One injected stylesheet: preview keyframes + a reduced-motion kill-switch for preview + disclosure.
 export const FLOW_STYLE = `

@@ -1,4 +1,14 @@
 /**
+ * A decoded raster image drawable via `Ctx2D.drawImage`. Structurally satisfied alike by a browser
+ * `HTMLImageElement` / `ImageBitmap` and a headless `@napi-rs/canvas` `Image` (all expose numeric
+ * `width`/`height`), so image nodes decode once and paint identically in both environments.
+ */
+export interface DrawableImage {
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
  * `Ctx2D` — a structural subset of `CanvasRenderingContext2D`. Both a browser 2D context and a
  * headless Skia context (`@napi-rs/canvas`) satisfy it, so the exact same paint code runs in the
  * browser and in Node for tests / PNG export. Cast the real context to `Ctx2D` at the boundary.
@@ -43,6 +53,9 @@ export interface Ctx2D {
   fillText(text: string, x: number, y: number, maxWidth?: number): void;
   strokeText(text: string, x: number, y: number, maxWidth?: number): void;
   measureText(text: string): { width: number };
+
+  /** Draw a decoded image into the destination rect (world coords). */
+  drawImage(image: DrawableImage, dx: number, dy: number, dw: number, dh: number): void;
 
   setLineDash(segments: number[]): void;
 

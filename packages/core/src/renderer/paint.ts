@@ -3,12 +3,51 @@
  * `fillBackground` (device px), `drawGrid` (CSS px), `paintItem` (world). Works with any `Ctx2D`.
  */
 
-import { resolveTokens, type Theme } from '../theme/index.js';
+import type { ResolvedTokens, Theme } from '../theme/index.js';
 import type { Box, Camera, EdgeRecord, FlowSpec, NodeRecord, Vec2 } from '../model.js';
 import type { EdgeRegistry, NodeRegistry } from '../registries/index.js';
 import type { RenderItem } from '../scene-index/index.js';
 import { DrawApi } from './draw-api.js';
 import type { Ctx2D } from './context.js';
+import { resolveTokensCached } from './token-cache.js';
+
+// ---- per-item paint fault tolerance ----
+
+type PaintErrorHandler = (err: unknown, record: NodeRecord | EdgeRecord) => void;
+
+const seenPaintErrors = new Set<string>();
+
+/**
+ * Default handler: report the first error per `(record, version)` so a persistently-throwing `draw()`
+ * doesn't spam the console at 60fps; a fresh edit (new version) reports again. Surfaced, never swallowed.
+ */
+const defaultPaintErrorHandler: PaintErrorHandler = (err, record) => {
+  const key = `${record.id}@${record.version}`;
+  if (seenPaintErrors.has(key)) return;
+  if (seenPaintErrors.size > 1024) seenPaintErrors.clear();
+  seenPaintErrors.add(key);
+  console.error(`[nodus] skipped painting ${record.type} ${record.id}:`, err);
+};
+
+let paintErrorHandler: PaintErrorHandler = defaultPaintErrorHandler;
+
+/** Override how per-item paint errors are surfaced (default: deduped `console.error`). `null` silences. */
+export function setPaintErrorHandler(handler: PaintErrorHandler | null): void {
+  paintErrorHandler = handler ?? (() => {});
+  seenPaintErrors.clear();
+}
+
+/** A small dashed marker over the item's *cached* bounds — makes a skipped record visible without
+ *  re-invoking its (possibly broken) geometry/draw code. Fully self-contained ctx state. */
+function drawErrorPlaceholder(ctx: Ctx2D, aabb: Box): void {
+  if (!Number.isFinite(aabb.x + aabb.y + aabb.w + aabb.h)) return;
+  ctx.save();
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#ef4444';
+  ctx.strokeRect(aabb.x, aabb.y, aabb.w, aabb.h);
+  ctx.restore();
+}
 
 export function fillBackground(ctx: Ctx2D, theme: Theme, deviceW: number, deviceH: number): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -51,7 +90,14 @@ export function paintItem(
   theme: Theme,
 ): void {
   const rec = item.record;
-  const tokens = resolveTokens(theme, rec.visual, rec.type, rec.style);
+  let tokens: ResolvedTokens;
+  try {
+    tokens = resolveTokensCached(theme, rec);
+  } catch (err) {
+    // even token resolution can throw on a corrupt record/theme — skip the item, keep the frame.
+    paintErrorHandler(err, rec);
+    return;
+  }
   const api = new DrawApi(ctx, tokens);
   ctx.save();
   try {
@@ -61,9 +107,14 @@ export function paintItem(
     } else if (item.route) {
       edges.get(rec.type)?.draw(api, rec as EdgeRecord, tokens, item.route);
     }
+  } catch (err) {
+    // A single malformed record (NaN geometry, a throwing third-party draw()) must never abort the
+    // whole frame — skip just this item, surface the error, and mark it so the gap isn't silent.
+    paintErrorHandler(err, rec);
+    drawErrorPlaceholder(ctx, item.aabb);
   } finally {
-    // a throwing draw() (malformed record, NaN geometry) must not leak the save() and permanently
-    // dim globalAlpha for every later item on the frame
+    // a throwing/early-returning draw() must not leak the save() and permanently dim globalAlpha for
+    // every later item on the frame
     ctx.restore();
   }
 }
@@ -128,7 +179,7 @@ export function paintFlowMarkers(ctx: Ctx2D, item: RenderItem, theme: Theme, tim
   }
   if (total < 1) return;
 
-  const tokens = resolveTokens(theme, rec.visual, rec.type, rec.style);
+  const tokens = resolveTokensCached(theme, rec);
   const color = flow.color ?? tokens.stroke;
   const speed = flow.speed ?? 70;
   const dir = flow.reverse ? -1 : 1;

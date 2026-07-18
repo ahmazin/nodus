@@ -33,11 +33,25 @@ interface Entry {
   id: Id;
 }
 
+/** Context handed to `SceneIndexDeps.onError` so a consumer can tell which record failed to index. */
+export interface SceneIndexErrorContext {
+  /** A third-party util (`getGeometry`/`getRoute`/`getPorts`) threw while building a render item. */
+  phase: 'build';
+  kind: 'node' | 'edge';
+  id: Id;
+}
+
 export interface SceneIndexDeps {
   getRecord: (id: Id) => NodusRecord | undefined;
   nodes: NodeRegistry;
   edges: EdgeRegistry;
   routers?: RouterRegistry;
+  /**
+   * Surface — never swallow — an error thrown by a registered util while indexing a record. The
+   * record is simply left unindexed (as if it couldn't build), so a buggy third-party type cannot
+   * escape the mutation channel and drift undo state. Default: a safe no-op; wire to the EventBus.
+   */
+  onError?: (err: unknown, ctx: SceneIndexErrorContext) => void;
 }
 
 export class SceneIndex {
@@ -46,10 +60,19 @@ export class SceneIndex {
   private readonly entries = new Map<Id, Entry>();
   /** node id -> ids of edges referencing it (for reflow / cascade). */
   private readonly nodeEdges = new Map<Id, Set<Id>>();
+  /** edge id -> the edge record it was linked with. Lets `removeItem` unlink adjacency from
+   *  *linkage* bookkeeping rather than item existence, so an edge that linked its endpoints but
+   *  never built (missing endpoint / unregistered type) still reclaims its `nodeEdges` entry. */
+  private readonly linkedEdges = new Map<Id, EdgeRecord>();
   /** bumped after every sync so the renderer can react. */
   readonly version: Atom<number> = atom(0);
 
   constructor(private readonly deps: SceneIndexDeps) {}
+
+  /** Route a caught indexing error to the consumer's hook (default: safe no-op — never swallowed). */
+  private reportError(err: unknown, ctx: SceneIndexErrorContext): void {
+    this.deps.onError?.(err, ctx);
+  }
 
   // ---- public queries ----
 
@@ -136,9 +159,14 @@ export class SceneIndex {
     this.items.clear();
     this.entries.clear();
     this.nodeEdges.clear();
+    this.linkedEdges.clear();
     const list = [...records];
-    for (const r of list) if (isNode(r)) this.addRecord(r);
-    for (const r of list) if (isEdge(r)) this.addRecord(r);
+    // Collect entries and bulk-`load` the R-tree in one pass (OMT) — a balanced tree built faster
+    // than N individual `insert`s. Query behavior is identical; only construction differs.
+    const bulk: Entry[] = [];
+    for (const r of list) if (isNode(r)) this.addRecord(r, bulk);
+    for (const r of list) if (isEdge(r)) this.addRecord(r, bulk);
+    this.tree.load(bulk);
     this.version.update((v) => v + 1);
   }
 
@@ -187,18 +215,28 @@ export class SceneIndex {
 
   // ---- internals ----
 
-  private addRecord(rec: NodeRecord | EdgeRecord): void {
+  private addRecord(rec: NodeRecord | EdgeRecord, bulk?: Entry[]): void {
     // Link an edge to its endpoint nodes BEFORE building, so even an edge that can't build yet
     // (endpoint node not present) is tracked — adding that node later reflows and indexes it.
     if (isEdge(rec)) this.linkEdge(rec);
-    const item = isNode(rec) ? this.buildNode(rec) : this.buildEdge(rec);
+    let item: RenderItem | null;
+    try {
+      item = isNode(rec) ? this.buildNode(rec) : this.buildEdge(rec);
+    } catch (err) {
+      // A registered util (getGeometry/getRoute/getPorts) threw. Do NOT let it escape the mutation
+      // channel: that would leave the store's atoms committed but the index (and, upstream, undo
+      // history) unsynced. Report it and leave the record unindexed, exactly as an unbuildable one.
+      this.reportError(err, { phase: 'build', kind: isNode(rec) ? 'node' : 'edge', id: rec.id });
+      return;
+    }
     if (!item) return; // e.g. edge with a still-missing endpoint: linked above, indexed once resolvable
     this.items.set(rec.id, item);
     const pad = item.kind === 'edge' ? Math.max(6, (item.geometry as Polyline2d).width) : 0;
     const b = pad ? padBox(item.aabb, pad) : item.aabb;
     const entry: Entry = { minX: b.x, minY: b.y, maxX: b.x + b.w, maxY: b.y + b.h, id: rec.id };
     this.entries.set(rec.id, entry);
-    this.tree.insert(entry);
+    if (bulk) bulk.push(entry); // deferred: the caller (rebuild) bulk-`load`s these in one pass
+    else this.tree.insert(entry);
   }
 
   private removeItem(id: Id): void {
@@ -207,12 +245,17 @@ export class SceneIndex {
       this.tree.remove(entry);
       this.entries.delete(id);
     }
-    const item = this.items.get(id);
-    if (item?.kind === 'edge') this.unlinkEdge(id, item.record as EdgeRecord);
     this.items.delete(id);
+    // Unlink adjacency from *linkage* bookkeeping, not item existence: an edge that linked its
+    // endpoints but never built (missing endpoint / unregistered type) has no item, yet still holds
+    // a `nodeEdges` entry that must be reclaimed. `linkedEdges` also carries the edge's OLD endpoints,
+    // which is exactly what unlink needs (the record itself may already be gone from the store).
+    const linked = this.linkedEdges.get(id);
+    if (linked) this.unlinkEdge(id, linked);
     // NB: we do NOT delete nodeEdges[id] here — removeItem also runs during a node *update*
-    // (remove+re-add), and the node's edge set must survive so its edges still reflow. The set is
-    // reclaimed instead by unlinkEdge (empty-set cleanup) when the connected edges are removed.
+    // (remove+re-add), and the node's edge set must survive so its edges still reflow. `id` is a
+    // node there (never in `linkedEdges`), so the unlink above is correctly skipped. The set is
+    // reclaimed by unlinkEdge (empty-set cleanup) when the connected edges are removed.
   }
 
   private buildNode(node: NodeRecord): RenderItem | null {
@@ -288,6 +331,9 @@ export class SceneIndex {
   }
 
   private linkEdge(edge: EdgeRecord): void {
+    // Record the linkage so removal can unlink from bookkeeping even if the edge never built.
+    // Re-linking (edge rebuild) overwrites with the latest endpoints.
+    this.linkedEdges.set(edge.id, edge);
     for (const ep of [edge.from, edge.to]) {
       if (ep.kind === 'node' || ep.kind === 'outline') {
         let set = this.nodeEdges.get(ep.nodeId);
@@ -301,6 +347,7 @@ export class SceneIndex {
   }
 
   private unlinkEdge(edgeId: Id, edge: EdgeRecord): void {
+    this.linkedEdges.delete(edgeId);
     for (const ep of [edge.from, edge.to]) {
       if (ep.kind === 'node' || ep.kind === 'outline') {
         const set = this.nodeEdges.get(ep.nodeId);

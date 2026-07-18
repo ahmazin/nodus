@@ -7,7 +7,13 @@
 import type { Box, Vec2 } from '../model.js';
 import { drawIcon } from '../icons/index.js';
 import type { ResolvedTokens } from '../theme/index.js';
-import type { Ctx2D } from './context.js';
+import type { Ctx2D, DrawableImage } from './context.js';
+
+export interface ImageOpts {
+  /** `'contain'` (default) letterboxes the whole image inside the box; `'cover'` fills and crops. */
+  fit?: 'contain' | 'cover';
+  opacity?: number;
+}
 
 export interface FillOpts {
   glow?: string | null;
@@ -194,6 +200,32 @@ export class DrawApi {
   /** Draw a registered icon glyph inside `box`. `color` is the outline; `fill` tints the body. */
   icon(name: string, box: Box, color: string, fill?: string): this {
     drawIcon(this.ctx, name, box, color, fill);
+    return this;
+  }
+
+  /**
+   * Draw a decoded image to fill `box`, honoring `fit`:
+   *  - `'contain'` (default) letterboxes the whole image inside the box (no crop);
+   *  - `'cover'` scales to fill and crops the overflow (clipped to the box).
+   * No-op when the image has not decoded yet (`width`/`height` still 0) — callers paint a placeholder.
+   */
+  image(img: DrawableImage, box: Box, opts: ImageOpts = {}): this {
+    const { ctx } = this;
+    const iw = img.width;
+    const ih = img.height;
+    if (!(iw > 0) || !(ih > 0)) return this;
+    ctx.save();
+    if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
+    // Clip to the box so 'cover' crops cleanly and a non-integer aspect never bleeds outside the node.
+    ctx.beginPath();
+    ctx.rect(box.x, box.y, box.w, box.h);
+    ctx.clip();
+    const scale =
+      opts.fit === 'cover' ? Math.max(box.w / iw, box.h / ih) : Math.min(box.w / iw, box.h / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    ctx.drawImage(img, box.x + (box.w - dw) / 2, box.y + (box.h - dh) / 2, dw, dh);
+    ctx.restore();
     return this;
   }
 

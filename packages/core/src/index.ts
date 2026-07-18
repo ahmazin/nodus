@@ -107,7 +107,6 @@ export {
   type Port,
   type NodeCapabilities,
   type EdgeRouteContext,
-  type Migration,
   type NodeRegistry,
   type EdgeRegistry,
 } from './registries/index.js';

@@ -23,6 +23,7 @@ import {
   type ResolvedTokens,
   type Vec2,
 } from '@nodus/core';
+import { imageNode } from './image.js';
 
 const rectPorts = (): Port[] => [
   { id: 'in', kind: 'target', anchor: { x: 0.5, y: 0 } },
@@ -203,5 +204,5 @@ export const flowEdge: EdgeUtil = {
   },
 };
 
-export const diagramNodeUtils: NodeUtil[] = [pillNode, processNode, decisionNode, stateNode, tableNode, cardNode, iconNode];
+export const diagramNodeUtils: NodeUtil[] = [pillNode, processNode, decisionNode, stateNode, tableNode, cardNode, iconNode, imageNode];
 export const diagramEdgeUtils: EdgeUtil[] = [flowEdge];

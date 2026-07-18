@@ -8,11 +8,14 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactEle
 import { getIcon, type Ctx2D, type Editor } from '@nodus/core';
 import { getCanvas } from './canvas-registry.js';
 import { catalogCounts, filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
+import { useUiTokens, type UiTokens } from './ui/tokens.js';
+import { injectGlobalStyles } from './ui/global-styles.js';
 
 export interface CloudIconPickerProps {
   editor: Editor;
   catalog: IconCatalogEntry[];
-  /** Fallback tint for monochrome glyphs; cloud icons carry baked colors. Default '#e5e7eb'. */
+  /** Fallback tint for monochrome glyphs; cloud icons carry baked colors. Defaults to the themed
+   *  text color (mode-aware) so glyphs stay visible on both dark and light tiles. */
   glyphColor?: string;
 }
 
@@ -31,77 +34,92 @@ const BRAND: Record<ProviderFilter, string> = {
   gcp: '#4285f4',
 };
 
-const PANEL: CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 404, zIndex: 20,
-  background: '#0b0e13', border: '1px solid #2a323a', borderRadius: 8, padding: 10,
-  boxShadow: '0 12px 32px -12px rgba(0,0,0,0.8)',
-};
+// Layout-only constants (no color) stay module-level; everything that carries color is derived from
+// the shared UI tokens in `buildStyles(t)` so the picker re-skins with the theme and passes WCAG AA.
 const SEARCH_WRAP: CSSProperties = { position: 'relative', display: 'flex', alignItems: 'center' };
-const INPUT: CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: '#12161c', color: '#e5e7eb',
-  border: '1px solid #2a323a', borderRadius: 6, padding: '6px 26px 6px 8px', fontSize: 12, outline: 'none',
-};
-const CLEAR_BTN: CSSProperties = {
-  position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-  width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-  border: 'none', borderRadius: 999, background: '#2a323a', color: '#cbd5e1',
-  fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: 0,
-};
-const EMPTY: CSSProperties = {
-  marginTop: 8, padding: '30px 12px', textAlign: 'center', color: '#6b7280', fontSize: 12,
-};
-const chipStyle = (brand: string, active: boolean, empty: boolean, hovered: boolean): CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', gap: 5,
-  background: active ? `${brand}22` : hovered ? '#171c24' : '#12161c',
-  color: active ? brand : hovered ? '#e5e7eb' : '#9ca3af',
-  border: `1px solid ${active ? brand : hovered ? `${brand}88` : '#2a323a'}`,
-  borderRadius: 999, padding: '3px 8px', fontSize: 11, lineHeight: 1.4,
-  cursor: 'pointer', textTransform: 'uppercase',
-  opacity: empty && !active ? 0.4 : 1,
-  transition: 'background 120ms, border-color 120ms, color 120ms',
-});
-const chipCountStyle = (active: boolean, brand: string): CSSProperties => ({
-  fontVariantNumeric: 'tabular-nums', fontSize: 10, padding: '1px 5px', borderRadius: 999,
-  minWidth: 12, textAlign: 'center', background: '#00000033', color: active ? brand : '#9ca3af',
-});
-const RECENT_LABEL: CSSProperties = {
-  fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: '#6b7280', margin: '10px 0 4px',
-};
 const RECENT_ROW: CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap' };
-const RECENT_TILE: CSSProperties = {
-  display: 'flex', padding: 4, background: '#12161c', borderWidth: 1, borderStyle: 'solid',
-  borderColor: '#1c2320', borderRadius: 6, cursor: 'grab', touchAction: 'none', userSelect: 'none',
-};
-// Tile hover via a stylesheet (avoids re-rendering all 92 tiles on pointer move); !important beats
-// the inline base styles. Injected once inside the panel.
-// Tile highlight is unified through activeIndex (set by hover AND arrow keys), so no :hover rule
-// here — just the scrollbar theming, which can't be expressed with inline styles.
-const GRID_CSS =
-  '[data-cloud-grid]{scrollbar-width:thin;scrollbar-color:#2a323a transparent}' +
-  '[data-cloud-grid]::-webkit-scrollbar{width:8px}' +
-  '[data-cloud-grid]::-webkit-scrollbar-thumb{background:#2a323a;border-radius:8px}' +
-  '[data-cloud-grid]::-webkit-scrollbar-thumb:hover{background:#3a4654}' +
-  '[data-cloud-grid]::-webkit-scrollbar-track{background:transparent}';
 const GRID: CSSProperties = {
   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 8,
   maxHeight: 300, overflowY: 'auto',
 };
-const TILE_BTN: CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: 4,
-  background: '#12161c', borderWidth: 1, borderStyle: 'solid', borderColor: '#1c2320', borderRadius: 6,
-  cursor: 'grab', touchAction: 'none', userSelect: 'none',
-};
-// The keyboard-cursor tile: an accent ring so arrow navigation is visible.
-const tileStyle = (active: boolean): CSSProperties =>
-  active ? { ...TILE_BTN, borderColor: '#10b981', background: '#10b98114' } : TILE_BTN;
-const TILE_LABEL: CSSProperties = {
-  fontSize: 9, color: '#9ca3af', maxWidth: TILE + 14, overflow: 'hidden',
-  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-};
-const BTN: CSSProperties = {
-  background: '#12161c', color: '#e5e5e5', borderWidth: 1, borderStyle: 'solid', borderColor: '#2a322f',
-  borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
-};
+
+interface PickerStyles {
+  panel: CSSProperties;
+  input: CSSProperties;
+  clearBtn: CSSProperties;
+  empty: CSSProperties;
+  recentLabel: CSSProperties;
+  recentTile: CSSProperties;
+  tileLabel: CSSProperties;
+  footer: CSSProperties;
+  gridCss: string;
+  btn: (active: boolean) => CSSProperties;
+  chip: (brand: string, active: boolean, empty: boolean, hovered: boolean) => CSSProperties;
+  chipCount: (active: boolean, brand: string) => CSSProperties;
+  tile: (active: boolean) => CSSProperties;
+}
+
+function buildStyles(t: UiTokens): PickerStyles {
+  const c = t.color;
+  const tileBase: CSSProperties = {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: 4,
+    background: c.surface, borderWidth: 1, borderStyle: 'solid', borderColor: c.border, borderRadius: t.radius.md,
+    cursor: 'grab', touchAction: 'none', userSelect: 'none',
+  };
+  return {
+    panel: {
+      position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 404, zIndex: 20,
+      background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
+      boxShadow: t.shadow.popover, color: c.text, fontFamily: t.font.family,
+    },
+    input: {
+      width: '100%', boxSizing: 'border-box', background: c.surface, color: c.text,
+      border: `1px solid ${c.border}`, borderRadius: t.radius.md, padding: '6px 26px 6px 8px', fontSize: 12, outline: 'none',
+    },
+    clearBtn: {
+      position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+      width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: 'none', borderRadius: 999, background: c.surfaceHover, color: c.text,
+      fontSize: 13, lineHeight: 1, cursor: 'pointer', padding: 0,
+    },
+    empty: { marginTop: 8, padding: '30px 12px', textAlign: 'center', color: c.textMuted, fontSize: 12 },
+    recentLabel: { fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: c.textFaint, margin: '10px 0 4px' },
+    recentTile: {
+      display: 'flex', padding: 4, background: c.surface, borderWidth: 1, borderStyle: 'solid',
+      borderColor: c.border, borderRadius: t.radius.md, cursor: 'grab', touchAction: 'none', userSelect: 'none',
+    },
+    tileLabel: { fontSize: 9, color: c.textMuted, maxWidth: TILE + 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    footer: { marginTop: 6, fontSize: 10, color: c.textFaint },
+    // Scrollbar theming can't be expressed with inline styles; tile hover/keyboard highlight is
+    // unified through activeIndex (no :hover rule needed here).
+    gridCss:
+      `[data-cloud-grid]{scrollbar-width:thin;scrollbar-color:${c.borderStrong} transparent}` +
+      '[data-cloud-grid]::-webkit-scrollbar{width:8px}' +
+      `[data-cloud-grid]::-webkit-scrollbar-thumb{background:${c.border};border-radius:8px}` +
+      `[data-cloud-grid]::-webkit-scrollbar-thumb:hover{background:${c.borderStrong}}` +
+      '[data-cloud-grid]::-webkit-scrollbar-track{background:transparent}',
+    btn: (active) => ({
+      background: c.surface, color: active ? c.accent : c.text, borderWidth: 1, borderStyle: 'solid',
+      borderColor: active ? c.accent : c.border, borderRadius: t.radius.md, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
+    }),
+    chip: (brand, active, empty, hovered) => ({
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: active ? `${brand}22` : hovered ? c.surfaceHover : c.surface,
+      color: active ? brand : hovered ? c.text : c.textMuted,
+      border: `1px solid ${active ? brand : hovered ? `${brand}88` : c.border}`,
+      borderRadius: 999, padding: '3px 8px', fontSize: 11, lineHeight: 1.4,
+      cursor: 'pointer', textTransform: 'uppercase',
+      opacity: empty && !active ? 0.4 : 1,
+      transition: 'background 120ms, border-color 120ms, color 120ms',
+    }),
+    chipCount: (active, brand) => ({
+      fontVariantNumeric: 'tabular-nums', fontSize: 10, padding: '1px 5px', borderRadius: 999,
+      minWidth: 12, textAlign: 'center', background: '#00000033', color: active ? brand : c.textMuted,
+    }),
+    // The keyboard-cursor tile: an accent ring so arrow navigation is visible.
+    tile: (active) => (active ? { ...tileBase, borderColor: c.accent, background: c.selection } : tileBase),
+  };
+}
 
 /**
  * Small brand badge for a provider chip — a recognizable, trademark-safe mark (not the official
@@ -172,7 +190,13 @@ function Preview({ name, color }: { name: string; color: string }): ReactElement
   return <canvas ref={ref} style={{ width: TILE, height: TILE, display: 'block' }} />;
 }
 
-export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: CloudIconPickerProps): ReactElement {
+export function CloudIconPicker({ editor, catalog, glyphColor }: CloudIconPickerProps): ReactElement {
+  const t = useUiTokens(editor);
+  const S = buildStyles(t);
+  // Monochrome-glyph fallback tint: caller override wins, else the themed text color so glyphs stay
+  // visible on both dark and light tiles (a near-white default would vanish on the light surface).
+  const glyph = glyphColor ?? t.color.text;
+  useEffect(() => { injectGlobalStyles(); }, []);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState<ProviderFilter>('all');
@@ -283,22 +307,24 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
   };
 
   return (
-    <div ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={rootRef} data-nodus-ui="" style={{ position: 'relative', display: 'inline-block', fontFamily: t.font.family }}>
       <button
         data-testid="cloud-picker-button"
-        style={open ? { ...BTN, borderColor: '#10b981', color: '#10b981' } : BTN}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        style={S.btn(open)}
         onClick={() => setOpen((o) => !o)}
       >
         Cloud ▾
       </button>
       {open && (
-        <div data-testid="cloud-picker-panel" style={PANEL} onPointerDown={(e) => e.stopPropagation()}>
-          <style>{GRID_CSS}</style>
+        <div data-testid="cloud-picker-panel" style={S.panel} onPointerDown={(e) => e.stopPropagation()}>
+          <style>{S.gridCss}</style>
           <div style={SEARCH_WRAP}>
             <input
               ref={inputRef}
               data-testid="cloud-picker-search"
-              style={INPUT}
+              style={S.input}
               placeholder="Search services… (lambda, database, gcp)"
               value={query}
               role="combobox"
@@ -328,7 +354,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
             {query && (
               <button
                 data-testid="cloud-picker-clear"
-                style={CLEAR_BTN}
+                style={S.clearBtn}
                 onClick={() => { setQuery(''); inputRef.current?.focus(); }}
                 title="Clear search"
                 aria-label="Clear search"
@@ -342,7 +368,8 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               <button
                 key={p}
                 data-testid={`cloud-chip-${p}`}
-                style={chipStyle(BRAND[p], provider === p, counts[p] === 0, hoveredChip === p)}
+                aria-pressed={provider === p}
+                style={S.chip(BRAND[p], provider === p, counts[p] === 0, hoveredChip === p)}
                 onClick={() => setProvider(p)}
                 onMouseEnter={() => setHoveredChip(p)}
                 onMouseLeave={() => setHoveredChip((h) => (h === p ? null : h))}
@@ -350,13 +377,13 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
               >
                 <ProviderMark p={p} />
                 <span>{p}</span>
-                <span style={chipCountStyle(provider === p, BRAND[p])}>{counts[p]}</span>
+                <span style={S.chipCount(provider === p, BRAND[p])}>{counts[p]}</span>
               </button>
             ))}
           </div>
           {query.trim() === '' && recents.length > 0 && (
             <div>
-              <div style={RECENT_LABEL}>Recent</div>
+              <div style={S.recentLabel}>Recent</div>
               <div style={RECENT_ROW}>
                 {recents.map((entry) => (
                   <div
@@ -364,17 +391,17 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
                     data-testid={`cloud-recent-${entry.name}`}
                     data-cloud-tile=""
                     title={entry.name}
-                    style={RECENT_TILE}
+                    style={S.recentTile}
                     onPointerDown={(e) => onTilePointerDown(entry, e)}
                   >
-                    <Preview name={entry.name} color={glyphColor} />
+                    <Preview name={entry.name} color={glyph} />
                   </div>
                 ))}
               </div>
             </div>
           )}
           {results.length === 0 ? (
-            <div data-testid="cloud-picker-empty" style={EMPTY}>
+            <div data-testid="cloud-picker-empty" style={S.empty}>
               No {provider === 'all' ? '' : `${provider.toUpperCase()} `}services match “{query.trim()}”
             </div>
           ) : (
@@ -389,24 +416,24 @@ export function CloudIconPicker({ editor, catalog, glyphColor = '#e5e7eb' }: Clo
                   role="option"
                   aria-selected={i === activeIndex}
                   title={entry.name}
-                  style={tileStyle(i === activeIndex)}
+                  style={S.tile(i === activeIndex)}
                   onPointerDown={(e) => onTilePointerDown(entry, e)}
                   onMouseEnter={() => setActiveIndex(i)}
                 >
-                  <Preview name={entry.name} color={glyphColor} />
-                  <span style={TILE_LABEL}>{entry.service}</span>
+                  <Preview name={entry.name} color={glyph} />
+                  <span style={S.tileLabel}>{entry.service}</span>
                 </div>
               ))}
             </div>
           )}
-          <div style={{ marginTop: 6, fontSize: 10, color: '#3a423f' }}>
+          <div style={S.footer}>
             {results.length} of {catalog.length} · ↑↓←→ to move · Enter to add · drag to place
           </div>
         </div>
       )}
       {ghost && (
         <div style={{ position: 'fixed', left: ghost.x - TILE / 2, top: ghost.y - TILE / 2, pointerEvents: 'none', opacity: 0.9, zIndex: 100 }}>
-          <Preview name={ghost.entry.name} color={glyphColor} />
+          <Preview name={ghost.entry.name} color={glyph} />
         </div>
       )}
     </div>

@@ -1,7 +1,8 @@
 /**
- * Versioned serialization + a defensive restore that never trusts loaded data: it migrates by
- * schema version, validates/normalizes each record, and repairs dangling edge endpoints (edges
- * referencing missing nodes are dropped rather than crashing the scene).
+ * Versioned serialization + a defensive restore that never trusts loaded data: it validates and
+ * normalizes each record and repairs dangling edge endpoints (edges referencing missing nodes are
+ * dropped rather than crashing the scene). `schemaVersion` is stamped for forward compatibility;
+ * when the first breaking schema change lands, a real migration step is reintroduced here.
  */
 
 import type { EdgeRecord, Endpoint, NodeRecord, NodusRecord, PageRecord } from '../model.js';
@@ -151,14 +152,8 @@ function normalizePage(r: Record<string, unknown>): PageRecord | null {
   };
 }
 
-function migrate(snap: Snapshot): Snapshot {
-  // Future breaking schema changes run their migrations here, oldest-first.
-  return snap;
-}
-
 export function restore(input: Snapshot): RestoreResult {
-  const snap = migrate(input);
-  const raw = snap.document?.records ?? [];
+  const raw = input.document?.records ?? [];
 
   const nodes: NodeRecord[] = [];
   const edges: EdgeRecord[] = [];

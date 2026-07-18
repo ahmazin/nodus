@@ -1,6 +1,25 @@
 /** A minimap overlay: a scaled view of the whole scene with a draggable viewport indicator. */
 import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
-import { effect, resolveTokens, type Editor } from '@nodus/core';
+import { effect, resolveTokens, type Box, type Editor } from '@nodus/core';
+import { useUiTokens } from './ui/tokens.js';
+
+/**
+ * A tiny version-keyed memo. Returns a getter that recomputes only when the passed `version` differs
+ * from the last call — so panning the camera (which doesn't bump the scene version) reuses the cached
+ * value instead of re-scanning every item. Pure and framework-free, so it's unit-testable directly.
+ */
+export function createVersionCache<T>(): (version: number, compute: () => T) => T {
+  let has = false;
+  let cachedVersion = -1;
+  let cachedValue: T;
+  return (version, compute) => {
+    if (has && version === cachedVersion) return cachedValue;
+    cachedValue = compute();
+    cachedVersion = version;
+    has = true;
+    return cachedValue;
+  };
+}
 
 export interface MinimapProps {
   editor: Editor;
@@ -12,6 +31,11 @@ export interface MinimapProps {
 
 export function Minimap({ editor, width = 200, height = 140, className, style }: MinimapProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const t = useUiTokens(editor);
+  // Persist the bounds cache across renders/redraws; contentBounds() spreads the whole item map, so
+  // caching it by scene version keeps a drag (many pointermove → recenter → fit calls) allocation-free.
+  const boundsCacheRef = useRef<((version: number, compute: () => Box | null) => Box | null) | null>(null);
+  if (!boundsCacheRef.current) boundsCacheRef.current = createVersionCache<Box | null>();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -21,9 +45,13 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     const pad = 10;
+    const boundsCache = boundsCacheRef.current!;
+
+    const contentBounds = (): Box | null =>
+      boundsCache(editor.sceneIndex.version.peek(), () => editor.sceneIndex.contentBounds());
 
     const fit = () => {
-      const b = editor.sceneIndex.contentBounds();
+      const b = contentBounds();
       if (!b) return null;
       const s = Math.min((width - 2 * pad) / b.w, (height - 2 * pad) / b.h) || 1;
       const ox = pad + (width - 2 * pad - b.w * s) / 2 - b.x * s;
@@ -88,5 +116,23 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
     };
   }, [editor, width, height]);
 
-  return <canvas ref={canvasRef} className={className} style={{ width, height, display: 'block', cursor: 'pointer', ...style }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      data-nodus-ui=""
+      className={className}
+      aria-label="Minimap — drag to pan the viewport"
+      style={{
+        width,
+        height,
+        display: 'block',
+        cursor: 'pointer',
+        border: `1px solid ${t.color.border}`,
+        borderRadius: t.radius.md,
+        boxShadow: t.shadow.panel,
+        background: t.color.panel,
+        ...style,
+      }}
+    />
+  );
 }

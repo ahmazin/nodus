@@ -18,6 +18,7 @@ import {
 import { ROW_H, diagramEdgeUtils, diagramNodeUtils } from './types.js';
 
 export * from './types.js';
+export * from './image.js';
 
 // ---------------------------------------------------------------------------
 // theme

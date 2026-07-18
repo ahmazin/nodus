@@ -35,16 +35,8 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
   multiline: false,
 };
 
-/** A per-record-type migration: transform props authored at `from` up to the next version. */
-export interface Migration {
-  from: number;
-  up: (props: Record<string, unknown>) => Record<string, unknown>;
-}
-
 export interface NodeUtil<P extends Record<string, unknown> = Record<string, unknown>> {
   readonly type: string;
-  /** Current schema version for this type's `props`. Defaults to 0. */
-  readonly version?: number;
   getDefaultProps(): P;
   getDefaultSize?(props: P): { w: number; h: number };
   /** Compute intrinsic size (e.g. from a label). Canvas has no DOM autosize; layout needs sizes. */
@@ -54,9 +46,6 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
   getPorts?(node: NodeRecord): Port[];
   draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void;
   readonly capabilities?: Partial<NodeCapabilities>;
-  readonly migrations?: Migration[];
-  /** Validate/normalize persisted props; throw or coerce. */
-  validate?(props: unknown): P;
 }
 
 export interface EdgeRouteContext {
@@ -76,14 +65,12 @@ export interface EdgeRouteContext {
 
 export interface EdgeUtil<P extends Record<string, unknown> = Record<string, unknown>> {
   readonly type: string;
-  readonly version?: number;
   getDefaultProps?(): P;
   /** Compute the polyline route (world coords) from resolved endpoints. */
   getRoute(edge: EdgeRecord, ctx: EdgeRouteContext): Vec2[];
   /** Hit tolerance (world units) around the polyline. */
   readonly hitWidth?: number;
   draw(api: DrawApi, edge: EdgeRecord, tokens: ResolvedTokens, route: Vec2[]): void;
-  readonly migrations?: Migration[];
 }
 
 /** A generic type-keyed registry. */
