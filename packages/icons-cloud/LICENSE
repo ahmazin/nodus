@@ -1,0 +1,69 @@
+@nodus/icons-cloud — License
+============================
+
+This package has TWO distinct bodies of material with DIFFERENT terms. Read both sections.
+
+
+1. Original Nodus code and data  —  MIT
+--------------------------------------------------------------------------------
+
+The original work authored for this package — its TypeScript source, the icon
+allowlist and codegen, the registry-integration glue, the package's own
+metadata, and all non-artwork files — is offered under the MIT License:
+
+    MIT License
+
+    Copyright (c) 2026 Ali Malik
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+
+2. Bundled cloud-provider icon assets  —  NOT MIT; each provider's own terms
+--------------------------------------------------------------------------------
+
+The MIT grant above does NOT apply to the cloud-provider service icons, nor to
+the compact "vector pack" data derived from them, that this package bundles
+(under `svg/<provider>/` and the generated packs). Those icons are the property
+of their respective providers — Amazon Web Services, Inc. (AWS), Microsoft
+Corporation (Azure), and Google LLC (Google Cloud) — and are included ONLY under
+each provider's own architecture-/service-icon terms, which permit use in
+architecture diagrams. They are trademarks and artwork of those providers.
+
+Neither Ali Malik, the Nodus project, nor the MIT grant in Section 1 conveys to
+you any right, title, or interest in those providers' trademarks or artwork, and
+nothing here is an endorsement by, or affiliation with, any provider.
+
+Before you redistribute this package, ship a product built on it, or otherwise
+use the bundled artwork, YOU are responsible for reviewing and complying with
+each provider's then-current icon terms. See:
+
+  - `NOTICE`                    — attribution and the source toolkits
+  - `LICENSES/aws.md`           — AWS Architecture Icons terms & link
+  - `LICENSES/azure.md`         — Azure Architecture Icons terms & link
+  - `LICENSES/gcp.md`           — Google Cloud icons terms & link
+  - `README.md`                 — usage notes and the curation policy
+
+If you do not agree to a provider's icon terms, do not use that provider's
+icons from this package.
+
+
+--------------------------------------------------------------------------------
+This LICENSE is provided in good faith to document how the package is assembled;
+it is not legal advice. If your use is commercial or high-volume, confirm the
+current provider terms (and, if in doubt, consult counsel) before relying on it.
