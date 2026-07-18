@@ -1,6 +1,87 @@
 /** Copy/download the diagram (or the selection) as a PNG. Renders via the same paint pipeline. */
-import { padBox, type Box, type Ctx2D, type Editor } from '@nodus/core';
+import { padBox, type Box, type Ctx2D, type Editor, type Vec2 } from '@nodus/core';
 import { showToast } from './toast.js';
+
+// ============================================================================
+// System-clipboard PASTE (image / plain text → a node)
+// ============================================================================
+
+export interface SystemPasteOptions {
+  /** Node type used for a pasted image (e.g. `'diagram.image'`). Omit to ignore clipboard images. */
+  imageNodeType?: string;
+  /** Node type used for pasted plain text (its `label`). Omit to ignore clipboard text. */
+  textNodeType?: string;
+}
+
+/** World point at the center of the current viewport — where pasted content is dropped. */
+function viewportCenterWorld(editor: Editor): Vec2 {
+  const vp = editor.viewportAtom.peek();
+  return editor.screenToWorld({ x: vp.w / 2, y: vp.h / 2 });
+}
+
+/** Create a node of `type` centered on `(c)`, sized by its `getDefaultSize`. Returns the new id. */
+function createCentered(
+  editor: Editor,
+  type: string,
+  c: Vec2,
+  props: Record<string, unknown>,
+  label?: string,
+): void {
+  const size = editor.nodes.get(type)?.getDefaultSize?.(props) ?? { w: 160, h: 40 };
+  const id = editor.createNode({ type, x: c.x - size.w / 2, y: c.y - size.h / 2, props, label });
+  editor.select([id]);
+}
+
+/** Decode an image `File` to a data-URI, read its natural size, and drop an image node centered on
+ *  the viewport. Browser-only (uses `Image`/`FileReader`); on any decode/read failure it does nothing
+ *  rather than inserting a broken node. */
+function insertImageFile(editor: Editor, file: File, imageNodeType: string): void {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const src = typeof reader.result === 'string' ? reader.result : '';
+    if (!src) return;
+    const img = new Image();
+    img.onload = () => {
+      const naturalWidth = img.naturalWidth || 1;
+      const naturalHeight = img.naturalHeight || 1;
+      createCentered(editor, imageNodeType, viewportCenterWorld(editor), { src, naturalWidth, naturalHeight });
+    };
+    img.onerror = () => { /* undecodable clipboard image — ignore */ };
+    img.src = src;
+  };
+  reader.onerror = () => { /* unreadable clipboard file — ignore */ };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Handle a system paste's `DataTransfer`: insert a clipboard image as an image node (when
+ * `imageNodeType` is set), else plain text as a text node (when `textNodeType` is set), centered on
+ * the viewport and selected. Returns true if it consumed the paste (the caller should
+ * `preventDefault`). Image insertion is async (decode); the return value only reflects that an image
+ * WILL be inserted.
+ */
+export function pasteFromSystem(editor: Editor, data: DataTransfer | null, opts: SystemPasteOptions): boolean {
+  if (!data) return false;
+  if (opts.imageNodeType) {
+    for (const item of Array.from(data.items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          insertImageFile(editor, file, opts.imageNodeType);
+          return true;
+        }
+      }
+    }
+  }
+  if (opts.textNodeType) {
+    const text = data.getData('text/plain');
+    if (text.trim()) {
+      createCentered(editor, opts.textNodeType, viewportCenterWorld(editor), {}, text);
+      return true;
+    }
+  }
+  return false;
+}
 
 export interface ImageExportOptions {
   /** Export only the current selection's bounds (default: whole content). */

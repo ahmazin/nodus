@@ -1,20 +1,81 @@
-import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+/**
+ * Nodus reference editor — the product surface built on `@nodus/react`'s shell + design system.
+ *
+ * Composition: a `<Nodus>` canvas host with the built-in `Toolbar`, left `ToolPalette`,
+ * `ZoomControls`, `ThemeToggle`, `UndoRedo`, and shortcut help, plus the `Properties` / `Minimap` /
+ * `CommandPalette` / `CloudIconPicker` panels — all skinned from one theme atom and wired to
+ * localStorage autosave + open/save. `window.__editor` stays exposed for the E2E drive.
+ */
+
+import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Editor } from '@nodus/core';
-import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyOrDownloadImage, useValue } from '@nodus/react';
-import { INFRA_TYPES, installInfraPreset, modelToRecords, type InfraKind } from '@nodus/preset-infra';
-import { iconNode } from '@nodus/preset-diagrams';
+import {
+  ArrowIcon,
+  Button,
+  CircleIcon,
+  CloudIconPicker,
+  CommandPalette,
+  ConnectIcon,
+  DiamondIcon,
+  Divider,
+  EraserIcon,
+  HandIcon,
+  HelpIcon,
+  IconButton,
+  ImageIcon,
+  LineIcon,
+  Minimap,
+  Nodus,
+  OpenIcon,
+  Properties,
+  SaveIcon,
+  SelectIcon,
+  ShortcutsDialog,
+  SquareIcon,
+  TextIcon,
+  ThemeToggle,
+  Toolbar,
+  ToolPalette,
+  UiTokensProvider,
+  UndoRedo,
+  ZoomControls,
+  copyOrDownloadImage,
+  injectGlobalStyles,
+  openFromFile,
+  restoreAutosave,
+  saveToFile,
+  showToast,
+  useAutosave,
+  useUiTokens,
+  useValue,
+  type ShortcutSection,
+  type ToolPaletteEntry,
+} from '@nodus/react';
+import {
+  INFRA_TYPES,
+  darkInfraTheme,
+  infraLightTheme,
+  installInfraPreset,
+  modelToRecords,
+  type InfraKind,
+} from '@nodus/preset-infra';
+import { iconNode, imageNode } from '@nodus/preset-diagrams';
 import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
 import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
 import { dagreLayout } from '@nodus/layout-dagre';
 
+const AUTOSAVE_KEY = 'nodus-example';
+
 function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
-  installInfraPreset(editor);
+  installInfraPreset(editor); // registers infra types + the dark theme (appearance: 'dark')
   installDrawTools(editor);
   installCloudIcons();
   editor.registerNodeType(iconNode);
+  editor.registerNodeType(imageNode); // 'diagram.image' — raster insert / paste target
   editor.registerLayout(dagreLayout);
+
   const records = modelToRecords({
     nodes: [
       { key: 'cdn', type: 'edge', label: 'CDN / Edge', x: 40, y: 300 },
@@ -47,125 +108,282 @@ function buildEditor(): Editor {
   return editor;
 }
 
-const BTN: CSSProperties = {
-  background: '#12161c',
-  color: '#e5e5e5',
-  borderWidth: 1,
-  borderStyle: 'solid',
-  borderColor: '#2a322f',
-  borderRadius: 6,
-  padding: '6px 10px',
-  fontSize: 12,
-  cursor: 'pointer',
-};
+/** Read a File as a `data:` URI (self-contained, canonical-serializable image source). */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Decode an image to get its intrinsic pixel size. */
+function imageSize(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error('decode failed'));
+    img.src = dataUrl;
+  });
+}
+
+/** Documented shortcuts, matching what this app actually binds. */
+const SHORTCUTS: ShortcutSection[] = [
+  {
+    title: 'Tools',
+    items: [
+      { keys: 'V', description: 'Select / move' },
+      { keys: 'R', description: 'Rectangle' },
+      { keys: 'E', description: 'Ellipse' },
+      { keys: 'D', description: 'Diamond' },
+      { keys: 'T', description: 'Text' },
+      { keys: 'L', description: 'Line' },
+      { keys: 'A', description: 'Arrow' },
+    ],
+  },
+  {
+    title: 'Edit',
+    items: [
+      { keys: '⌘Z', description: 'Undo' },
+      { keys: '⇧⌘Z', description: 'Redo' },
+      { keys: ['⌫'], description: 'Delete selection' },
+    ],
+  },
+  {
+    title: 'View & files',
+    items: [
+      { keys: '⌘K', description: 'Command palette' },
+      { keys: '?', description: 'This help' },
+      { keys: '⌘O', description: 'Open .nodus.json' },
+      { keys: '⌘S', description: 'Save .nodus.json' },
+    ],
+  },
+];
 
 function App(): ReactElement {
   const editor = useMemo(buildEditor, []);
-  const [tool, setToolState] = useState('select');
+  const t = useUiTokens(editor);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [createType, setCreateType] = useState<InfraKind>('service');
 
+  const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
+
+  // Restore a previous session if one exists (mount-only; the seed model stands if there's none).
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || editor.editingAtom.peek()) return;
-      const tag = (e.target as HTMLElement)?.tagName;
+    try {
+      restoreAutosave(editor, AUTOSAVE_KEY, { fit: true });
+    } catch {
+      showToast('Could not restore the last session', 'error', { mode: editor.themeAtom.peek().appearance ?? 'dark' });
+    }
+  }, [editor]);
+
+  useAutosave(editor, { key: AUTOSAVE_KEY });
+
+  // Keyboard: tool shortcuts (draw preset) + undo/redo/delete + `?` help.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (editor.editingAtom.peek()) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (drawShortcut(editor, e.key)) setToolState(editor.currentToolId);
+
+      if (e.metaKey || e.ctrlKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z') {
+          e.preventDefault();
+          e.shiftKey ? editor.redo() : editor.undo();
+        } else if (k === 's') {
+          e.preventDefault();
+          saveToFile(editor);
+        } else if (k === 'o') {
+          e.preventDefault();
+          void openFromFile(editor).catch(() => showToast('Not a valid Nodus file', 'error', { mode: t.mode }));
+        }
+        return;
+      }
+
+      if (e.key === '?') {
+        setHelpOpen(true);
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        const ids = editor.selectedIdsArray();
+        if (ids.length) {
+          e.preventDefault();
+          editor.deleteRecords(ids);
+        }
+        return;
+      }
+      drawShortcut(editor, e.key);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editor]);
+  }, [editor, t.mode]);
 
-  const canUndo = useValue(() => (editor.history.version.get(), editor.history.canUndo()));
-  const canRedo = useValue(() => (editor.history.version.get(), editor.history.canRedo()));
   const selCount = useValue(() => editor.selectedAtom.get().size);
   const nodeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.nodes().length));
 
-  const setTool = (id: string, cfg?: Record<string, unknown>): void => {
-    editor.setTool(id, cfg);
-    setToolState(id);
-  };
-  const activeStyle = (id: string): CSSProperties =>
-    tool === id ? { ...BTN, borderColor: '#10b981', color: '#10b981' } : BTN;
+  const insertImage = useCallback((): void => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      void (async () => {
+        try {
+          const src = await fileToDataUrl(file);
+          const { width, height } = await imageSize(src);
+          const max = 320;
+          const scale = Math.min(1, max / Math.max(width, height));
+          const w = Math.round(width * scale) || 160;
+          const h = Math.round(height * scale) || 120;
+          const vp = editor.worldViewport();
+          editor.createNode({
+            type: 'diagram.image',
+            x: vp.x + vp.w / 2 - w / 2,
+            y: vp.y + vp.h / 2 - h / 2,
+            w,
+            h,
+            props: { src, naturalWidth: width, naturalHeight: height, alt: file.name, fit: 'contain' },
+          });
+        } catch {
+          showToast('Could not insert that image', 'error', { mode: t.mode });
+        }
+      })();
+    };
+    input.click();
+  }, [editor, t.mode]);
+
+  const openFile = useCallback((): void => {
+    void openFromFile(editor).catch(() => showToast('Not a valid Nodus file', 'error', { mode: t.mode }));
+  }, [editor, t.mode]);
+
+  // The left tool palette — config-driven, so it stays preset-agnostic. Eraser only if registered.
+  const tools = useMemo<ToolPaletteEntry[]>(() => {
+    const list: ToolPaletteEntry[] = [
+      { id: 'select', label: 'Select', toolId: 'select', icon: <SelectIcon />, shortcut: 'V', testId: 'tool-select' },
+      { id: 'hand', label: 'Pan', toolId: 'hand', icon: <HandIcon /> },
+      'divider',
+      { id: 'rect', label: 'Rectangle', toolId: 'create', config: { type: 'draw.rect' }, icon: <SquareIcon />, shortcut: 'R' },
+      { id: 'ellipse', label: 'Ellipse', toolId: 'create', config: { type: 'draw.ellipse' }, icon: <CircleIcon />, shortcut: 'E' },
+      { id: 'diamond', label: 'Diamond', toolId: 'create', config: { type: 'draw.diamond' }, icon: <DiamondIcon />, shortcut: 'D' },
+      { id: 'text', label: 'Text', toolId: 'create', config: { type: 'draw.text' }, icon: <TextIcon />, shortcut: 'T' },
+      'divider',
+      { id: 'line', label: 'Line', toolId: 'line', config: { type: 'draw.line' }, icon: <LineIcon />, shortcut: 'L' },
+      { id: 'arrow', label: 'Arrow', toolId: 'line', config: { type: 'draw.arrow' }, icon: <ArrowIcon />, shortcut: 'A' },
+      'divider',
+      { id: 'connect', label: 'Connect nodes', toolId: 'connect', icon: <ConnectIcon /> },
+    ];
+    if (editor.toolManager.has('eraser')) {
+      list.push({ id: 'eraser', label: 'Eraser', toolId: 'eraser', icon: <EraserIcon /> });
+    }
+    return list;
+  }, [editor]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div
-        data-testid="toolbar"
-        style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          padding: 10,
-          borderBottom: '1px solid #1c2320',
-          flexWrap: 'wrap',
-        }}
-      >
-        <strong style={{ color: '#10b981', marginRight: 6 }}>Nodus</strong>
-        <button data-testid="tool-select" style={activeStyle('select')} onClick={() => setTool('select')}>
-          Select
-        </button>
-        <button data-testid="tool-connect" style={activeStyle('connect')} onClick={() => setTool('connect')}>
-          Connect
-        </button>
-        <button data-testid="tool-create" style={activeStyle('create')} onClick={() => setTool('create', { type: `infra.${createType}` })}>
-          Create
-        </button>
-        <select
-          data-testid="type-select"
-          value={createType}
-          onChange={(e) => {
-            const t = e.target.value as InfraKind;
-            setCreateType(t);
-            if (tool === 'create') setTool('create', { type: `infra.${t}` });
-          }}
-          style={{ ...BTN, padding: '6px' }}
-        >
-          {INFRA_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <span style={{ width: 1, height: 22, background: '#1c2320' }} />
-        <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
-        <span style={{ width: 1, height: 22, background: '#1c2320' }} />
-        <button data-testid="undo" style={BTN} disabled={!canUndo} onClick={() => editor.undo()}>
-          Undo
-        </button>
-        <button data-testid="redo" style={BTN} disabled={!canRedo} onClick={() => editor.redo()}>
-          Redo
-        </button>
-        <button data-testid="delete" style={BTN} onClick={() => editor.deleteRecords(editor.selectedIdsArray())}>
-          Delete
-        </button>
-        <button data-testid="fit" style={BTN} onClick={() => editor.zoomToFit(64)}>
-          Fit
-        </button>
-        <button data-testid="copy" style={BTN} onClick={() => void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 })}>
-          Copy PNG
-        </button>
-        <button data-testid="layout" style={BTN} onClick={() => void editor.layout('dagre', { direction: 'LR' })}>
-          Auto-layout
-        </button>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#3a423f' }} data-testid="status">
-          {nodeCount} nodes · {selCount} selected · ⌘K commands · right-click menu · dbl-click rename
-        </span>
-      </div>
-      <div style={{ position: 'relative', flex: 1 }}>
-        <Nodus editor={editor} style={{ position: 'absolute', inset: 0 }} />
-        <div
-          data-testid="minimap"
-          style={{ position: 'absolute', right: 12, bottom: 12, border: '1px solid #1c2320', borderRadius: 8, overflow: 'hidden', background: '#0b110e', boxShadow: '0 6px 20px -8px rgba(0,0,0,0.7)' }}
-        >
-          <Minimap editor={editor} width={200} height={130} />
+    <UiTokensProvider tokens={t}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: t.color.canvas }}>
+        <Toolbar editor={editor} aria-label="Editor toolbar">
+          <strong style={{ color: t.color.accent, fontSize: t.font.size.md, letterSpacing: '0.01em' }}>Nodus</strong>
+          <Divider vertical style={{ height: 20 }} />
+          <UndoRedo editor={editor} />
+          <Divider vertical style={{ height: 20 }} />
+          {/* Infra node creator — pick a type, then place it on the canvas with the create tool. */}
+          <select
+            data-testid="type-select"
+            aria-label="Infra node type"
+            value={createType}
+            onChange={(e) => {
+              const next = e.target.value as InfraKind;
+              setCreateType(next);
+              if (editor.currentToolId === 'create') editor.setTool('create', { type: `infra.${next}` });
+            }}
+            style={{
+              height: 30,
+              padding: `0 ${t.space(1.5)}px`,
+              borderRadius: t.radius.md,
+              border: `1px solid ${t.color.border}`,
+              background: t.color.surface,
+              color: t.color.text,
+              fontFamily: t.font.family,
+              fontSize: t.font.size.sm,
+            }}
+          >
+            {INFRA_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <Button data-testid="tool-create" onClick={() => editor.setTool('create', { type: `infra.${createType}` })}>
+            Create
+          </Button>
+          <Button variant="ghost" onClick={insertImage}>
+            <ImageIcon /> Image
+          </Button>
+          <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
+          <Button data-testid="layout" variant="ghost" onClick={() => void editor.layout('dagre', { direction: 'LR' })}>
+            Auto-layout
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 })}
+          >
+            Copy PNG
+          </Button>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: t.space(2) }}>
+            <span data-testid="status" style={{ fontSize: t.font.size.xs, color: t.color.textMuted }}>
+              {nodeCount} nodes · {selCount} selected
+            </span>
+            <Divider vertical style={{ height: 20 }} />
+            <IconButton icon={<OpenIcon />} aria-label="Open file" title="Open .nodus.json (⌘O)" onClick={openFile} />
+            <IconButton icon={<SaveIcon />} aria-label="Save file" title="Save .nodus.json (⌘S)" onClick={() => saveToFile(editor)} />
+            <Divider vertical style={{ height: 20 }} />
+            <ZoomControls editor={editor} />
+            <ThemeToggle editor={editor} light={infraLightTheme} dark={darkInfraTheme} />
+            <IconButton icon={<HelpIcon />} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={() => setHelpOpen(true)} />
+          </div>
+        </Toolbar>
+
+        <div style={{ position: 'relative', flex: 1 }}>
+          {/* `imageNodeType` routes system-clipboard image pastes to the registered image node. */}
+          <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
+
+          <ToolPalette
+            editor={editor}
+            tools={tools}
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
+          />
+
+          <Properties editor={editor} style={{ position: 'absolute', right: 12, top: 12 }} />
+
+          <div
+            data-testid="minimap"
+            style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 12,
+              border: `1px solid ${t.color.border}`,
+              borderRadius: t.radius.lg,
+              overflow: 'hidden',
+              background: t.color.panel,
+              boxShadow: t.shadow.panel,
+            }}
+          >
+            <Minimap editor={editor} width={200} height={130} />
+          </div>
+
+          <CommandPalette editor={editor} />
+          <ShortcutsDialog editor={editor} open={helpOpen} onClose={() => setHelpOpen(false)} sections={SHORTCUTS} />
         </div>
-        <Properties editor={editor} style={{ position: 'absolute', right: 12, top: 12 }} />
-        <CommandPalette editor={editor} />
       </div>
-    </div>
+    </UiTokensProvider>
   );
 }
 
+injectGlobalStyles();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

@@ -167,15 +167,24 @@ export class SelectTool extends ToolNode {
     }
   }
 
-  private beginTranslate(): void {
-    this.dragIds = [...this.editor.expandWithDescendants(this.editor.selectedIdsArray())];
+  /** Begin a drag-translate of the current selection. Edit-locked nodes are excluded, so a mixed
+   *  selection drags only its unlocked members (and can snap to the stationary locked ones). Returns
+   *  false — and does NOT enter the 'translating' state — when nothing is draggable (e.g. the whole
+   *  selection is locked), so a click-drag on a locked node is a no-op rather than a phantom gesture. */
+  private beginTranslate(): boolean {
+    const ids = [...this.editor.expandWithDescendants(this.editor.selectedIdsArray())].filter(
+      (id) => !this.editor.isLocked(id),
+    );
     this.origPos = new Map();
-    for (const id of this.dragIds) {
+    for (const id of ids) {
       const r = this.editor.store.peek(id);
       if (r && r.typeName === 'node') this.origPos.set(id, { x: r.x, y: r.y });
     }
+    if (this.origPos.size === 0) return false;
+    this.dragIds = ids;
     this.dragBox = this.editor.selectionBounds();
     this.state = 'translating';
+    return true;
   }
 
   override onPointerMove(p: PointerInfo): void {
@@ -206,7 +215,8 @@ export class SelectTool extends ToolNode {
     }
     if (this.state === 'pointing') {
       const moved = Math.hypot(p.screen.x - this.downScreen.x, p.screen.y - this.downScreen.y);
-      if (moved > DRAG_THRESHOLD) this.beginTranslate();
+      // beginTranslate returns false for a wholly-locked selection → stay put (locked = immovable)
+      if (moved > DRAG_THRESHOLD && !this.beginTranslate()) this.state = 'idle';
     }
     if (this.state === 'translating') {
       let dx = p.world.x - this.downWorld.x;
@@ -316,7 +326,8 @@ export class SelectTool extends ToolNode {
 
   override onKeyDown(k: KeyInfo): void {
     if (k.key === 'Delete' || k.key === 'Backspace') {
-      this.editor.deleteRecords(this.editor.selectedIdsArray());
+      // edit-locked nodes are protected from keyboard delete (unlock first)
+      this.editor.deleteRecords(this.editor.selectedIdsArray().filter((id) => !this.editor.isLocked(id)));
     } else if (k.key === 'Escape') {
       this.editor.clearSelection();
     } else if (k.meta && (k.key === 'a' || k.key === 'A')) {
@@ -457,6 +468,58 @@ export class ConnectTool extends ToolNode {
 }
 
 // ============================================================================
+// Eraser
+// ============================================================================
+
+/** Click or drag over items to delete them. Edit-locked nodes are protected (skipped). A whole
+ *  drag-erase collapses into ONE undo entry: each hit is removed with `capture: 'later'` and the
+ *  gesture is closed with `editor.mark()` on release / tool-exit. */
+export class EraserTool extends ToolNode {
+  readonly id = 'eraser';
+  private erasing = false;
+  private erased = 0;
+
+  override onPointerDown(p: PointerInfo): void {
+    this.erasing = true;
+    this.erased = 0;
+    this.eraseAt(p);
+  }
+  override onPointerMove(p: PointerInfo): void {
+    if (this.erasing) this.eraseAt(p);
+  }
+  override onPointerUp(): void {
+    this.finish();
+  }
+  override onExit(): void {
+    this.finish();
+  }
+
+  /** Delete the topmost item under the cursor (respecting edit-locks). Uses the pointer's pre-hit
+   *  `target` so the erase tolerance matches selection/hover. */
+  private eraseAt(p: PointerInfo): void {
+    const hit = p.target;
+    if (!hit) return;
+    if (hit.kind === 'node' && this.editor.isLocked(hit.id)) return; // locked: protected from erase
+    this.editor.deleteRecords([hit.id], { capture: 'later' });
+    this.erased++;
+  }
+
+  private finish(): void {
+    if (this.erasing && this.erased > 0) this.editor.mark(); // one undo entry for the whole gesture
+    this.erasing = false;
+    this.erased = 0;
+  }
+
+  override onKeyDown(k: KeyInfo): void {
+    if (k.key === 'Escape') this.editor.setTool('select'); // dismiss back to the select tool
+  }
+
+  override cursor(): string {
+    return 'crosshair';
+  }
+}
+
+// ============================================================================
 // Manager
 // ============================================================================
 
@@ -515,5 +578,5 @@ export class ToolManager {
 }
 
 export function defaultTools(): ToolNode[] {
-  return [new SelectTool(), new HandTool(), new CreateNodeTool(), new ConnectTool()];
+  return [new SelectTool(), new HandTool(), new CreateNodeTool(), new ConnectTool(), new EraserTool()];
 }

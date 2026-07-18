@@ -100,6 +100,7 @@ function normalizeNode(r: Record<string, unknown>): NodeRecord | null {
     w: num(r.w, 100),
     h: num(r.h, 50),
     ...(r.rotation !== undefined ? { rotation: num(r.rotation) } : {}),
+    ...(typeof r.locked === 'boolean' ? { locked: r.locked } : {}),
     z: typeof r.z === 'string' ? r.z : '00000000',
     ...(typeof r.parentId === 'string' ? { parentId: r.parentId as NodeRecord['parentId'] } : {}),
     visual: { state: visual.state ?? 'solid', ...(visual.overlay ? { overlay: visual.overlay } : {}), ...(visual.focused ? { focused: true } : {}) },

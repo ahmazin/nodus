@@ -1,22 +1,25 @@
 # Nodus
 
-A **headless, framework-agnostic, extensible diagram engine** for TypeScript — think Excalidraw,
-but built to be customized. Nodus owns *model → layout → render → interact* on a Canvas-2D surface
-and gets out of your way for everything else. The infra-architecture tool that seeded this project
-(**InfraCanvas**) now ships as one preset on top of the general core.
+A **git-native, headless, extensible diagram engine** for TypeScript — think Excalidraw, but built to
+be customized and to store its diagrams as text you can code-review. Nodus owns *model → layout →
+render → interact* on a Canvas-2D surface and gets out of your way for everything else. The
+infra-architecture tool that seeded this project (**InfraCanvas**) now ships as one preset on top of
+the general core.
 
 > Working name: **Nodus** (`@nodus/*`). See [`packages/`](./packages) for the monorepo.
 
 ![A rendered infra diagram](./examples/output/demo-infra.png)
 
 *(Rendered headlessly by [`scripts/render-demo.ts`](./scripts/render-demo.ts) — dark canvas, per-type
-accent glows, the neutral `solid` node, the faded `ghost` node, the dashed `locked` "?" node,
-met/partial/missed evaluation rings, and orthogonal arrowed connectors.)*
+accent glows, evaluation rings, and orthogonal arrowed connectors.)*
 
 ---
 
 ## Why
 
+- **Git-native** — deterministic, canonical serialization means diagrams are `*.nodus.json` with
+  clean, reviewable diffs. The `nodus` CLI (`fmt` / `render` / `diff`) and a CI workflow turn diagrams
+  into "diagrams you can code-review."
 - **Canvas-2D at scale** — a retained render index (R-tree) drives viewport culling, marquee, and
   two-phase hit-testing from one structure. Draws in the browser *or* headless (Skia) with identical code.
 - **Reactive core** — a tiny signals engine (`atom`/`computed`/`effect`/`transact`) means the renderer
@@ -30,16 +33,22 @@ met/partial/missed evaluation rings, and orthogonal arrowed connectors.)*
 
 ## Packages
 
+pnpm workspace monorepo. Each package points `main`/`types` at `./src/index.ts`, and Vite/Vitest alias
+every `@nodus/*` to `packages/*/src` — the example app, tests, and CLI run the TypeScript **source**
+directly, so editing a package is picked up live with no build.
+
 | Package | What |
 |---|---|
 | `@nodus/core` | The whole engine: signals, store, scene index, camera, geometry, theming (+ theme pack), pluggable routers, icons, renderer, tools, snapping, history, diff, serialization, editor. Deps: `rbush` + vendored signals. |
-| `@nodus/react` | React binding — `<Nodus>` host, `<Minimap>`, `<CommandPalette>` (⌘K), context menu, `useValue`. |
-| `@nodus/preset-infra` | Infra preset: six semantic node types + icons, dark theme, connector edge, Freeform/Reveal/Stages arena adapters, and the `InfraCanvas({model, mode, overlays})` facade. |
-| `@nodus/preset-diagrams` | General diagram types (flowchart, state-machine, ERD, org-chart, icon nodes) + builder helpers. |
+| `@nodus/react` | React binding — `<Nodus>` host, panels (`Properties`, `CommandPalette` ⌘K, context menu, `Minimap`, flow controls, cloud-icon picker), the `ui/*` design system (tokens + primitives, light/dark), `useValue`, clipboard/PNG export. |
+| `@nodus/preset-infra` | Infra preset: six semantic node types + icons, dark/light themes, connector edge, Freeform/Reveal/Stages arena adapters, and the `InfraCanvas({model, mode, overlays})` façade. |
+| `@nodus/preset-diagrams` · `@nodus/preset-draw` | General diagram types (flowchart, state-machine, ERD, org-chart, icon nodes) / freehand drawing tools. |
 | `@nodus/plugin-freehand` | A pen tool + stroke node type — a whole new interaction, registered through the public plugin API. |
 | `@nodus/layout-dagre` · `-tree` · `-force` · `-elk` | Auto-layout adapters (layered · tidy-tree · force-directed · ELK, worker-capable). |
-| `@nodus/text-to-diagram` | An Anthropic tool schema + converter: an LLM describes a system → a diagram. No LLM/network deps. |
-| `@nodus/import-infra` | `fromTerraform(showJson)` and `fromKubernetes(objects)` → infra diagrams from live infrastructure. |
+| `@nodus/icons-cloud` | Curated AWS / Azure / GCP glyphs, registered as namespaced `provider:service` icons. |
+| `@nodus/from-mermaid` · `@nodus/text-to-diagram` · `@nodus/import-infra` | Importers — Mermaid, an LLM tool schema (describe a system → a diagram), and `fromTerraform` / `fromKubernetes`. |
+| `@nodus/cli` | The `nodus` CLI — `fmt` / `render` / `diff` over `*.nodus.json`. |
+| `@nodus/mcp` · `@nodus/persistence` | MCP server exposing the engine as tools · snapshot storage. |
 
 ## Quick start
 
@@ -56,15 +65,16 @@ const a = editor.createNode({ type: 'infra.service', label: 'API', x: 0, y: 0 })
 const b = editor.createNode({ type: 'infra.db', label: 'Postgres', x: 300, y: 0 });
 editor.connect({ kind: 'node', nodeId: a, portId: 'out' }, { kind: 'node', nodeId: b, portId: 'in' });
 
-const json = editor.toJSON();              // versioned snapshot
-// const png = await editor.toPNG(createCanvas); // raster export (inject a canvas factory)
+const json = editor.toJSON(); // canonical, diff-friendly snapshot
 ```
+
+A bare `new Editor()` already has the built-in `rect` / `line` / `group` types, so you can skip the
+preset for generic diagrams.
 
 ### React
 
 ```tsx
 import { useMemo } from 'react';
-import { Editor } from '@nodus/core';
 import { Nodus } from '@nodus/react';
 import { InfraCanvas } from '@nodus/preset-infra';
 
@@ -78,9 +88,23 @@ function App() {
 ```
 
 `<Nodus>` wires pointer/wheel/keyboard to the editor's tools, runs a signal-reactive rAF render loop,
-and hosts the inline label editor. Space+drag pans, ctrl+wheel zooms, double-click renames.
+and hosts the inline label editor. The full interactive demo is in
+[`examples/browser`](./examples/browser) (`pnpm dev` → http://localhost:5188). See
+[`@nodus/react`](./packages/react#readme) for panels, hooks, the design system, and PNG export.
 
-The full interactive demo is in [`examples/browser`](./examples/browser) (`vite`).
+## Git-native diagrams
+
+`@nodus/core` serializes deterministically — stable key order, normalized numbers — so a diagram is a
+text artifact with clean diffs. The `nodus` CLI (run via `pnpm nodus`) makes that a review workflow,
+and [`.github/workflows/diagrams.yml`](./.github/workflows/diagrams.yml) enforces canonical form on
+any PR touching a `*.nodus.json` and posts rendered previews.
+
+```bash
+pnpm nodus fmt --check diagrams/*.nodus.json          # verify canonical form (the CI gate)
+pnpm nodus fmt diagrams/architecture.nodus.json       # canonicalize in place
+pnpm nodus render diagrams/architecture.nodus.json --out arch.png   # headless PNG
+pnpm nodus diff old.nodus.json new.nodus.json         # semantic diff
+```
 
 ## Extending
 
@@ -121,29 +145,34 @@ Themes are data. `resolveTokens(theme, { state, overlay, focused }, type)` layer
 base  <  byType[type]  <  states[state]  <  overlays[overlay]  <  focus
 ```
 
-So a node's look is a function of its **type** (accent color) and its **visual state** — `accent`,
-`solid`, `ghost`, `locked`, plus overlay rings (`met`/`partial`/`missed`) and a `focused` emphasis.
-Swap the theme atom and every node re-skins in one frame.
+So a node's look is a function of its **type** (accent color) and its **visual state**. `Theme.appearance`
+(`'light' | 'dark'`) is the single source of truth for light/dark, so DOM chrome and the canvas re-skin
+together — swap the theme atom and every node re-skins in one frame.
 
-## Verify
+## Development
 
 ```bash
-pnpm install
-pnpm typecheck              # tsc across all packages
-pnpm test                   # vitest (31 invariant tests)
-pnpm verify:render          # headless render → examples/output/*.png + smoke checks
-node scripts/browser-verify.mjs   # drives the live Vite app in headless Chromium (needs `vite` running)
+pnpm install       # corepack pnpm; builds are pinned (esbuild)
+pnpm dev           # Vite example app → http://localhost:5188
+pnpm typecheck     # tsc --strict across all packages — the static correctness gate (no eslint/prettier)
+pnpm test          # vitest run (whole suite, node environment)
+pnpm verify:render # headless Skia render → examples/output/*.png + interaction/serialization smoke checks
+pnpm verify:all    # typecheck + test + verify:render
+pnpm build         # tsup per package, in dependency order (ESM + CJS + .d.ts)
 ```
 
-`scripts/render-demo.ts` writes four PNGs (`demo-infra`, `-selected`, `-dagre`, `-export`) and runs
-interaction/serialization smoke checks. `scripts/browser-verify.mjs` launches Chromium against the
-running example and asserts create/drag/undo/rename/auto-layout all work with zero console errors.
+There is **no lint step** — `tsc` with `strict` + `noUncheckedIndexedAccess` is the correctness gate.
+The dev loop is source-first: no `pnpm build` is needed while developing.
+
+CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) runs `typecheck` + `test` +
+`verify:render` on every PR, plus a headless-Chromium interaction E2E
+([`scripts/browser-verify.mjs`](./scripts/browser-verify.mjs)) that drives the live Vite app and
+asserts create/drag/undo/rename/auto-layout with zero console errors.
 
 ## Architecture
 
 Reactive record store (the single mutation channel) → a retained `RenderItem` scene index (rbush) →
-a layered Canvas-2D renderer, with all type-specific behavior in engine-owned registries. Full design
-notes and the staged roadmap live in the plan under `~/.claude/plans/`. Highlights:
+a layered Canvas-2D renderer, with all type-specific behavior in engine-owned registries.
 
 - **One mutation channel** — `store.apply(changes, { capture })` computes inverse deltas, updates
   per-record signal atoms atomically, and notifies the index/history/events through one path.
@@ -152,24 +181,7 @@ notes and the staged roadmap live in the plan under `~/.claude/plans/`. Highligh
 - **Three version concepts** kept distinct: `record.version` (diff/cache), scene-index version
   (render invalidation), `schemaVersion` (migration).
 
-## Status
-
-The full build roadmap (`docs/ROADMAP.md`) is **complete** — 11 packages, 61 tests, all building to
-ESM+CJS+`.d.ts`:
-
-- **Editing:** pan/zoom, select/marquee, drag with **snapping + alignment guides**, create, connect,
-  inline rename, **grouping/frames**, **copy/paste/duplicate**, delta undo/redo, **command palette**,
-  **context menu**, **minimap**.
-- **Extensibility:** custom node/edge **types** + **icon** glyphs, **theme pack**, pluggable
-  **routers** (straight/orthogonal/bezier) and **layouts** (dagre/tree/force/elk), **plugins/events**.
-- **Presets & demos:** infra, general diagrams (flowchart/state-machine/ERD/org), **freehand sketch**,
-  cloud architecture.
-- **Integrations:** **text→diagram** (LLM tool schema), **live infra import** (Terraform / Kubernetes),
-  and the three **arenas** (Studio/Reverse/Evolution).
-
-Rendered examples live in `examples/output/` (`pnpm gallery`, `pnpm demos`, `pnpm leverage`).
-Still deferred by design: the a11y mirror-DOM depth, dirty-rect compositing, and the WebGL backend
-(the renderer seam is in place for it).
+See [`@nodus/core`](./packages/core#readme) for the full architecture and extension model.
 
 ## License
 

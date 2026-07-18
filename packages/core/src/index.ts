@@ -151,9 +151,9 @@ export {
 export { rectNodeUtil, lineEdgeUtil, groupNodeUtil, drawEdgeLabel } from './builtins/index.js';
 
 // renderer
-export { DrawApi, type FillOpts, type StrokeOpts, type LabelOpts } from './renderer/draw-api.js';
-export type { Ctx2D } from './renderer/context.js';
-export { fillBackground, drawGrid, paintItem, strokeWorldBox, fillHandle } from './renderer/paint.js';
+export { DrawApi, type FillOpts, type StrokeOpts, type LabelOpts, type ImageOpts } from './renderer/draw-api.js';
+export type { Ctx2D, DrawableImage } from './renderer/context.js';
+export { fillBackground, drawGrid, paintItem, strokeWorldBox, fillHandle, setPaintErrorHandler } from './renderer/paint.js';
 export { drawStencil, measureStencil, STENCIL, type StencilOpts } from './renderer/stencil.js';
 export { drawVectorIcon, OP, type VectorIcon, type VectorSubpath } from './icons/vector.js';
 

@@ -69,4 +69,19 @@ export {
 } from './ui/primitives.js';
 export { injectGlobalStyles } from './ui/global-styles.js';
 
+// product shell (toolbar, tool palette, zoom, theme toggle, undo/redo, shortcuts, icons)
+export * from './ui/shell/index.js';
+
+// browser persistence (autosave + open/save `.nodus.json`)
+export {
+  useAutosave,
+  restoreAutosave,
+  clearAutosave,
+  saveToFile,
+  openFromFile,
+  parseSnapshot,
+  serializeDocument,
+  type UseAutosaveOptions,
+} from './persistence.js';
+
 export type { Editor, Id };

@@ -24,6 +24,8 @@ import {
   type RenderItem,
 } from '@nodus/core';
 import { NodusContextMenu } from './context-menu.js';
+import { injectGlobalStyles } from './ui/global-styles.js';
+import { pasteFromSystem } from './clipboard.js';
 
 export interface NodusProps {
   editor: Editor;
@@ -31,14 +33,24 @@ export interface NodusProps {
   style?: CSSProperties;
   /** Show the built-in right-click context menu (default true). */
   contextMenu?: boolean;
+  /** Node type to insert when an image is pasted from the system clipboard (e.g. `'diagram.image'`).
+   *  Omit to ignore pasted images. */
+  imageNodeType?: string;
+  /** Node type to insert when plain text is pasted from the system clipboard. Omit to ignore text. */
+  textNodeType?: string;
 }
 
-export function Nodus({ editor, className, style, contextMenu = true }: NodusProps): ReactElement {
+export function Nodus({ editor, className, style, contextMenu = true, imageNodeType, textNodeType }: NodusProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; target: RenderItem | null } | null>(null);
   const cmRef = useRef(contextMenu);
   cmRef.current = contextMenu;
+  // Paste target types are read lazily inside the (editor-only-deps) effect, mirroring `cmRef`.
+  const imageTypeRef = useRef(imageNodeType);
+  imageTypeRef.current = imageNodeType;
+  const textTypeRef = useRef(textNodeType);
+  textTypeRef.current = textNodeType;
 
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -46,6 +58,17 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     if (!host || !canvas) return;
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
     registerCanvas(editor, canvas);
+    injectGlobalStyles(); // idempotent: focus rings + chrome base styles, app-wide
+
+    // Enable the static-layer cache: hover / selection / marquee / flow frames blit a cached bitmap
+    // of the unchanged scene instead of re-painting every node. Pixel-identical to a direct paint.
+    editor.setOffscreenFactory((w, h) => {
+      const off =
+        typeof OffscreenCanvas !== 'undefined'
+          ? new OffscreenCanvas(w, h)
+          : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      return { canvas: off as unknown as { width: number; height: number }, ctx: off.getContext('2d') as unknown as Ctx2D };
+    });
 
     let raf = 0;
     let flowTimer = 0;
@@ -115,6 +138,18 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     let spaceDown = false;
     let lastPan = { x: 0, y: 0 };
 
+    // Cursor derives from the active tool (crosshair while placing/connecting/erasing); pan and the
+    // space-pan override it. Kept in sync when the tool changes via the editor's `tool` event.
+    const toolCursor = (): string => {
+      const id = editor.currentToolId;
+      return id === 'create' || id === 'connect' || id === 'eraser' ? 'crosshair' : 'default';
+    };
+    const restoreCursor = (): void => {
+      if (!panning) canvas.style.cursor = spaceDown ? 'grab' : toolCursor();
+    };
+    canvas.style.cursor = toolCursor();
+    const stopToolCursor = editor.on('tool', restoreCursor);
+
     const local = (e: { clientX: number; clientY: number }) => {
       const r = canvas.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -147,7 +182,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     const onPointerUp = (e: PointerEvent): void => {
       if (panning) {
         panning = false;
-        canvas.style.cursor = spaceDown ? 'grab' : 'default';
+        restoreCursor();
         return;
       }
       editor.pointerUp(local(e), modsOf(e));
@@ -190,14 +225,50 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
         editor.redo();
         return;
       }
+
+      // ---- zoom shortcuts (use e.code so they're layout-independent; preventDefault stops the
+      //      browser's own page zoom so the canvas zooms instead) ----
+      if (meta && (e.code === 'Equal' || e.code === 'NumpadAdd')) { e.preventDefault(); editor.zoomBy(1.2); return; }
+      if (meta && (e.code === 'Minus' || e.code === 'NumpadSubtract')) { e.preventDefault(); editor.zoomBy(1 / 1.2); return; }
+      if (meta && (e.code === 'Digit0' || e.code === 'Numpad0')) { e.preventDefault(); editor.zoomBy(1 / editor.camera.z); return; } // reset to 100%
+      if (!meta && e.shiftKey && e.code === 'Digit1') { e.preventDefault(); editor.zoomToFit(); return; }
+      if (!meta && e.shiftKey && e.code === 'Digit2') { e.preventDefault(); editor.zoomToSelection(); return; }
+
       if (editor.editingAtom.peek()) return; // let the textarea handle keys
+
+      // ---- arrow-key nudge: 1px, or 10px with Shift ----
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const sel = editor.selectedIdsArray();
+        if (sel.length) {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+          const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+          editor.nudge(sel, dx, dy);
+        }
+        return;
+      }
+
       editor.keyDown({ key: e.key, shift: e.shiftKey, meta, alt: e.altKey });
     };
     const onKeyUp = (e: KeyboardEvent): void => {
       if (e.code === 'Space') {
         spaceDown = false;
-        if (!panning) canvas.style.cursor = 'default';
+        restoreCursor();
       }
+    };
+    // System-clipboard paste → image/text node. The INTERNAL clipboard (Cmd/Ctrl+C on nodes) takes
+    // priority: its Cmd/Ctrl+V is handled in the tool key path, so we skip when it has content.
+    const onPaste = (e: ClipboardEvent): void => {
+      if (editor.hasClipboard()) return;
+      if (editor.editingAtom.peek()) return; // editing a label → let the textarea paste
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return; // a real field
+      const consumed = pasteFromSystem(editor, e.clipboardData, {
+        ...(imageTypeRef.current ? { imageNodeType: imageTypeRef.current } : {}),
+        ...(textTypeRef.current ? { textNodeType: textTypeRef.current } : {}),
+      });
+      if (consumed) e.preventDefault();
     };
 
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -208,11 +279,14 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
     canvas.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('paste', onPaste);
 
     return () => {
       unregisterCanvas(editor);
+      editor.setOffscreenFactory(null);
       ro.disconnect();
       stopReaction();
+      stopToolCursor();
       cancelAnimationFrame(raf);
       clearTimeout(flowTimer);
       mq.removeEventListener('change', onReducedMotion);
@@ -224,6 +298,7 @@ export function Nodus({ editor, className, style, contextMenu = true }: NodusPro
       canvas.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('paste', onPaste);
     };
   }, [editor]);
 

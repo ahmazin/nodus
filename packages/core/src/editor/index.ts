@@ -51,6 +51,7 @@ import {
 } from '../tools/index.js';
 import { rectNodeUtil, lineEdgeUtil, groupNodeUtil } from '../builtins/index.js';
 import { drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
+import { StaticLayerCache, type CreateOffscreen } from '../renderer/layer-cache.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
@@ -66,6 +67,37 @@ const FLOW_DEFAULTS: FlowRuntimeConfig = {
   speedScale: 1,
   respectReducedMotion: true,
 };
+
+/**
+ * Draw a small padlock affordance centered on `(bx, by)` — the top-left corner of a locked node's
+ * selection box. `s` is a screen-scaled size (world units; callers pass `px(...)`) so the glyph stays
+ * roughly constant on screen at any zoom. Pure canvas primitives, so it paints identically headless
+ * and in the browser, and never throws.
+ */
+function drawLockBadge(ctx: Ctx2D, bx: number, by: number, s: number, accent: string): void {
+  const bw = s * 0.8; // body width
+  const bh = s * 0.6; // body height
+  const x = bx - s / 2; // center the badge on the corner
+  const y = by - s / 2;
+  const bodyY = y + s - bh;
+  const cx = x + bw / 2;
+  ctx.save();
+  // shackle (upper arc)
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = s * 0.13;
+  ctx.beginPath();
+  ctx.arc(cx, bodyY, s * 0.26, Math.PI, 2 * Math.PI);
+  ctx.stroke();
+  // body
+  ctx.fillStyle = accent;
+  ctx.fillRect(x, bodyY, bw, bh);
+  // keyhole
+  ctx.fillStyle = '#0b110e';
+  ctx.beginPath();
+  ctx.arc(cx, bodyY + bh * 0.5, s * 0.1, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
+}
 
 export interface EditorOptions {
   theme?: Theme;
@@ -132,7 +164,12 @@ export interface ToPNGOptions {
 }
 
 export class Editor implements EngineHost {
-  readonly store = new Store();
+  // Route errors caught inside the store's listener dispatch (a throwing third-party change listener)
+  // to the EventBus, so hosts can observe them instead of them being swallowed. The closure reads
+  // `this.events` lazily (only when an error fires), so field-init order is not a problem.
+  readonly store = new Store({
+    onError: (error, context) => this.events.emit({ type: 'error', error, context }),
+  });
   readonly nodes: Registry<NodeUtil> = new Registry<NodeUtil>();
   readonly edges: Registry<EdgeUtil> = new Registry<EdgeUtil>();
   readonly sceneIndex: SceneIndex;
@@ -172,6 +209,8 @@ export class Editor implements EngineHost {
       nodes: this.nodes,
       edges: this.edges,
       routers: this.routers,
+      // a throwing third-party getGeometry/getRoute leaves the record unindexed and surfaces here
+      onError: (error, context) => this.events.emit({ type: 'error', error, context }),
     });
     this.history = new History((changes, o) => this.store.apply(changes, o));
     this.toolManager = new ToolManager(this, defaultTools());
@@ -188,6 +227,7 @@ export class Editor implements EngineHost {
     this.disposers.push(
       this.store.listen((info: ChangeInfo) => {
         this.sceneIndex.applyChanges(info.changes);
+        this.reconcileFlowIndex(info.changes);
         this.history.record(info);
         this.events.emit({ type: 'change', info });
       }),
@@ -206,6 +246,7 @@ export class Editor implements EngineHost {
     if (opts.records && opts.records.length > 0) {
       this.store.load(opts.records);
       this.sceneIndex.rebuild(this.store.allRecords());
+      this.rebuildFlowIndex();
     }
   }
 
@@ -438,6 +479,7 @@ export class Editor implements EngineHost {
     for (const id of ids) {
       const r = this.store.peek(id);
       if (!r || !isNode(r)) continue;
+      if (r.locked === true) continue; // edit-locked: not rotatable
       if (this.nodes.get(r.type)?.capabilities?.canRotate === false) continue;
       changes.push({ op: 'update', id, patch: { rotation: (r.rotation ?? 0) + radians } });
     }
@@ -512,22 +554,30 @@ export class Editor implements EngineHost {
   }
 
   /**
-   * Lock the given nodes against selection/drag/resize.
-   *
-   * WS-B: implement for real. Requires a `locked?: boolean` field on `NodeRecord` (model.ts) plus
-   * enforcement in the select/drag/resize tools. NOTE: this is edit-locking, distinct from the
-   * `'locked'` VISUAL state (dashed, `'?'` label) that already exists in the theme. Stubbed as a
-   * no-op so it typechecks and never throws.
+   * Edit-lock the given nodes: they stay selectable (so they can be unlocked) but the interaction
+   * tools refuse to move/resize/rotate/delete them. This is edit-locking, distinct from the
+   * `'locked'` VISUAL state (dashed, `'?'` label) in `visual.state`, which is only a theme skin.
    */
-  lock(_ids: Id[]): void {
-    // WS-B: implement (needs NodeRecord.locked + tool enforcement)
+  lock(ids: Id[], opts?: ApplyOptions): void {
+    const changes: Change[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (r && isNode(r) && r.locked !== true) changes.push({ op: 'update', id, patch: { locked: true } });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
   }
-  unlock(_ids: Id[]): void {
-    // WS-B: implement (needs NodeRecord.locked + tool enforcement)
+  /** Remove the edit-lock. Clears the key (patch `undefined` deletes it) to keep serialization canonical. */
+  unlock(ids: Id[], opts?: ApplyOptions): void {
+    const changes: Change[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (r && isNode(r) && r.locked === true) changes.push({ op: 'update', id, patch: { locked: undefined } });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
   }
-  isLocked(_id: Id): boolean {
-    // WS-B: implement (needs NodeRecord.locked)
-    return false;
+  isLocked(id: Id): boolean {
+    const r = this.store.peek(id);
+    return !!r && isNode(r) && r.locked === true;
   }
 
   /** Fit the current selection into the viewport with padding. */
@@ -780,7 +830,7 @@ export class Editor implements EngineHost {
     return edge.id;
   }
 
-  deleteRecords(ids: Id[]): void {
+  deleteRecords(ids: Id[], opts?: ApplyOptions): void {
     const toRemove = new Set<Id>();
     // Deleting a group deletes its contents too (descendants + their edges); otherwise a surviving
     // child would keep a parentId pointing at the removed group — a dangling ref. `ungroup` is the
@@ -794,9 +844,11 @@ export class Editor implements EngineHost {
       }
     }
     if (toRemove.size === 0) return;
+    // Default one undo entry; the eraser passes `capture: 'later'` per-hit and `mark()`s on release
+    // so a whole drag-erase collapses into a single entry.
     this.store.apply(
       [...toRemove].map((id) => ({ op: 'remove', id }) as Change),
-      { capture: 'immediately' },
+      opts ?? { capture: 'immediately' },
     );
     const sel = new Set(this.selectedAtom.peek());
     for (const id of toRemove) sel.delete(id);
@@ -860,6 +912,7 @@ export class Editor implements EngineHost {
   canResizeNode(id: Id): boolean {
     const r = this.store.peek(id);
     if (!r || !isNode(r)) return false;
+    if (r.locked === true) return false; // edit-locked: no resize handles / no resize gesture
     return this.nodes.get(r.type)?.capabilities?.canResize !== false;
   }
 
@@ -1052,6 +1105,7 @@ export class Editor implements EngineHost {
     batch(() => {
       this.store.load(records);
       this.sceneIndex.rebuild(this.store.allRecords());
+      this.rebuildFlowIndex();
       this.selectedAtom.set(new Set());
       this.editingAtom.set(null);
     });
@@ -1078,14 +1132,66 @@ export class Editor implements EngineHost {
     ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
   }
 
+  /** Per-frame memo of the culled + paint-sorted visible set, so the static and flow passes of one
+   *  frame share a single rbush query + sort instead of doing it twice. */
+  private frameVisible: { key: string; items: RenderItem[] } | null = null;
+
+  /** Culled + paint-sorted items for the current viewport. Memoized on (scene version, camera,
+   *  viewport): the two passes of a frame hit the cache, an idle re-render (nothing changed) reuses
+   *  the last result, and any mutation / pan / zoom invalidates it. Theme changes intentionally do
+   *  NOT invalidate — they change how items draw, not which are visible. */
+  private visibleItems(): RenderItem[] {
+    const vp = this.viewportAtom.peek();
+    const cam = this.camera;
+    const key = `${this.sceneIndex.version.peek()}|${cam.x}|${cam.y}|${cam.z}|${vp.w}|${vp.h}`;
+    if (this.frameVisible && this.frameVisible.key === key) return this.frameVisible.items;
+    const items = this.sceneIndex.visible(this.worldViewport());
+    this.frameVisible = { key, items };
+    return items;
+  }
+
+  /** Host-injected offscreen-canvas factory. When set, the static pass is layer-cached (see
+   *  `StaticLayerCache`); when null (headless default / plain tests) the static pass paints directly. */
+  private layerCache: StaticLayerCache | null = null;
+
+  /** Provide an offscreen-canvas factory to enable the static-layer cache (a host wires this to
+   *  `OffscreenCanvas`/`<canvas>` in the browser or `@napi-rs/canvas` headless), or `null` to disable
+   *  it and paint directly. The cache is transparent: output is pixel-identical to a direct paint. */
+  setOffscreenFactory(create: CreateOffscreen | null): void {
+    this.layerCache = create ? new StaticLayerCache(create) : null;
+  }
+
+  /** Cache key for the static layer: everything the static pass depends on. Selection/hover/marquee/
+   *  flow live in other passes, so they are deliberately absent — that is what makes those frames a
+   *  cache hit. Theme is keyed by object identity (themes are swapped, not mutated). */
+  private staticKey(cssW: number, cssH: number, dpr: number): string {
+    const cam = this.camera;
+    const themeId = this.layerCache?.idOf(this.themeAtom.peek()) ?? 0;
+    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}|${this.sceneIndex.version.peek()}`;
+  }
+
   paintStatic(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
+    if (this.layerCache) {
+      const dw = Math.max(1, Math.round(cssW * dpr));
+      const dh = Math.max(1, Math.round(cssH * dpr));
+      this.layerCache.draw(ctx, this.staticKey(cssW, cssH, dpr), dw, dh, (lctx) =>
+        this.paintStaticInto(lctx, cssW, cssH, dpr),
+      );
+      return;
+    }
+    this.paintStaticInto(ctx, cssW, cssH, dpr);
+  }
+
+  /** The actual static paint (background + grid + every visible item, in paint order). Rendered
+   *  either straight to the frame or into the offscreen layer; identical either way. */
+  private paintStaticInto(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
     const theme = this.themeAtom.peek();
     const cam = this.camera;
     fillBackground(ctx, theme, cssW * dpr, cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);
-    for (const item of this.sceneIndex.visible(this.worldViewport())) {
+    for (const item of this.visibleItems()) {
       paintItem(ctx, item, this.nodes, this.edges, theme);
     }
   }
@@ -1112,7 +1218,11 @@ export class Editor implements EngineHost {
       const item = this.sceneIndex.getItem(id);
       if (!item) continue;
       if (item.kind === 'node') {
-        strokeWorldBox(ctx, padBox(item.aabb, px(3)), accent, px(1.5));
+        const locked = (item.record as NodeRecord).locked === true;
+        const box = padBox(item.aabb, px(3));
+        // locked nodes get a dashed outline + a padlock badge; canResizeNode already returns false
+        // for them, so the resize-handle loop is skipped without an extra guard.
+        strokeWorldBox(ctx, box, accent, px(1.5), locked ? [px(5), px(4)] : undefined);
         if (single && this.canResizeNode(id)) {
           // handles drawn on the RAW aabb so they coincide with the hit-test box (hitResizeHandle)
           const hs = px(6);
@@ -1120,6 +1230,7 @@ export class Editor implements EngineHost {
             fillHandle(ctx, c, hs, '#ffffff', accent);
           }
         }
+        if (locked) drawLockBadge(ctx, box.x, box.y, px(13), accent);
       } else if (single && item.route && item.route.length >= 2) {
         // selected edge: draggable endpoint handles at the route ends
         const hs = px(6);
@@ -1194,9 +1305,32 @@ export class Editor implements EngineHost {
     if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
   }
 
-  /** True if any edge is flowing. The host keeps the rAF loop ticking while this holds (else idle). */
+  /** Ids of edges that currently carry a flow spec. Maintained incrementally on every mutation so the
+   *  rAF gate (`hasFlow`/`isFlowAnimating`) is O(1) rather than allocating + scanning all edges each
+   *  animated frame. Rebuilt wholesale after a bulk `load`/restore (which bypasses the change channel). */
+  private readonly flowingEdges = new Set<Id>();
+
+  /** Reconcile the flow index against a batch of applied changes (called post-commit): for each
+   *  touched id, it belongs in the set iff the record still exists and has `flow != null`. Runs in
+   *  O(changes), not O(all edges). */
+  private reconcileFlowIndex(changes: Change[]): void {
+    for (const c of changes) {
+      const id = c.op === 'add' ? c.record.id : c.id;
+      const rec = this.store.peek(id);
+      if (rec && isEdge(rec) && rec.flow != null) this.flowingEdges.add(id);
+      else this.flowingEdges.delete(id);
+    }
+  }
+
+  /** Recompute the flow index from scratch (after a bulk load/restore that skips the change channel). */
+  private rebuildFlowIndex(): void {
+    this.flowingEdges.clear();
+    for (const e of this.store.edges()) if (e.flow != null) this.flowingEdges.add(e.id);
+  }
+
+  /** True if any edge is flowing. The host keeps the rAF loop ticking while this holds (else idle). O(1). */
   hasFlow(): boolean {
-    return this.store.edges().some((e) => e.flow != null);
+    return this.flowingEdges.size > 0;
   }
 
   /** Live, EPHEMERAL metric per edge for data-driven flow — NOT serialized, NOT historied, so a
@@ -1330,7 +1464,7 @@ export class Editor implements EngineHost {
     if (!frozen) this.flowClock += dt * c.speedScale;
     const theme = this.themeAtom.peek();
     this.setWorldTransform(ctx, dpr);
-    this.drawFlowEdges(ctx, this.sceneIndex.visible(this.worldViewport()), theme, this.flowClock);
+    this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock);
   }
 
   /** Shared per-edge flow draw: resolve each edge's spec against its live metric and paint markers at

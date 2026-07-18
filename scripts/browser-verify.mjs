@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { chromium } from 'playwright-core';
 
-const URL = 'http://127.0.0.1:5188/';
+const URL = 'http://localhost:5188/';
 const OUT = join(process.cwd(), 'examples', 'output');
 
 function findChromium() {

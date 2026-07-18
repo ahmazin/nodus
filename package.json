@@ -23,9 +23,13 @@
     "demos": "tsx scripts/demos.ts",
     "leverage": "tsx scripts/leverage.ts",
     "serve:docs": "node scripts/doc-server.mjs",
-    "build:icons": "tsx scripts/build-icon-packs.ts"
+    "build:icons": "tsx scripts/build-icon-packs.ts",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.9",
     "@napi-rs/canvas": "^0.1.60",
     "@types/node": "^22.10.0",
     "playwright-core": "1.61.1",

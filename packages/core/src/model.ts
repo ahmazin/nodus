@@ -139,11 +139,17 @@ export interface NodeRecord extends BaseRecord<'node'> {
   rotation?: number;
   /** Fractional z-index string for stable ordering. */
   z: string;
+  /**
+   * Edit-lock: when true the node can't be moved/resized/rotated/deleted by interaction (it stays
+   * selectable so it can be unlocked). Distinct from the `'locked'` VISUAL state in `visual.state`,
+   * which is a theme skin, not an interaction guard.
+   */
+  locked?: boolean;
   /** Group/frame parent, by id-reference. */
   parentId?: Id;
   visual: VisualState;
   label?: string;
-  /** Type-specific data, validated by the `NodeUtil`'s schema. */
+  /** Type-specific data interpreted by the node's registered `NodeUtil`. */
   props: Record<string, unknown>;
   /** Host scratch space; the core never interprets this. */
   meta?: Record<string, unknown>;

@@ -33,3 +33,45 @@ jobs:
         run: pnpm test
       - name: Verify render (headless Skia)
         run: pnpm verify:render
+
+  # React-UI interaction gate: drives the real Vite app with headless Chromium (create/drag/undo/
+  # rename/auto-layout/flow/cloud-picker) via scripts/browser-verify.mjs, asserting zero console
+  # errors. Separate job so a browser-download/GL hiccup is isolated from the pure-logic `verify`
+  # job above. playwright-core@1.61 installs chromium-1228, which browser-verify.mjs looks for.
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Best-effort for now: this job has not yet been observed green in CI (it needs a browser
+    # download + a live Vite dev server), so a failure must not block unrelated PRs. Promote to a
+    # hard gate (drop this line) once it passes reliably on a few runs.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium for Playwright
+        run: node node_modules/playwright-core/cli.js install --with-deps chromium
+      - name: Interaction E2E (headless Chromium vs. the Vite app)
+        run: |
+          set -euo pipefail
+          pnpm dev >/tmp/vite-dev.log 2>&1 &
+          VITE_PID=$!
+          trap 'kill "$VITE_PID" 2>/dev/null || true' EXIT
+          up=""
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5188/ >/dev/null 2>&1; then up=1; echo "dev server up after ${i}s"; break; fi
+            if ! kill -0 "$VITE_PID" 2>/dev/null; then echo "::error::dev server exited early"; cat /tmp/vite-dev.log; exit 1; fi
+            sleep 1
+          done
+          if [ -z "$up" ]; then echo "::error::dev server did not become ready"; cat /tmp/vite-dev.log; exit 1; fi
+          node scripts/browser-verify.mjs
+      - name: Upload interaction screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-verify-screenshots
+          path: examples/output/
