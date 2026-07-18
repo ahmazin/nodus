@@ -51,7 +51,8 @@ import {
 } from '../tools/index.js';
 import { rectNodeUtil, lineEdgeUtil, groupNodeUtil } from '../builtins/index.js';
 import { drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
-import { StaticLayerCache, type CreateOffscreen } from '../renderer/layer-cache.js';
+import { StaticLayerCache, type CreateOffscreen, type LayerCacheStats } from '../renderer/layer-cache.js';
+import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
@@ -161,6 +162,20 @@ export interface ToPNGOptions {
   /** Also render flow markers (packets/dashes) at `time` ms — a snapshot of the current traffic. */
   flow?: boolean;
   time?: number;
+}
+
+/** Above this fraction of the canvas covered by the dirty region, the drag fast path isn't worth it —
+ *  clip/region bookkeeping costs about a full repaint anyway — so `paintStatic` falls back to a full
+ *  repaint. Purely a performance guard; either branch is pixel-identical. */
+const STATIC_INCREMENTAL_MAX_AREA = 0.6;
+
+/** Snapshot the visible set as id → `RenderItem` for the next frame's dirty-region diff. Cheap: it
+ *  stores object references (the scene index mints a fresh `RenderItem` on any change, so reference
+ *  identity is the change signal), never a copy of geometry. */
+function snapshotVisible(items: readonly RenderItem[]): Map<Id, RenderItem> {
+  const map = new Map<Id, RenderItem>();
+  for (const it of items) map.set(it.id, it);
+  return map;
 }
 
 export class Editor implements EngineHost {
@@ -1154,44 +1169,85 @@ export class Editor implements EngineHost {
    *  `StaticLayerCache`); when null (headless default / plain tests) the static pass paints directly. */
   private layerCache: StaticLayerCache | null = null;
 
+  /** Snapshot of the last static paint used to plan a drag frame's dirty region: the params the static
+   *  bitmap depends on except scene version (`prefix`), and the visible `RenderItem`s painted then (by
+   *  id). Only reused when `prefix` matches, so a pan/zoom/resize/theme swap forces a full repaint. */
+  private lastStatic: { prefix: string; items: Map<Id, RenderItem> } | null = null;
+
   /** Provide an offscreen-canvas factory to enable the static-layer cache (a host wires this to
    *  `OffscreenCanvas`/`<canvas>` in the browser or `@napi-rs/canvas` headless), or `null` to disable
    *  it and paint directly. The cache is transparent: output is pixel-identical to a direct paint. */
   setOffscreenFactory(create: CreateOffscreen | null): void {
     this.layerCache = create ? new StaticLayerCache(create) : null;
+    this.lastStatic = null;
   }
 
-  /** Cache key for the static layer: everything the static pass depends on. Selection/hover/marquee/
-   *  flow live in other passes, so they are deliberately absent — that is what makes those frames a
-   *  cache hit. Theme is keyed by object identity (themes are swapped, not mutated). */
-  private staticKey(cssW: number, cssH: number, dpr: number): string {
+  /** Diagnostic counters for the static-layer cache (hits / full repaints / drag-region repaints), or
+   *  `null` when no cache is installed. Does not affect rendering — for perf tests and dev tooling. */
+  layerCacheStats(): LayerCacheStats | null {
+    return this.layerCache?.stats ?? null;
+  }
+
+  /** The static bitmap's cache key WITHOUT the scene version: everything else the static pass depends
+   *  on. Two frames sharing this prefix differ (if at all) only by scene mutations — exactly when the
+   *  drag fast path applies. Selection/hover/marquee/flow live in other passes, so they are absent (that
+   *  is what makes those frames a cache hit). Theme is keyed by identity (themes are swapped, not mutated). */
+  private staticPrefix(cssW: number, cssH: number, dpr: number): string {
     const cam = this.camera;
     const themeId = this.layerCache?.idOf(this.themeAtom.peek()) ?? 0;
-    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}|${this.sceneIndex.version.peek()}`;
+    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}`;
   }
 
   paintStatic(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
-    if (this.layerCache) {
-      const dw = Math.max(1, Math.round(cssW * dpr));
-      const dh = Math.max(1, Math.round(cssH * dpr));
-      this.layerCache.draw(ctx, this.staticKey(cssW, cssH, dpr), dw, dh, (lctx) =>
-        this.paintStaticInto(lctx, cssW, cssH, dpr),
-      );
+    const cache = this.layerCache;
+    if (!cache) {
+      this.paintStaticInto(ctx, cssW, cssH, dpr);
       return;
     }
-    this.paintStaticInto(ctx, cssW, cssH, dpr);
+    const dw = Math.max(1, Math.round(cssW * dpr));
+    const dh = Math.max(1, Math.round(cssH * dpr));
+    const prefix = this.staticPrefix(cssW, cssH, dpr);
+    const key = `${prefix}|${this.sceneIndex.version.peek()}`;
+    const items = this.visibleItems();
+
+    // Drag fast path: same static params as last frame and a resident layer → repaint only the region
+    // that changed (moved/reflowed items + whatever they overlap) over the retained bitmap. Skipped when
+    // the "dirty" region would be most of the canvas (no win) or a record is corrupt (`plan === null`).
+    const last = this.lastStatic;
+    if (last && last.prefix === prefix && cache.hasValidLayer(dw, dh)) {
+      const plan = planDirtyRegion(last.items, items, this.camera, dpr, dw, dh);
+      if (plan && plan.area <= dw * dh * STATIC_INCREMENTAL_MAX_AREA) {
+        cache.repaint(ctx, key, plan.rects, (lctx) =>
+          this.paintStaticInto(lctx, cssW, cssH, dpr, plan.repaint),
+        );
+        this.lastStatic = { prefix, items: snapshotVisible(items) };
+        return;
+      }
+    }
+
+    // Cold / non-drag change / camera or theme change: full static repaint (or a plain blit on a hit).
+    cache.draw(ctx, key, dw, dh, (lctx) => this.paintStaticInto(lctx, cssW, cssH, dpr));
+    this.lastStatic = { prefix, items: snapshotVisible(items) };
   }
 
-  /** The actual static paint (background + grid + every visible item, in paint order). Rendered
-   *  either straight to the frame or into the offscreen layer; identical either way. */
-  private paintStaticInto(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
+  /** The actual static paint (background + grid + `items` in paint order; defaults to the full visible
+   *  set). Rendered straight to the frame, into the whole offscreen layer, or — for the drag fast path,
+   *  with `items` pared to the dirty set — into the cache's scratch buffer, from which the changed rects
+   *  are copied back. Identical draw calls either way. */
+  private paintStaticInto(
+    ctx: Ctx2D,
+    cssW: number,
+    cssH: number,
+    dpr: number,
+    items: Iterable<RenderItem> = this.visibleItems(),
+  ): void {
     const theme = this.themeAtom.peek();
     const cam = this.camera;
     fillBackground(ctx, theme, cssW * dpr, cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);
-    for (const item of this.visibleItems()) {
+    for (const item of items) {
       paintItem(ctx, item, this.nodes, this.edges, theme);
     }
   }

@@ -56,6 +56,19 @@ export interface Ctx2D {
 
   /** Draw a decoded image into the destination rect (world coords). */
   drawImage(image: DrawableImage, dx: number, dy: number, dw: number, dh: number): void;
+  /** Blit a source sub-rectangle of an image into a destination rect (both in the current space). Used
+   *  1:1 (source size === dest size) for exact, resample-free copies between offscreen layers. */
+  drawImage(
+    image: DrawableImage,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): void;
 
   setLineDash(segments: number[]): void;
 
