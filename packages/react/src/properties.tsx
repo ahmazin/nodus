@@ -62,7 +62,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
       {row('Stroke', <input type="color" value={st.stroke ?? '#7a8a80'} onChange={(e) => set({ stroke: e.target.value })} onBlur={commit} style={color} />)}
       {row('Fill', <input type="color" value={typeof st.fill === 'string' && st.fill.startsWith('#') ? st.fill : '#0c100f'} onChange={(e) => set({ fill: e.target.value })} onBlur={commit} style={color} />)}
       {row('Text', <input type="color" value={st.text ?? '#e5e5e5'} onChange={(e) => set({ text: e.target.value })} onBlur={commit} style={color} />)}
-      {row('Width', <input type="range" min={0.5} max={8} step={0.5} value={st.strokeWidth ?? 1.2} onChange={(e) => set({ strokeWidth: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} />)}
+      {row('Width', <input type="range" min={0.5} max={8} step={0.5} value={st.strokeWidth ?? 1.2} onChange={(e) => set({ strokeWidth: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0 }} />)}
       {row('Dashed', <input type="checkbox" checked={dashed} onChange={(e) => { set({ dash: e.target.checked ? [5, 4] : [] }); commit(); }} />)}
       {isNode &&
         row(

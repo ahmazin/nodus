@@ -67,6 +67,9 @@ export const swatch: CSSProperties = { width: 34, height: 20, padding: 0, border
 export const flowSelect: CSSProperties = { background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 5, fontSize: 12, padding: '2px 4px' };
 export const numField: CSSProperties = { width: 52, background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 5, fontSize: 11.5, padding: '2px 4px' };
 export const ghostBtn: CSSProperties = { background: FIELD_BG, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '3px 7px', fontSize: 11, cursor: 'pointer' };
+// Range inputs have a fixed intrinsic width (~129px) and won't shrink by default, so in the narrow
+// 210px panel they overflow off the right edge. flex:1 + minWidth:0 makes them fit the row exactly.
+export const flowSlider: CSSProperties = { flex: 1, minWidth: 0 };
 
 // One injected stylesheet: preview keyframes + a reduced-motion kill-switch for preview + disclosure.
 export const FLOW_STYLE = `

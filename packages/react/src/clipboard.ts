@@ -1,5 +1,6 @@
 /** Copy/download the diagram (or the selection) as a PNG. Renders via the same paint pipeline. */
 import { padBox, type Box, type Ctx2D, type Editor } from '@nodus/core';
+import { showToast } from './toast.js';
 
 export interface ImageExportOptions {
   /** Export only the current selection's bounds (default: whole content). */
@@ -61,17 +62,60 @@ export async function renderPngBlob(editor: Editor, opts: ImageExportOptions = {
   }
 }
 
+/** Whether this browser can put an image on the clipboard at all. Firefox only shipped
+ *  `ClipboardItem` + async `clipboard.write` on by default in 127 (mid-2024); Safari needs a secure
+ *  context. When this is false, callers should fall back to a download rather than fail silently. */
+export function canCopyImage(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.write === 'function' &&
+    typeof ClipboardItem !== 'undefined' &&
+    typeof window !== 'undefined' &&
+    window.isSecureContext
+  );
+}
+
 /** Copy the diagram/selection to the system clipboard as an image. Returns false if unsupported/denied. */
 export async function copyImage(editor: Editor, opts: ImageExportOptions = {}): Promise<boolean> {
-  const blob = await renderPngBlob(editor, opts);
-  if (!blob) return false;
+  if (!canCopyImage()) return false;
   try {
-    // ClipboardItem support varies (Firefox gained image write later than Chromium); user gesture required.
+    // Call clipboard.write() SYNCHRONOUSLY within the user gesture, handing ClipboardItem a *promise*
+    // for the blob rather than an already-awaited value. Awaiting the render first and then writing
+    // drops the transient user activation in Safari and older Firefox → NotAllowedError; the promise
+    // form keeps the gesture alive while the PNG renders. Rejects (→ caught) on an empty diagram.
+    const blob = renderPngBlob(editor, opts).then((b) => {
+      if (!b) throw new Error('empty diagram');
+      return b;
+    });
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     return true;
   } catch {
     return false;
   }
+}
+
+export type ExportMethod = 'clipboard' | 'download' | 'none';
+export interface ExportResult {
+  ok: boolean;
+  method: ExportMethod;
+}
+
+/** The "do the right thing" export used by UI controls: copy to the clipboard when the browser
+ *  supports it, otherwise (or when the write is blocked/denied) save a PNG — so the user ALWAYS gets
+ *  their image instead of a silent no-op. Shows a one-line toast reporting what happened. */
+export async function copyOrDownloadImage(editor: Editor, opts: ImageExportOptions = {}): Promise<ExportResult> {
+  if (canCopyImage() && (await copyImage(editor, opts))) {
+    showToast('Copied image to clipboard');
+    return { ok: true, method: 'clipboard' };
+  }
+  // Clipboard unavailable or blocked → fall back to a file so the action isn't a dead end.
+  if (await downloadImage(editor, 'diagram.png', opts)) {
+    showToast(canCopyImage() ? 'Clipboard blocked — saved PNG instead' : 'Saved PNG (clipboard unavailable)');
+    return { ok: true, method: 'download' };
+  }
+  showToast('Nothing to export — the diagram is empty', 'error');
+  return { ok: false, method: 'none' };
 }
 
 /** Download the diagram/selection as a PNG file. */

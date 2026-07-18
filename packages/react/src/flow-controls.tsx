@@ -3,7 +3,7 @@
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus/core';
 import { useValue } from './use-value.js';
-import { BORDER, buildRampCss, clamp, DEFAULT_FLOW, FLOW, flowMicro, flowRowCss, FLOW_STYLE, flowSelect, ghostBtn, isHex6, MICRO, ROW_LABEL, swatch } from './flow-shared.js';
+import { BORDER, buildRampCss, clamp, DEFAULT_FLOW, FLOW, flowMicro, flowRowCss, flowSlider, FLOW_STYLE, flowSelect, ghostBtn, isHex6, MICRO, ROW_LABEL, swatch } from './flow-shared.js';
 import { FlowScaleEditor } from './flow-scale-editor.js';
 
 export interface FlowControlsProps {
@@ -90,16 +90,16 @@ export function FlowControls({ editor, ids }: FlowControlsProps): ReactElement |
           )}
           {row(
             'Speed',
-            <input data-testid="flow-speed" type="range" min={10} max={200} step={1} value={flow?.speed ?? 70} onChange={(e) => patch({ speed: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} />,
+            <input data-testid="flow-speed" type="range" min={10} max={200} step={1} value={flow?.speed ?? 70} onChange={(e) => patch({ speed: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={flowSlider} />,
           )}
           {row(
             'Size',
-            <input data-testid="flow-size" type="range" min={1} max={12} step={0.5} value={flow?.size ?? 3} onChange={(e) => patch({ size: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} />,
+            <input data-testid="flow-size" type="range" min={1} max={12} step={0.5} value={flow?.size ?? 3} onChange={(e) => patch({ size: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={flowSlider} />,
           )}
           {style === 'dots' &&
             row(
               'Count',
-              <input data-testid="flow-count" type="range" min={1} max={30} step={1} value={flow?.count ?? 8} onChange={(e) => patch({ count: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} />,
+              <input data-testid="flow-count" type="range" min={1} max={30} step={1} value={flow?.count ?? 8} onChange={(e) => patch({ count: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={flowSlider} />,
             )}
           {row(
             'Reverse',

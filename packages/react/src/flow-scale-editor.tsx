@@ -2,7 +2,7 @@
  *  visual ranges, Gradient, the stops list, and the live metric scrubber. */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Editor, EdgeRecord, FlowColorStop, FlowScale, FlowSpec, Id } from '@nodus/core';
-import { BORDER, buildRampCss, clamp, DEFAULT_SCALE, FLOW, flowMicro, flowRowCss, ghostBtn, isHex6, numField, ROW_LABEL, swatch } from './flow-shared.js';
+import { BORDER, buildRampCss, clamp, DEFAULT_SCALE, FLOW, flowMicro, flowRowCss, flowSlider, ghostBtn, isHex6, numField, ROW_LABEL, swatch } from './flow-shared.js';
 
 // Parse a number field, treating empty/NaN as "no change" — so clearing a field to retype it
 // doesn't write 0 (and re-stamp "0" under the caret) into the scale.
@@ -225,8 +225,8 @@ function MetricScrubber({ editor, edgeIds, firstEdge, domain }: {
   return (
     <label style={{ ...flowRowCss, marginTop: 6 }}>
       <span style={{ color: ROW_LABEL }}>Metric</span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input data-testid="flow-metric" type="range" min={min} max={max} step={Math.abs(max - min) / 100 || 1} value={clamp(value, min, max)} onChange={(e) => onInput(Number(e.target.value))} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+        <input data-testid="flow-metric" type="range" min={min} max={max} step={Math.abs(max - min) / 100 || 1} value={clamp(value, min, max)} onChange={(e) => onInput(Number(e.target.value))} style={flowSlider} />
         <span style={{ color: FLOW, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{Math.round(value)}</span>
       </span>
     </label>

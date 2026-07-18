@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Editor } from '@nodus/core';
-import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
+import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyOrDownloadImage, useValue } from '@nodus/react';
 import { INFRA_TYPES, installInfraPreset, modelToRecords, type InfraKind } from '@nodus/preset-infra';
 import { iconNode } from '@nodus/preset-diagrams';
 import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
@@ -141,7 +141,7 @@ function App(): ReactElement {
         <button data-testid="fit" style={BTN} onClick={() => editor.zoomToFit(64)}>
           Fit
         </button>
-        <button data-testid="copy" style={BTN} onClick={() => void copyImage(editor, { selection: editor.selectedIdsArray().length > 0 })}>
+        <button data-testid="copy" style={BTN} onClick={() => void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 })}>
           Copy PNG
         </button>
         <button data-testid="layout" style={BTN} onClick={() => void editor.layout('dagre', { direction: 'LR' })}>

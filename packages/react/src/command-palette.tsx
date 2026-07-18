@@ -1,7 +1,7 @@
 /** A ⌘K command palette. Ships a default command set; accepts custom commands too. */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { Editor } from '@nodus/core';
-import { copyImage, downloadImage } from './clipboard.js';
+import { copyOrDownloadImage, downloadImage } from './clipboard.js';
 
 export interface Command {
   id: string;
@@ -26,7 +26,7 @@ export function defaultCommands(editor: Editor): Command[] {
     { id: 'edit.front', title: 'Bring to front', group: 'Arrange', when: hasSel, run: () => editor.bringToFront(editor.selectedIdsArray()) },
     { id: 'edit.back', title: 'Send to back', group: 'Arrange', when: hasSel, run: () => editor.sendToBack(editor.selectedIdsArray()) },
     { id: 'edit.selectAll', title: 'Select all', hint: '⌘A', group: 'Edit', run: () => editor.selectAll() },
-    { id: 'export.copyImage', title: 'Copy as image', group: 'Export', run: () => void copyImage(editor, { selection: hasSel() }) },
+    { id: 'export.copyImage', title: 'Copy as image', group: 'Export', run: () => void copyOrDownloadImage(editor, { selection: hasSel() }) },
     { id: 'export.downloadPng', title: 'Download PNG', group: 'Export', run: () => void downloadImage(editor, 'diagram.png', { selection: hasSel() }) },
     { id: 'view.fit', title: 'Zoom to fit', group: 'View', run: () => editor.zoomToFit(60) },
     { id: 'view.zoomIn', title: 'Zoom in', group: 'View', run: () => editor.zoomBy(1.25) },
