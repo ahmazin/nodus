@@ -1,6 +1,13 @@
 {
   "name": "@nodus/persistence",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Document persistence for Nodus: debounced autosave + named docs over an HTTP doc API, localStorage, or memory.",
   "type": "module",

@@ -67,6 +67,7 @@ export {
 export {
   resolveTokens,
   defaultTheme,
+  defaultLightTheme,
   type Theme,
   type StateTokens,
   type ResolvedTokens,
@@ -193,4 +194,6 @@ export {
   type ToPNGOptions,
   type CreateCanvas,
   type ExportCanvas,
+  type AlignEdge,
+  type DistributeAxis,
 } from './editor/index.js';

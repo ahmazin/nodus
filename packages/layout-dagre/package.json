@@ -1,6 +1,13 @@
 {
   "name": "@nodus/layout-dagre",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Dagre layered auto-layout adapter for Nodus.",
   "type": "module",

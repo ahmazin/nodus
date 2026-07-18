@@ -1,6 +1,13 @@
 {
   "name": "@nodus/layout-tree",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Dependency-free tidy-tree layout adapter for Nodus (org charts, mind maps, hierarchies).",
   "type": "module",

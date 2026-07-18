@@ -1,6 +1,13 @@
 {
   "name": "@nodus/cli",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "The `nodus` CLI: canonicalize (fmt), render to PNG, and semantically diff Nodus diagram files — the git-native toolchain for diagrams you can code-review.",
   "type": "module",

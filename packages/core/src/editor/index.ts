@@ -55,6 +55,11 @@ import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
 
+/** Edge/center a multi-selection aligns to (see `Editor.align`). */
+export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
+/** Axis a multi-selection distributes along (see `Editor.distribute`). */
+export type DistributeAxis = 'h' | 'v';
+
 const FLOW_DEFAULTS: FlowRuntimeConfig = {
   enabled: true,
   paused: false,
@@ -410,6 +415,145 @@ export class Editor implements EngineHost {
       if (r && isNode(r)) changes.push({ op: 'update', id, patch: { x: p.x, y: p.y } });
     }
     if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+
+  // ==========================================================================
+  // WS-0 command contract — transform / arrange / lock / zoom helpers.
+  //
+  // Signatures are FROZEN here so the UI shell (WS-D/E) can build against them while WS-B owns the
+  // full implementations. Bodies below are minimal-but-safe: real where trivially correct, no-op
+  // stubs (never throwing) where they need model/tool support WS-B must add. See markers.
+  // ==========================================================================
+
+  /**
+   * Rotate each node in place by `radians` (added to its own `rotation`). Nodes whose `NodeUtil`
+   * sets `capabilities.canRotate === false` are skipped.
+   *
+   * WS-B: implement group-centroid rotation — rotating a multi-selection about its shared center
+   * (moving each node's x/y too), not just spinning each node about its own center.
+   */
+  rotate(ids: Id[], radians: number, opts?: ApplyOptions): void {
+    if (!radians) return;
+    const changes: Change[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (!r || !isNode(r)) continue;
+      if (this.nodes.get(r.type)?.capabilities?.canRotate === false) continue;
+      changes.push({ op: 'update', id, patch: { rotation: (r.rotation ?? 0) + radians } });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+
+  /** Align the selected nodes' boxes to a shared edge/center of their union bounds. */
+  align(ids: Id[], edge: AlignEdge, opts?: ApplyOptions): void {
+    const nodes: NodeRecord[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (r && isNode(r)) nodes.push(r);
+    }
+    if (nodes.length < 2) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.w);
+      maxY = Math.max(maxY, n.y + n.h);
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const changes: Change[] = [];
+    for (const n of nodes) {
+      const patch: Record<string, unknown> = {};
+      switch (edge) {
+        case 'left': patch.x = minX; break;
+        case 'right': patch.x = maxX - n.w; break;
+        case 'hcenter': patch.x = cx - n.w / 2; break;
+        case 'top': patch.y = minY; break;
+        case 'bottom': patch.y = maxY - n.h; break;
+        case 'vcenter': patch.y = cy - n.h / 2; break;
+      }
+      if (Object.keys(patch).length) changes.push({ op: 'update', id: n.id, patch });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+
+  /** Evenly distribute nodes so the gaps between successive boxes along `axis` are equal. */
+  distribute(ids: Id[], axis: DistributeAxis, opts?: ApplyOptions): void {
+    const nodes: NodeRecord[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (r && isNode(r)) nodes.push(r);
+    }
+    if (nodes.length < 3) return;
+    const horiz = axis === 'h';
+    const size = (n: NodeRecord): number => (horiz ? n.w : n.h);
+    const pos = (n: NodeRecord): number => (horiz ? n.x : n.y);
+    const sorted = [...nodes].sort((a, b) => pos(a) - pos(b));
+    const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
+    let totalSize = 0;
+    for (const n of sorted) totalSize += size(n);
+    const gap = (pos(last) + size(last) - pos(first) - totalSize) / (sorted.length - 1);
+    const changes: Change[] = [];
+    let cursor = pos(first);
+    for (const n of sorted) {
+      if (cursor !== pos(n)) {
+        const patch: Record<string, unknown> = horiz ? { x: cursor } : { y: cursor };
+        changes.push({ op: 'update', id: n.id, patch });
+      }
+      cursor += size(n) + gap;
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+
+  /** Arrow-key nudge — moves the given nodes by (dx,dy) world units. */
+  nudge(ids: Id[], dx: number, dy: number, opts?: ApplyOptions): void {
+    this.moveBy(ids, dx, dy, opts ?? { capture: 'immediately' });
+  }
+
+  /**
+   * Lock the given nodes against selection/drag/resize.
+   *
+   * WS-B: implement for real. Requires a `locked?: boolean` field on `NodeRecord` (model.ts) plus
+   * enforcement in the select/drag/resize tools. NOTE: this is edit-locking, distinct from the
+   * `'locked'` VISUAL state (dashed, `'?'` label) that already exists in the theme. Stubbed as a
+   * no-op so it typechecks and never throws.
+   */
+  lock(_ids: Id[]): void {
+    // WS-B: implement (needs NodeRecord.locked + tool enforcement)
+  }
+  unlock(_ids: Id[]): void {
+    // WS-B: implement (needs NodeRecord.locked + tool enforcement)
+  }
+  isLocked(_id: Id): boolean {
+    // WS-B: implement (needs NodeRecord.locked)
+    return false;
+  }
+
+  /** Fit the current selection into the viewport with padding. */
+  zoomToSelection(padding = 48): void {
+    const bounds = this.selectionBounds();
+    if (!bounds) return;
+    const vp = this.viewportAtom.peek();
+    this.setCamera(fitBox(bounds, vp.w, vp.h, padding));
+  }
+
+  /**
+   * Pan the camera so all content is centered, keeping the current zoom. If the content does not
+   * fit at the current zoom, falls back to fit-to-content (which does change zoom).
+   */
+  scrollToContent(padding = 48): void {
+    const bounds = this.sceneIndex.contentBounds();
+    if (!bounds) return;
+    const vp = this.viewportAtom.peek();
+    const z = this.camera.z;
+    if (bounds.w * z > vp.w - padding * 2 || bounds.h * z > vp.h - padding * 2) {
+      this.setCamera(fitBox(bounds, vp.w, vp.h, padding));
+      return;
+    }
+    const cx = bounds.x + bounds.w / 2;
+    const cy = bounds.y + bounds.h / 2;
+    this.setCamera({ x: cx - vp.w / (2 * z), y: cy - vp.h / (2 * z), z });
   }
 
   /**

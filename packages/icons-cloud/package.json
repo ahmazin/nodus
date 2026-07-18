@@ -1,9 +1,18 @@
 {
   "name": "@nodus/icons-cloud",
   "version": "0.1.0",
+  "files": [
+    "dist",
+    "NOTICE",
+    "LICENSES",
+    "provenance.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Ships fixture placeholders; real packs are produced by codegen.",
   "type": "module",
-  "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -29,7 +38,39 @@
     "@nodus/core": "workspace:*"
   },
   "devDependencies": {
+    "@nodus/preset-diagrams": "workspace:*",
     "svgpath": "^2.6.0",
     "svgson": "^5.3.1"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "./aws": {
+        "types": "./dist/aws.d.ts",
+        "import": "./dist/aws.js",
+        "require": "./dist/aws.cjs"
+      },
+      "./azure": {
+        "types": "./dist/azure.d.ts",
+        "import": "./dist/azure.js",
+        "require": "./dist/azure.cjs"
+      },
+      "./gcp": {
+        "types": "./dist/gcp.d.ts",
+        "import": "./dist/gcp.js",
+        "require": "./dist/gcp.cjs"
+      }
+    }
   }
 }

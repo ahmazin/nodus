@@ -1,6 +1,13 @@
 {
   "name": "@nodus/layout-elk",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "ELK (Eclipse Layout Kernel) adapter for Nodus — layered, orthogonal, and nested layouts.",
   "type": "module",
@@ -9,6 +16,7 @@
   "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
   "sideEffects": false,
   "dependencies": { "@nodus/core": "workspace:*", "elkjs": "^0.9.3" },
+  "devDependencies": { "@nodus/layout-force": "workspace:*", "@nodus/layout-tree": "workspace:*" },
   "scripts": { "build": "tsup", "clean": "rm -rf dist" },
   "publishConfig": {
     "main": "./dist/index.js",

@@ -114,6 +114,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@nodus/preset-diagrams':
+        specifier: workspace:*
+        version: link:../preset-diagrams
       svgpath:
         specifier: ^2.6.0
         version: 2.6.0
@@ -147,6 +150,13 @@ importers:
       elkjs:
         specifier: ^0.9.3
         version: 0.9.3
+    devDependencies:
+      '@nodus/layout-force':
+        specifier: workspace:*
+        version: link:../layout-force
+      '@nodus/layout-tree':
+        specifier: workspace:*
+        version: link:../layout-tree
 
   packages/layout-force:
     dependencies:
@@ -229,6 +239,9 @@ importers:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
+      '@nodus/icons-cloud':
+        specifier: workspace:*
+        version: link:../icons-cloud
     devDependencies:
       '@types/react':
         specifier: ^18.3.12

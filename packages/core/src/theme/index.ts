@@ -27,6 +27,12 @@ export interface StateTokens {
 
 export interface Theme {
   name: string;
+  /**
+   * Light/dark intent of this theme. The DOM chrome (`@nodus/react` UI tokens) derives its
+   * light/dark mode from the *active canvas theme* via `modeOfTheme`, so canvas and chrome
+   * re-skin together from one atom. Unset is treated as `'dark'` for back-compat.
+   */
+  appearance?: 'light' | 'dark';
   palette: Record<string, string>;
   typography: {
     fontFamily: string;
@@ -118,6 +124,7 @@ export function resolveTokens(
 /** A neutral, generic dark theme. Presets (e.g. infra) ship richer themes. */
 export const defaultTheme: Theme = {
   name: 'default-dark',
+  appearance: 'dark',
   palette: {
     accent: '#3b82f6',
     neutral: '#3a3a3a',
@@ -157,4 +164,56 @@ export const defaultTheme: Theme = {
     missed: { stroke: '#ef4444', glow: '#ef4444' },
   },
   focus: { strokeWidth: 2, glow: '#ffffff' },
+};
+
+/**
+ * A neutral, generic *light* theme — the light mirror of `defaultTheme` (light canvas, dark text,
+ * same blue accent). Presets ship their own light themes (e.g. `infraLightTheme`); this is the
+ * fallback pairing for the light/dark toggle when no preset theme is active.
+ */
+export const defaultLightTheme: Theme = {
+  name: 'default-light',
+  appearance: 'light',
+  palette: {
+    accent: '#3b82f6',
+    neutral: '#cbd5e1',
+  },
+  typography: { fontFamily: 'system-ui, sans-serif', size: 12, lineHeight: 1.3 },
+  radii: { node: 6 },
+  canvas: { fill: '#f7f8fa', grid: { color: 'rgba(15,23,42,0.05)', size: 24 } },
+  states: {
+    accent: {
+      fill: '#eff6ff',
+      stroke: '#3b82f6',
+      strokeWidth: 1,
+      text: '#1e3a8a',
+      glow: '#3b82f6',
+    },
+    solid: { fill: '#ffffff', stroke: '#cbd5e1', strokeWidth: 1, text: '#0f172a', glow: null },
+    ghost: {
+      fill: '#f1f5f9',
+      stroke: '#e2e8f0',
+      strokeWidth: 1,
+      text: '#94a3b8',
+      opacity: 0.6,
+      fontScale: 0.9,
+      glow: null,
+    },
+    locked: {
+      fill: 'rgba(255,255,255,0)',
+      stroke: '#cbd5e1',
+      strokeWidth: 1,
+      text: '#94a3b8',
+      dash: [4, 4],
+      labelOverride: '?',
+      glow: null,
+    },
+  },
+  overlays: {
+    met: { stroke: '#059669', glow: '#10b981' },
+    partial: { stroke: '#d97706', glow: '#f59e0b' },
+    missed: { stroke: '#dc2626', glow: '#ef4444' },
+  },
+  // On light, a white glow is invisible — focus reads via a stronger accent stroke.
+  focus: { strokeWidth: 2, glow: '#3b82f6' },
 };

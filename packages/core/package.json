@@ -1,6 +1,13 @@
 {
   "name": "@nodus/core",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Headless, framework-agnostic, extensible diagram engine (Canvas-2D).",
   "type": "module",

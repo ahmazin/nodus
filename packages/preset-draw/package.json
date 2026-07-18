@@ -1,6 +1,13 @@
 {
   "name": "@nodus/preset-draw",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Plain whiteboard shapes for Nodus: rect/ellipse/diamond, multi-line text, line/arrow tools, and R/E/L/A/T shortcuts.",
   "type": "module",

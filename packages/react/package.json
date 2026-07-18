@@ -1,6 +1,13 @@
 {
   "name": "@nodus/react",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Thin React binding for Nodus: <Nodus> canvas host, hooks, and inline text-edit overlay.",
   "type": "module",
@@ -13,6 +20,9 @@
     }
   },
   "sideEffects": false,
+  "dependencies": {
+    "@nodus/icons-cloud": "workspace:*"
+  },
   "peerDependencies": {
     "@nodus/core": "workspace:*",
     "react": ">=18",

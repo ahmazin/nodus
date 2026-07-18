@@ -1,6 +1,13 @@
 {
   "name": "@nodus/preset-diagrams",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "General diagram presets for Nodus: flowchart, state-machine, ERD, and org-chart node/edge types plus builder helpers.",
   "type": "module",

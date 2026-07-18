@@ -1,0 +1,35 @@
+name: CI
+
+# Code-quality gate: typecheck, the full test suite, and a headless Skia render on every PR and on
+# pushes to the main branches. Mirrors the pnpm/Node setup used by diagrams.yml — pnpm/action-setup@v4
+# honors the pinned `packageManager: pnpm@11.1.2`, so the pnpm version is fixed without a separate
+# `corepack enable` step (the two can conflict), and setup-node's `cache: pnpm` keys off the pnpm store.
+on:
+  push:
+    branches: [main, mainline]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Verify render (headless Skia)
+        run: pnpm verify:render

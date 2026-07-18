@@ -1,6 +1,13 @@
 {
   "name": "@nodus/from-mermaid",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
   "license": "MIT",
   "description": "Import a Mermaid diagram (flowchart / state / ER subsets) into Nodus records — reuses @nodus/preset-diagrams builders + any registered layout engine (ELK).",
   "type": "module",
