@@ -38,7 +38,7 @@ import { Store, type ChangeInfo, type StoreListener } from '../store/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
 import { History } from '../history/index.js';
 import { EventBus, type NodusEvent } from '../events/index.js';
-import { Registry, type EdgeUtil, type NodeUtil } from '../registries/index.js';
+import { Registry, validateNodeUtil, validateEdgeUtil, type EdgeUtil, type NodeUtil } from '../registries/index.js';
 import { RouterRegistry, defaultRouters } from '../routing/index.js';
 import type { LayoutEngine, LayoutGraph, LayoutOptions } from '../layout/index.js';
 import type { EngineHost, OverlayLayer, Plugin } from '../plugins/index.js';
@@ -185,8 +185,20 @@ export class Editor implements EngineHost {
   readonly store = new Store({
     onError: (error, context) => this.events.emit({ type: 'error', error, context }),
   });
-  readonly nodes: Registry<NodeUtil> = new Registry<NodeUtil>();
-  readonly edges: Registry<EdgeUtil> = new Registry<EdgeUtil>();
+  // Registries validate at registration (fail fast on a malformed util) and route a re-registration
+  // override through the same observable `error` channel as isolated store/index faults. The
+  // `onOverride` closure reads `this` lazily (only when an override fires, well after construction),
+  // so field-init order is not a problem — same pattern as the store's `onError` above.
+  readonly nodes: Registry<NodeUtil> = new Registry<NodeUtil>({
+    label: 'node type',
+    validate: validateNodeUtil,
+    onOverride: (type) => this.reportRegistryOverride('node type', type),
+  });
+  readonly edges: Registry<EdgeUtil> = new Registry<EdgeUtil>({
+    label: 'edge type',
+    validate: validateEdgeUtil,
+    onOverride: (type) => this.reportRegistryOverride('edge type', type),
+  });
   readonly sceneIndex: SceneIndex;
   readonly history: History;
   readonly events = new EventBus();
@@ -285,7 +297,17 @@ export class Editor implements EngineHost {
     this.toolManager.register(tool);
   }
   registerLayout(engine: LayoutEngine): void {
-    this.layouts.set(engine.id, engine);
+    const id = (engine as { id?: unknown } | null | undefined)?.id;
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error(
+        `Cannot register layout: 'id' must be a non-empty string (got ${typeof id === 'string' ? JSON.stringify(id) : String(id)}).`,
+      );
+    }
+    if (typeof engine.layout !== 'function') {
+      throw new Error(`Cannot register layout ${JSON.stringify(id)}: 'layout' must be a function.`);
+    }
+    if (this.layouts.has(id)) this.reportRegistryOverride('layout', id);
+    this.layouts.set(id, engine);
   }
   setTheme(theme: Theme): void {
     this.themeAtom.set(theme);
@@ -302,10 +324,35 @@ export class Editor implements EngineHost {
     return this.store.listen(handler);
   }
   use(plugin: Plugin): Dispose {
-    const dispose = plugin.register(this);
+    // Isolate a throwing plugin: surface the failure on the observable `error` channel, then rethrow
+    // with context (which plugin) so a plugin that can't install is loud for the app author. We push
+    // the disposer only on success — a plugin that threw never leaves a half-baked disposer that a
+    // later `dispose()`/teardown would run against partial state.
+    let dispose: Dispose | void;
+    try {
+      dispose = plugin.register(this);
+    } catch (err) {
+      const id = (plugin as { id?: unknown } | null | undefined)?.id;
+      const label = typeof id === 'string' && id.length > 0 ? JSON.stringify(id) : '<unknown>';
+      this.events.emit({ type: 'error', error: err, context: { phase: 'plugin', pluginId: id } });
+      throw new Error(`Plugin ${label} failed to install: ${err instanceof Error ? err.message : String(err)}`, {
+        cause: err,
+      });
+    }
     const d = typeof dispose === 'function' ? dispose : () => {};
     this.disposers.push(d);
     return d;
+  }
+
+  /** Surface a type/layout re-registration (a deliberate override, e.g. a preset replacing a builtin)
+   *  through the same observable `error` channel used for isolated store/index faults — never a raw
+   *  console call — so it stays visible without being fatal. */
+  private reportRegistryOverride(kind: string, type: string): void {
+    this.events.emit({
+      type: 'error',
+      error: new Error(`Overriding an already-registered ${kind} '${type}'.`),
+      context: { phase: 'register', kind, type },
+    });
   }
 
   // ==========================================================================

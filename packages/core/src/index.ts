@@ -102,6 +102,9 @@ export { SceneIndex, type RenderItem, type SceneIndexDeps } from './scene-index/
 export {
   Registry,
   DEFAULT_CAPABILITIES,
+  validateNodeUtil,
+  validateEdgeUtil,
+  type RegistryOptions,
   type NodeUtil,
   type EdgeUtil,
   type Port,

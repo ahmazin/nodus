@@ -73,12 +73,67 @@ export interface EdgeUtil<P extends Record<string, unknown> = Record<string, unk
   draw(api: DrawApi, edge: EdgeRecord, tokens: ResolvedTokens, route: Vec2[]): void;
 }
 
+/** Render a value for an error message: strings quoted, everything else stringified. */
+function describe(value: unknown): string {
+  return typeof value === 'string' ? JSON.stringify(value) : String(value);
+}
+
+/** Throw if `util[method]` is not a function — the missing/invalid-method half of util validation. */
+function requireMethod(util: { readonly type: string }, label: string, method: string): void {
+  if (typeof (util as unknown as Record<string, unknown>)[method] !== 'function') {
+    throw new Error(`Cannot register ${label} ${describe(util.type)}: '${method}' must be a function.`);
+  }
+}
+
+/** Structural validator for a `NodeUtil` — the geometry + paint methods the engine will call. */
+export function validateNodeUtil(util: NodeUtil): void {
+  requireMethod(util, 'node type', 'getGeometry');
+  requireMethod(util, 'node type', 'draw');
+}
+
+/** Structural validator for an `EdgeUtil` — the routing + paint methods the engine will call. */
+export function validateEdgeUtil(util: EdgeUtil): void {
+  requireMethod(util, 'edge type', 'getRoute');
+  requireMethod(util, 'edge type', 'draw');
+}
+
+/** Tuning for how a `Registry` validates and reports registrations. */
+export interface RegistryOptions<T extends { readonly type: string }> {
+  /** Human label used in error/warning messages (e.g. `'node type'`). Defaults to `'type'`. */
+  label?: string;
+  /** Type-specific structural check; throws a contextual `Error` when `util` is malformed. */
+  validate?: (util: T) => void;
+  /** Notified when a registration overwrites an existing `type` — a soft, non-fatal warning. */
+  onOverride?: (type: string) => void;
+}
+
 /** A generic type-keyed registry. */
 export class Registry<T extends { readonly type: string }> {
   private readonly map = new Map<string, T>();
 
+  constructor(private readonly opts: RegistryOptions<T> = {}) {}
+
+  /**
+   * Register a util under its `type`. Fails fast (throws) on a malformed util — a non-object, an
+   * empty/non-string `type`, or (via `opts.validate`) a missing required method — turning a cryptic
+   * later crash into an obvious registration-time error. Re-registering an existing `type` overrides
+   * it (presets legitimately do this) but fires `opts.onOverride` so the override stays observable.
+   */
   register(util: T): void {
-    this.map.set(util.type, util);
+    const label = this.opts.label ?? 'type';
+    const candidate = util as unknown;
+    if (candidate === null || typeof candidate !== 'object') {
+      throw new Error(
+        `Cannot register ${label}: expected a util object, but got ${candidate === null ? 'null' : typeof candidate}.`,
+      );
+    }
+    const type = (candidate as { type?: unknown }).type;
+    if (typeof type !== 'string' || type.length === 0) {
+      throw new Error(`Cannot register ${label}: 'type' must be a non-empty string (got ${describe(type)}).`);
+    }
+    this.opts.validate?.(util);
+    if (this.map.has(type)) this.opts.onOverride?.(type);
+    this.map.set(type, util);
   }
   unregister(type: string): void {
     this.map.delete(type);
