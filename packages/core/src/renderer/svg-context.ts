@@ -167,6 +167,13 @@ export class SVGContext implements Ctx2D {
     shadowOffsetY: 0,
   };
 
+  /** Append pre-built SVG markup verbatim, rendered after everything drawn so far (i.e. on top). It is
+   *  NOT wrapped in the current CTM — the caller supplies any needed `<g transform>`. Used for a
+   *  post-pass that isn't expressible as `Ctx2D` draw calls, e.g. native flow animations. */
+  raw(markup: string): void {
+    this.body.push(markup);
+  }
+
   /** Serialize everything drawn so far into a complete `<svg>` document of the given pixel size. */
   toSVG(width: number, height: number): string {
     const w = Math.max(1, Math.round(width));

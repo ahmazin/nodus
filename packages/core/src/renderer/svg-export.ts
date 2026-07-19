@@ -9,10 +9,12 @@
  * the coordinate space pre-scaled.
  */
 
-import type { Box } from '../model.js';
+import type { Box, EdgeRecord } from '../model.js';
 // Type-only import: erased at compile time, so this does not create a runtime cycle with the editor.
 import type { Editor } from '../editor/index.js';
 import { padBox } from '../geometry/index.js';
+import { resolveFlow } from '../flow.js';
+import { resolveTokens } from '../theme/index.js';
 import { SVGContext } from './svg-context.js';
 
 export interface RenderSVGOptions {
@@ -29,6 +31,10 @@ export interface RenderSVGOptions {
   /** Also emit a snapshot of flow markers (packets/dashes) at `time` ms. Default off. */
   flow?: boolean;
   time?: number;
+  /** Emit the flow as looping, self-contained SVG animation (marching dashes / moving packets)
+   *  instead of a single frozen frame, so the exported `.svg` keeps flowing when opened. Default off.
+   *  Takes precedence over `flow` (a frozen snapshot). */
+  animateFlow?: boolean;
 }
 
 /**
@@ -46,7 +52,79 @@ export function renderSVG(editor: Editor, opts: RenderSVGOptions = {}): string {
   editor.paintRegion(ctx, region, ratio, {
     background: opts.background ?? true,
     grid: opts.grid ?? false,
-    ...(opts.flow ? { flow: true, time: opts.time ?? 0 } : {}),
+    // A frozen flow frame and a live animation are mutually exclusive; `animateFlow` wins.
+    ...(opts.flow && !opts.animateFlow ? { flow: true, time: opts.time ?? 0 } : {}),
   });
+  if (opts.animateFlow) {
+    const anim = flowAnimationSVG(editor, region, ratio);
+    if (anim) ctx.raw(anim);
+  }
   return ctx.toSVG(w, h);
+}
+
+/** Compact number formatter (3 decimals, `-0` normalized) for the flow-animation markup. */
+function n(v: number): string {
+  if (!Number.isFinite(v)) return '0';
+  const r = Math.round(v * 1000) / 1000;
+  return Object.is(r, -0) ? '0' : String(r);
+}
+
+/**
+ * Build looping SVG animation markup for every edge carrying a `FlowSpec`, in world coordinates,
+ * wrapped in the same world→viewBox transform `paintRegion` uses (so it overlays the static edges
+ * exactly). Marching dashes animate `stroke-dashoffset` over one dash period (seamless loop); packet
+ * dots ride the route via `<animateMotion path=...>` with staggered `begin` offsets. Self-contained —
+ * no external refs — so the exported `.svg` animates on its own in any SVG-animation-capable viewer.
+ */
+function flowAnimationSVG(editor: Editor, region: Box, ratio: number): string {
+  const edges = editor.store.edges().filter((e) => !!e.flow) as EdgeRecord[];
+  if (edges.length === 0) return '';
+  const theme = editor.themeAtom.peek();
+  const getMetric = (editor as { flowMetric?: (id: string) => number | undefined }).flowMetric;
+  const parts: string[] = [];
+
+  for (const edge of edges) {
+    const route = editor.sceneIndex.getItem(edge.id)?.route;
+    if (!route || route.length < 2) continue;
+    let total = 0;
+    for (let i = 1; i < route.length; i++) {
+      total += Math.hypot(route[i]!.x - route[i - 1]!.x, route[i]!.y - route[i - 1]!.y);
+    }
+    if (total < 1) continue;
+
+    const metric = typeof getMetric === 'function' ? getMetric.call(editor, edge.id) : undefined;
+    const flow = resolveFlow(edge.flow!, metric);
+    const tok = resolveTokens(theme, edge.visual, edge.type);
+    const color = flow.color ?? tok.stroke;
+    const speed = flow.speed && flow.speed > 0 ? flow.speed : 70;
+    const dir = flow.reverse ? -1 : 1;
+    const d = route.map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x)} ${n(p.y)}`).join(' ');
+
+    if (flow.style === 'dash') {
+      const dash = (flow.size ?? 6) * 2;
+      const dur = Math.max(0.1, (2 * dash) / speed);
+      const lw = flow.size ?? tok.strokeWidth ?? 1.5;
+      parts.push(
+        `<path d="${d}" fill="none" stroke="${color}" stroke-width="${n(lw)}" ` +
+          `stroke-dasharray="${n(dash)},${n(dash)}">` +
+          `<animate attributeName="stroke-dashoffset" values="0;${n(-dir * 2 * dash)}" ` +
+          `dur="${n(dur)}s" repeatCount="indefinite"/></path>`,
+      );
+    } else {
+      const size = flow.size ?? 3;
+      const count = Math.max(1, flow.count ?? Math.round(total / 90));
+      const spacing = total / count;
+      const dur = Math.max(0.1, total / speed);
+      const rev = dir < 0 ? ` keyPoints="1;0" keyTimes="0;1" calcMode="linear"` : '';
+      for (let k = 0; k < count; k++) {
+        parts.push(
+          `<circle r="${n(size)}" fill="${color}"><animateMotion path="${d}" ` +
+            `dur="${n(dur)}s" begin="${n(-(k * spacing) / speed)}s" repeatCount="indefinite"${rev}/></circle>`,
+        );
+      }
+    }
+  }
+  if (parts.length === 0) return '';
+  const t = `matrix(${n(ratio)} 0 0 ${n(ratio)} ${n(-region.x * ratio)} ${n(-region.y * ratio)})`;
+  return `<g class="nodus-flow" transform="${t}">${parts.join('')}</g>`;
 }
