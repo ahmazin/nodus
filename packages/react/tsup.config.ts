@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   treeshake: true,
-  external: ['react', 'react-dom', 'rbush', '@dagrejs/dagre', '@nodus/core', '@nodus/icons-cloud'],
+  external: ['react', 'react-dom', 'rbush', '@dagrejs/dagre', '@nodus/core'],
 });

@@ -20,9 +20,6 @@
     }
   },
   "sideEffects": false,
-  "dependencies": {
-    "@nodus/icons-cloud": "workspace:*"
-  },
   "peerDependencies": {
     "@nodus/core": "workspace:*",
     "react": ">=18",
