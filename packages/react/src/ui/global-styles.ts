@@ -13,9 +13,10 @@
 const STYLE_ID = 'nodus-ui-global-styles';
 
 const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 [data-nodus-ui] {
   box-sizing: border-box;
-  font-family: var(--nodus-font, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--nodus-font, 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif);
 }
 [data-nodus-ui] *,
 [data-nodus-ui] *::before,
@@ -33,7 +34,7 @@ const CSS = `
 }
 [data-nodus-ui]:focus-visible,
 [data-nodus-ui] :focus-visible {
-  outline: 2px solid var(--nodus-focus-ring, #10b981);
+  outline: 2px solid var(--nodus-focus-ring, #c4f24e);
   outline-offset: 2px;
   border-radius: inherit;
 }

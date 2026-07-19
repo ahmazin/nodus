@@ -1,7 +1,7 @@
 /** A minimap overlay: a scaled view of the whole scene with a draggable viewport indicator. */
 import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
-import { effect, resolveTokens, type Box, type Editor } from '@nodus/core';
-import { useUiTokens } from './ui/tokens.js';
+import { effect, type Box, type Editor } from '@nodus/core';
+import { modeOfTheme, uiTokensFor, useUiTokens } from './ui/tokens.js';
 
 /**
  * A tiny version-keyed memo. Returns a getter that recomputes only when the passed `version` differs
@@ -61,25 +61,34 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
 
     const draw = () => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const theme = editor.themeAtom.peek();
+      // Derive UI tokens fresh from the (subscribed) theme atom so a mode flip repaints with the
+      // right palette — no stale render-closure. Node/viewport colors come from tokens, not the
+      // canvas Theme, to match the DOM chrome.
+      const tk = uiTokensFor(modeOfTheme(editor.themeAtom.peek()));
+      const selected = editor.selectedAtom.peek();
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = theme.canvas.fill;
+      ctx.fillStyle = tk.color.panel;
       ctx.fillRect(0, 0, width, height);
       const f = fit();
       if (!f) return;
+      ctx.globalAlpha = 0.85;
       for (const item of editor.sceneIndex.paintOrder()) {
         if (item.kind !== 'node') continue;
         const a = item.aabb;
-        const tokens = resolveTokens(theme, item.record.visual, item.record.type, item.record.style);
-        ctx.fillStyle = tokens.stroke;
-        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = selected.has(item.record.id) ? tk.color.accent : tk.color.textFaint;
         ctx.fillRect(a.x * f.s + f.ox, a.y * f.s + f.oy, Math.max(2, a.w * f.s), Math.max(2, a.h * f.s));
       }
       ctx.globalAlpha = 1;
       const vp = editor.worldViewport();
-      ctx.strokeStyle = theme.palette.accent ?? '#3b82f6';
+      const vx = vp.x * f.s + f.ox;
+      const vy = vp.y * f.s + f.oy;
+      const vw = vp.w * f.s;
+      const vh = vp.h * f.s;
+      ctx.fillStyle = tk.color.selection;
+      ctx.fillRect(vx, vy, vw, vh);
+      ctx.strokeStyle = tk.color.accent;
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(vp.x * f.s + f.ox, vp.y * f.s + f.oy, vp.w * f.s, vp.h * f.s);
+      ctx.strokeRect(vx, vy, vw, vh);
     };
 
     const stop = effect(() => {
@@ -87,6 +96,7 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
       editor.cameraAtom.get();
       editor.viewportAtom.get();
       editor.themeAtom.get();
+      editor.selectedAtom.get();
       draw();
     });
 

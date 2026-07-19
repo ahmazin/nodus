@@ -37,7 +37,7 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
     alignItems: 'center',
     gap: t.space(0.5),
     padding: t.space(0.5),
-    background: t.color.panel,
+    background: t.color.surface,
     border: `1px solid ${t.color.border}`,
     borderRadius: t.radius.lg,
     boxShadow: t.shadow.panel,
@@ -45,6 +45,10 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
     ['--nodus-font' as string]: t.font.family,
     ...style,
   };
+
+  // Design: 28px transparent icon buttons with a muted glyph (idle color comes from the ghost
+  // variant's `text`, so override to `textMuted`).
+  const zBtnStyle: CSSProperties = { width: 28, height: 28, color: t.color.textMuted };
 
   return (
     <div data-nodus-ui="" role="group" aria-label="Zoom" style={containerStyle}>
@@ -55,6 +59,7 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         aria-label="Zoom out"
         title="Zoom out"
         onClick={() => editor.zoomBy(1 / STEP)}
+        style={zBtnStyle}
       />
       <Button
         tokens={t}
@@ -63,7 +68,15 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         aria-label={`Zoom ${pct}% — reset to 100%`}
         title="Reset zoom to 100%"
         onClick={resetTo100}
-        style={{ minWidth: 52, justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}
+        style={{
+          minWidth: 52,
+          height: 28,
+          padding: 0,
+          justifyContent: 'center',
+          fontFamily: t.font.mono,
+          fontSize: t.font.size.sm,
+          color: t.color.textMuted,
+        }}
       >
         {pct}%
       </Button>
@@ -74,6 +87,7 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         aria-label="Zoom in"
         title="Zoom in"
         onClick={() => editor.zoomBy(STEP)}
+        style={zBtnStyle}
       />
       <Divider tokens={t} vertical style={{ height: 18, margin: `0 ${t.space(0.5)}px` }} />
       <IconButton
@@ -83,6 +97,7 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         aria-label="Fit to content"
         title="Fit to content"
         onClick={() => editor.zoomToFit(fitPadding)}
+        style={zBtnStyle}
       />
     </div>
   );

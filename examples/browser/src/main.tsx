@@ -1,10 +1,12 @@
 /**
- * Nodus reference editor — the product surface built on `@nodus/react`'s shell + design system.
+ * Nodus reference editor — the "Playground" product surface built on `@nodus/react`'s shell + design
+ * system. A docked three-column layout: a top bar (brand · live-doc · undo/redo · insert pickers ·
+ * sketch/flow/theme/search/export), a left tool rail, the canvas, and a right Properties/Source panel.
  *
- * Composition: a `<Nodus>` canvas host with the built-in `Toolbar`, left `ToolPalette`,
- * `ZoomControls`, `ThemeToggle`, `UndoRedo`, and shortcut help, plus the `Properties` / `Minimap` /
- * `CommandPalette` / `CloudIconPicker` panels — all skinned from one theme atom and wired to
- * localStorage autosave + open/save. `window.__editor` stays exposed for the E2E drive.
+ * Every control is skinned from one `UiTokens` set (`useUiTokens`) and wired to localStorage autosave
+ * + open/save. `window.__editor` stays exposed for the E2E drive; the `data-testid` hooks the verify
+ * script relies on (`status`, `tool-select`, `layout`, `minimap`, `type-select`, `tool-create`,
+ * `templates-modal`) are preserved on their relocated controls.
  */
 
 import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
@@ -19,18 +21,13 @@ import {
   CommandPalette,
   ConnectIcon,
   DiamondIcon,
-  Divider,
   EraserIcon,
   HandIcon,
-  HelpIcon,
-  IconButton,
   ImageIcon,
   LineIcon,
   Minimap,
   Nodus,
-  OpenIcon,
   Properties,
-  SaveIcon,
   SelectIcon,
   ShortcutsDialog,
   SquareIcon,
@@ -38,12 +35,12 @@ import {
   TemplatesGallery,
   TextIcon,
   ThemeToggle,
-  Toolbar,
   ToolPalette,
   UiTokensProvider,
   UndoRedo,
   ZoomControls,
   copyOrDownloadImage,
+  DEFAULT_FLOW,
   defaultCommands,
   exportFlowGIF,
   injectGlobalStyles,
@@ -57,6 +54,7 @@ import {
   type Command,
   type ShortcutSection,
   type ToolPaletteEntry,
+  type UiTokens,
 } from '@nodus/react';
 import {
   INFRA_TYPES,
@@ -87,6 +85,22 @@ import {
 
 const AUTOSAVE_KEY = 'nodus-example';
 const STENCILS_KEY = 'nodus-stencils';
+const DOC_NAME = 'playground.nodus.json';
+
+/**
+ * Playground canvas themes: the infra themes with the dot grid bumped to the design's prominence
+ * (the renderer paints `theme.canvas.grid` behind every node, so this *is* the dotted background —
+ * no DOM overlay needed, and it pans/zooms with the camera for free). Everything else (node colors,
+ * states, overlays) is inherited untouched via spread.
+ */
+const playgroundDark = {
+  ...darkInfraTheme,
+  canvas: { ...darkInfraTheme.canvas, fill: '#0a0b0e', grid: { color: 'rgba(255,255,255,0.06)', size: 26 } },
+};
+const playgroundLight = {
+  ...infraLightTheme,
+  canvas: { ...infraLightTheme.canvas, grid: { color: 'rgba(10,11,14,0.06)', size: 26 } },
+};
 
 /**
  * Load the user's saved stencil library from localStorage, tolerating a missing or corrupt value.
@@ -143,6 +157,7 @@ function buildEditor(): Editor {
     ],
   });
   editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
+  editor.setTheme(playgroundDark); // apply the prominent-grid variant on top of the preset's dark theme
   // expose for e2e verification
   (window as unknown as { __editor: Editor }).__editor = editor;
   return editor;
@@ -190,6 +205,63 @@ function PenIcon({ size = 16 }: { size?: number }): ReactElement {
   );
 }
 
+/** The 3-circle Nodus glyph from the design's top bar, tinted from tokens (accent node + two outlined). */
+function NodusLogo({ t }: { t: UiTokens }): ReactElement {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: 'block' }}>
+      <circle cx="5" cy="6.5" r="2.5" style={{ fill: t.color.accent }} />
+      <circle cx="18.5" cy="6" r="2.3" style={{ stroke: t.color.text }} strokeWidth={1.6} />
+      <circle cx="12" cy="18" r="2.5" style={{ stroke: t.color.text }} strokeWidth={1.6} />
+      <path
+        d="M6.7 8 L10.6 15.8 M17 8 L13.3 15.8 M7.4 6.4 L16.2 6"
+        style={{ stroke: t.color.borderStrong }}
+        strokeWidth={1.4}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Chevron-down for the Export dropdown / picker triggers. */
+function ChevronIcon(): ReactElement {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 9l7 7 7-7" />
+    </svg>
+  );
+}
+
+/** Magnifier for the "Search ⌘K" button. */
+function SearchIcon(): ReactElement {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.2-3.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Right-arrow flow glyph for the Flow toggle. */
+function FlowGlyph(): ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+      <path d="M4 12h16M13 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+/** Hierarchy glyph for the persistent auto-layout (arrange) action. */
+function LayoutGlyph(): ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="3" y="16" width="6" height="5" rx="1" />
+      <rect x="15" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v3M12 11H6v5M12 11h6v5" />
+    </svg>
+  );
+}
+
 /** Documented shortcuts, matching what this app actually binds. */
 const SHORTCUTS: ShortcutSection[] = [
   {
@@ -223,6 +295,124 @@ const SHORTCUTS: ShortcutSection[] = [
     ],
   },
 ];
+
+/**
+ * Token-derived chrome styles for the panels / bars, mirroring the design's `renderVals` builders but
+ * sourced from `UiTokens` so everything re-skins with the theme. Built once per render.
+ */
+function chrome(t: UiTokens): {
+  secLabel: CSSProperties;
+  statCard: CSSProperties;
+  statNum: CSSProperties;
+  statLbl: CSSProperties;
+  ghBtn: CSSProperties;
+  tipRow: CSSProperties;
+  kbd: CSSProperties;
+  tabStyle: (active: boolean) => CSSProperties;
+  topBtn: (active: boolean) => CSSProperties;
+  iconBtn: CSSProperties;
+  menuItem: CSSProperties;
+  menuHint: CSSProperties;
+  divider: CSSProperties;
+} {
+  return {
+    secLabel: {
+      fontFamily: t.font.mono,
+      fontSize: '10.5px',
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      color: t.color.textFaint,
+      margin: '18px 0 9px',
+    },
+    statCard: {
+      flex: 1,
+      background: t.color.canvas,
+      border: `1px solid ${t.color.border}`,
+      borderRadius: t.radius.lg,
+      padding: 12,
+    },
+    statNum: { fontFamily: t.font.mono, fontSize: '22px', fontWeight: 700, color: t.color.text },
+    statLbl: { fontSize: t.font.size.sm, color: t.color.textFaint, marginTop: 2 },
+    ghBtn: {
+      height: 34,
+      borderRadius: t.radius.md,
+      border: `1px solid ${t.color.borderStrong}`,
+      background: 'transparent',
+      color: t.color.text,
+      cursor: 'pointer',
+      fontSize: t.font.size.md,
+      fontFamily: t.font.mono,
+    },
+    tipRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      fontSize: '12.5px',
+      color: t.color.textMuted,
+    },
+    kbd: {
+      fontFamily: t.font.mono,
+      fontSize: '10.5px',
+      color: t.color.textFaint,
+      border: `1px solid ${t.color.borderStrong}`,
+      borderRadius: 5,
+      padding: '2px 6px',
+    },
+    tabStyle: (active) => ({
+      padding: '9px 12px',
+      border: 'none',
+      borderBottom: `2px solid ${active ? t.color.accent : 'transparent'}`,
+      background: 'transparent',
+      color: active ? t.color.text : t.color.textMuted,
+      fontSize: t.font.size.md,
+      fontWeight: 500,
+      fontFamily: t.font.family,
+      cursor: 'pointer',
+    }),
+    topBtn: (active) => ({
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      height: 32,
+      padding: '0 11px',
+      borderRadius: t.radius.md,
+      cursor: 'pointer',
+      fontSize: '12.5px',
+      fontWeight: 500,
+      fontFamily: t.font.family,
+      border: `1px solid ${active ? t.color.accent : t.color.borderStrong}`,
+      background: active ? t.color.selection : 'transparent',
+      color: active ? t.color.accent : t.color.textMuted,
+    }),
+    iconBtn: {
+      width: 32,
+      height: 32,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: t.radius.md,
+      border: `1px solid ${t.color.borderStrong}`,
+      background: 'transparent',
+      color: t.color.textMuted,
+      cursor: 'pointer',
+    },
+    menuItem: {
+      display: 'flex',
+      alignItems: 'center',
+      width: '100%',
+      padding: '8px 10px',
+      borderRadius: 7,
+      border: 'none',
+      background: 'transparent',
+      color: t.color.text,
+      fontSize: t.font.size.md,
+      fontFamily: t.font.family,
+      cursor: 'pointer',
+    },
+    menuHint: { marginLeft: 'auto', fontFamily: t.font.mono, fontSize: '10.5px', color: t.color.textFaint },
+    divider: { width: 1, height: 20, background: t.color.border, flexShrink: 0 },
+  };
+}
 
 /**
  * Full-screen modal (portal + backdrop) hosting the always-rendered `TemplatesGallery`. Mirrors the
@@ -314,11 +504,15 @@ function TemplatesModal({ editor, open, onClose }: { editor: Editor; open: boole
 function App(): ReactElement {
   const editor = useMemo(buildEditor, []);
   const t = useUiTokens(editor);
+  const c = chrome(t);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createType, setCreateType] = useState<InfraKind>('service');
   const [sketchOn, setSketchOn] = useState(false);
+  const [flowOn, setFlowOn] = useState(() => editor.hasFlow());
   const [userLibrary, setUserLibrary] = useState<StencilLibraryType>(loadUserLibrary);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [tab, setTab] = useState<'props' | 'source'>('props');
+  const [exportOpen, setExportOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -342,7 +536,8 @@ function App(): ReactElement {
     }
   }, [userLibrary]);
 
-  // Keyboard: tool shortcuts (draw preset) + undo/redo/delete + `?` help.
+  // Keyboard: tool shortcuts (draw preset) + undo/redo/delete + `?` help. (⌘K is owned by
+  // <CommandPalette>'s own listener.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (editor.editingAtom.peek()) return;
@@ -388,6 +583,11 @@ function App(): ReactElement {
 
   const selCount = useValue(() => editor.selectedAtom.get().size);
   const nodeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.nodes().length));
+  const edgeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.edges().length));
+  // Live source — re-serializes on every document mutation (version bump). We call `editor.toJSON()`
+  // WITHOUT meta so there's no volatile `updated: Date.now()` (which `serializeDocument` injects) to
+  // churn the view; the result is stable and diff-clean.
+  const sourceJson = useValue(() => (editor.sceneIndex.version.get(), JSON.stringify(editor.toJSON(), null, 2)));
 
   const insertImage = useCallback((): void => {
     const input = document.createElement('input');
@@ -474,19 +674,116 @@ function App(): ReactElement {
     }
   }, [t.mode, runImport]);
 
-  // ⌘K command set: the shell defaults (which include a "Layout: <id>" per registered engine — now
-  // dagre/tree/force/elk) plus the importers, grouped under "Import".
+  const runLayout = useCallback(
+    (id: string): void => {
+      void editor.layout(id, { direction: 'LR' }).then(() => editor.zoomToFit(48));
+    },
+    [editor],
+  );
+
+  // Global hand-drawn toggle: applies the seeded 'sketchy' roughness to every node's style bag
+  // (per-element roughness survives theme swaps). Fine-grained control stays in Properties.
+  const toggleSketch = useCallback((): void => {
+    const next = !sketchOn;
+    setSketchOn(next);
+    editor.setStyle(
+      editor.store.nodes().map((n) => n.id),
+      { roughness: next ? 1.6 : 0 },
+    );
+  }, [editor, sketchOn]);
+
+  // Global flow toggle: turn animated flow on/off for every edge at once via the editor-level helper
+  // (undoable). Per-edge authoring stays in the Properties FlowControls.
+  const toggleFlow = useCallback((): void => {
+    const next = !flowOn;
+    setFlowOn(next);
+    editor.setFlow(
+      editor.store.edges().map((e) => e.id),
+      next ? DEFAULT_FLOW : null,
+    );
+  }, [editor, flowOn]);
+
+  const exportPNG = useCallback((): void => {
+    void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 });
+  }, [editor]);
+
+  const exportSVG = useCallback((): void => {
+    // animateFlow keeps any live flow moving in the exported .svg (a no-op when no edge has flow).
+    const blob = new Blob([renderSVG(editor, { animateFlow: true })], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'diagram.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, [editor]);
+
+  const exportGIF = useCallback(async (): Promise<void> => {
+    try {
+      const blob = await exportFlowGIF(editor);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'diagram.gif';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      showToast('Nothing to export — the diagram is empty', 'error', { mode: t.mode });
+    }
+  }, [editor, t.mode]);
+
+  const copySource = useCallback((): void => {
+    try {
+      void navigator.clipboard.writeText(JSON.stringify(editor.toJSON(), null, 2));
+      showToast('Copied .nodus.json', 'ok', { mode: t.mode });
+    } catch {
+      showToast('Could not copy the source', 'error', { mode: t.mode });
+    }
+  }, [editor, t.mode]);
+
+  // The "Search ⌘K" button opens the palette via the shared `nodus:open-command-palette` window
+  // event (Lane D added the listener inside <CommandPalette>); ⌘K itself is bound by the component.
+  const openPalette = useCallback((): void => {
+    window.dispatchEvent(new Event('nodus:open-command-palette'));
+  }, []);
+
+  // ⌘K command set: the shell defaults (tools/edit/arrange/layouts/copy-image) plus the relocated
+  // features so everything is reachable from the palette too.
   const commands = useMemo<Command[]>(
     () => [
       ...defaultCommands(editor),
       { id: 'import.mermaid', title: 'Import Mermaid…', group: 'Import', run: importMermaidFlow },
       { id: 'import.terraform', title: 'Import Terraform (show -json)…', group: 'Import', run: importTerraformFlow },
       { id: 'import.kubernetes', title: 'Import Kubernetes (JSON)…', group: 'Import', run: importKubernetesFlow },
+      { id: 'insert.image', title: 'Insert image…', group: 'Insert', run: insertImage },
+      { id: 'insert.template', title: 'Add template…', group: 'Insert', run: () => setTemplatesOpen(true) },
+      { id: 'insert.create', title: `Create ${createType} node`, group: 'Insert', run: () => editor.setTool('create', { type: `infra.${createType}` }) },
+      { id: 'view.sketch', title: sketchOn ? 'Disable hand-drawn (Sketch)' : 'Enable hand-drawn (Sketch)', group: 'View', run: toggleSketch },
+      { id: 'view.flow', title: flowOn ? 'Stop animated flow' : 'Animate flow', group: 'View', run: toggleFlow },
+      { id: 'export.svg', title: 'Export SVG (vector)', group: 'Export', run: exportSVG },
+      { id: 'export.gif', title: 'Export animated flow (GIF)', group: 'Export', run: () => void exportGIF() },
+      { id: 'export.copySource', title: 'Copy source (.nodus.json)', group: 'Export', run: copySource },
+      { id: 'file.open', title: 'Open .nodus.json…', hint: '⌘O', group: 'File', run: openFile },
+      { id: 'file.save', title: 'Save .nodus.json', hint: '⌘S', group: 'File', run: () => saveToFile(editor) },
+      { id: 'help.shortcuts', title: 'Keyboard shortcuts', hint: '?', group: 'Help', run: () => setHelpOpen(true) },
     ],
-    [editor, importMermaidFlow, importTerraformFlow, importKubernetesFlow],
+    [
+      editor,
+      importMermaidFlow,
+      importTerraformFlow,
+      importKubernetesFlow,
+      insertImage,
+      createType,
+      sketchOn,
+      flowOn,
+      toggleSketch,
+      toggleFlow,
+      exportSVG,
+      exportGIF,
+      copySource,
+      openFile,
+    ],
   );
 
-  // The left tool palette — config-driven, so it stays preset-agnostic. Eraser only if registered.
+  // The left tool rail — config-driven, so it stays preset-agnostic. Eraser only if registered.
   const tools = useMemo<ToolPaletteEntry[]>(() => {
     const list: ToolPaletteEntry[] = [
       { id: 'select', label: 'Select', toolId: 'select', icon: <SelectIcon />, shortcut: 'V', testId: 'tool-select' },
@@ -496,12 +793,12 @@ function App(): ReactElement {
       { id: 'ellipse', label: 'Ellipse', toolId: 'create', config: { type: 'draw.ellipse' }, icon: <CircleIcon />, shortcut: 'E' },
       { id: 'diamond', label: 'Diamond', toolId: 'create', config: { type: 'draw.diamond' }, icon: <DiamondIcon />, shortcut: 'D' },
       { id: 'text', label: 'Text', toolId: 'create', config: { type: 'draw.text' }, icon: <TextIcon />, shortcut: 'T' },
-      { id: 'freehand', label: 'Draw', toolId: 'freehand', icon: <PenIcon />, shortcut: 'P' },
       'divider',
       { id: 'line', label: 'Line', toolId: 'line', config: { type: 'draw.line' }, icon: <LineIcon />, shortcut: 'L' },
       { id: 'arrow', label: 'Arrow', toolId: 'line', config: { type: 'draw.arrow' }, icon: <ArrowIcon />, shortcut: 'A' },
-      'divider',
       { id: 'connect', label: 'Connect nodes', toolId: 'connect', icon: <ConnectIcon /> },
+      'divider',
+      { id: 'freehand', label: 'Draw', toolId: 'freehand', icon: <PenIcon />, shortcut: 'P' },
     ];
     if (editor.toolManager.has('eraser')) {
       list.push({ id: 'eraser', label: 'Eraser', toolId: 'eraser', icon: <EraserIcon /> });
@@ -509,50 +806,70 @@ function App(): ReactElement {
     return list;
   }, [editor]);
 
+  const railStyle: CSSProperties = {
+    position: 'static',
+    background: 'transparent',
+    border: 'none',
+    boxShadow: 'none',
+    borderRadius: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 3,
+    padding: '9px 0',
+    width: '100%',
+  };
+
   return (
     <UiTokensProvider tokens={t}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: t.color.canvas }}>
-        <Toolbar editor={editor} aria-label="Editor toolbar">
-          <strong style={{ color: t.color.accent, fontSize: t.font.size.md, letterSpacing: '0.01em' }}>Nodus</strong>
-          <Divider vertical style={{ height: 20 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: t.color.canvas, color: t.color.text, fontFamily: t.font.family }}>
+        {/* ===== TOP BAR ===== */}
+        <header
+          role="toolbar"
+          aria-label="Editor toolbar"
+          style={{
+            height: 52,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '0 12px',
+            borderBottom: `1px solid ${t.color.border}`,
+            background: t.color.surface,
+            position: 'relative',
+            zIndex: 40,
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
+            <NodusLogo t={t} />
+            <span style={{ fontWeight: 600, fontSize: t.font.size.lg, letterSpacing: '-0.01em', color: t.color.text }}>Nodus</span>
+            <span
+              style={{
+                fontFamily: t.font.mono,
+                fontSize: '9.5px',
+                color: t.color.textFaint,
+                border: `1px solid ${t.color.borderStrong}`,
+                borderRadius: 4,
+                padding: '1px 4px',
+              }}
+            >
+              play
+            </span>
+          </span>
+          <span style={c.divider} />
+          {/* Live-doc indicator: pulsing green dot + filename, then the live node/selection status. */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.font.mono, fontSize: '12.5px', color: t.color.textMuted, minWidth: 0 }}>
+            <span className="nd-pulse-dot" style={{ width: 7, height: 7, borderRadius: 99, background: '#4ac26b', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{DOC_NAME}</span>
+          </span>
+          <span data-testid="status" style={{ fontSize: t.font.size.xs, color: t.color.textFaint, whiteSpace: 'nowrap' }}>
+            {nodeCount} nodes · {selCount} selected
+          </span>
           <UndoRedo editor={editor} />
-          <Divider vertical style={{ height: 20 }} />
-          {/* Infra node creator — pick a type, then place it on the canvas with the create tool. */}
-          <select
-            data-testid="type-select"
-            aria-label="Infra node type"
-            value={createType}
-            onChange={(e) => {
-              const next = e.target.value as InfraKind;
-              setCreateType(next);
-              if (editor.currentToolId === 'create') editor.setTool('create', { type: `infra.${next}` });
-            }}
-            style={{
-              height: 30,
-              padding: `0 ${t.space(1.5)}px`,
-              borderRadius: t.radius.md,
-              border: `1px solid ${t.color.border}`,
-              background: t.color.surface,
-              color: t.color.text,
-              fontFamily: t.font.family,
-              fontSize: t.font.size.sm,
-            }}
-          >
-            {INFRA_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-          <Button data-testid="tool-create" onClick={() => editor.setTool('create', { type: `infra.${createType}` })}>
-            Create
-          </Button>
-          <Button variant="ghost" onClick={insertImage}>
-            <ImageIcon /> Image
-          </Button>
+          <span style={c.divider} />
+          {/* Insert pickers live here (not the right panel): their triggers open wide, right-anchored
+              popovers that only fit over the canvas — a 266px right-docked panel would clip them. */}
           <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
-          {/* Stencil palette (built-in fragments + the user's saved library). Drag a tile onto the
-              canvas to place it; "Save selection as stencil" appends to the persisted user library. */}
           <StencilLibrary
             editor={editor}
             libraries={[builtinStencils, userLibrary]}
@@ -560,116 +877,334 @@ function App(): ReactElement {
               setUserLibrary((lib) => ({ ...lib, stencils: [...lib.stencils, s] }));
             }}
           />
-          <Button variant="ghost" onClick={() => setTemplatesOpen(true)}>
-            Templates
-          </Button>
-          <Button data-testid="layout" variant="ghost" onClick={() => void editor.layout('dagre', { direction: 'LR' })}>
-            Auto-layout
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 })}
-          >
-            Copy PNG
-          </Button>
-          <Button
-            variant="ghost"
-            title="Export the diagram as a vector SVG file"
-            onClick={() => {
-              // animateFlow keeps any live flow moving in the exported .svg (a no-op when no edge
-              // has flow, so the static output is unchanged).
-              const blob = new Blob([renderSVG(editor, { animateFlow: true })], { type: 'image/svg+xml' });
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob);
-              a.download = 'diagram.svg';
-              a.click();
-              URL.revokeObjectURL(a.href);
-            }}
-          >
-            Export SVG
-          </Button>
-          <Button
-            variant="ghost"
-            title="Export the diagram as an animated GIF — a raster fallback for the animated SVG (plays in GitHub READMEs, etc.)"
-            onClick={async () => {
-              try {
-                const blob = await exportFlowGIF(editor);
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'diagram.gif';
-                a.click();
-                URL.revokeObjectURL(a.href);
-              } catch {
-                showToast('Nothing to export — the diagram is empty', 'error', { mode: t.mode });
-              }
-            }}
-          >
-            Export GIF
-          </Button>
-          {/* Global hand-drawn toggle: applies the seeded 'sketchy' roughness to every node's style
-              bag (per-element roughness survives theme swaps). Fine-grained control stays in Properties. */}
-          <Button
-            variant="ghost"
-            aria-pressed={sketchOn}
-            title="Toggle a hand-drawn (sketchy) look for the whole diagram"
-            onClick={() => {
-              const next = !sketchOn;
-              setSketchOn(next);
-              editor.setStyle(
-                editor.store.nodes().map((n) => n.id),
-                { roughness: next ? 1.6 : 0 },
-              );
-            }}
-          >
-            {sketchOn ? '✎ Sketch: on' : '✎ Sketch'}
-          </Button>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: t.space(2) }}>
-            <span data-testid="status" style={{ fontSize: t.font.size.xs, color: t.color.textMuted }}>
-              {nodeCount} nodes · {selCount} selected
-            </span>
-            <Divider vertical style={{ height: 20 }} />
-            <IconButton icon={<OpenIcon />} aria-label="Open file" title="Open .nodus.json (⌘O)" onClick={openFile} />
-            <IconButton icon={<SaveIcon />} aria-label="Save file" title="Save .nodus.json (⌘S)" onClick={() => saveToFile(editor)} />
-            <Divider vertical style={{ height: 20 }} />
-            <ZoomControls editor={editor} />
-            <ThemeToggle editor={editor} light={infraLightTheme} dark={darkInfraTheme} />
-            <IconButton icon={<HelpIcon />} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={() => setHelpOpen(true)} />
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
+            {/* Persistent auto-layout (dagre). Always visible so it's reachable regardless of the
+                right panel's Properties/Scene state; the fuller engine picker lives in the Scene panel. */}
+            <button type="button" data-testid="layout" onClick={() => runLayout('dagre')} title="Auto-layout (dagre)" aria-label="Auto-layout" style={c.iconBtn}>
+              <LayoutGlyph />
+            </button>
+            <button
+              type="button"
+              onClick={toggleSketch}
+              aria-pressed={sketchOn}
+              title="Toggle a hand-drawn (sketchy) look for the whole diagram"
+              style={c.topBtn(sketchOn)}
+            >
+              <span style={{ fontSize: 14 }}>✎</span> Sketch
+            </button>
+            <button
+              type="button"
+              onClick={toggleFlow}
+              aria-pressed={flowOn}
+              title="Animate flow along every edge"
+              style={c.topBtn(flowOn)}
+            >
+              <FlowGlyph /> Flow
+            </button>
+            <ThemeToggle editor={editor} light={playgroundLight} dark={playgroundDark} />
+            <span style={c.divider} />
+            <button
+              type="button"
+              onClick={openPalette}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                height: 32,
+                padding: '0 10px',
+                borderRadius: t.radius.md,
+                border: `1px solid ${t.color.borderStrong}`,
+                background: t.color.canvas,
+                color: t.color.textMuted,
+                fontSize: '12.5px',
+                fontFamily: t.font.family,
+                cursor: 'pointer',
+              }}
+            >
+              <SearchIcon /> Search{' '}
+              <span style={{ fontFamily: t.font.mono, fontSize: '10.5px', border: `1px solid ${t.color.borderStrong}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button type="button" onClick={() => setExportOpen((o) => !o)} aria-expanded={exportOpen} style={{ ...c.topBtn(exportOpen), fontWeight: 500 }}>
+                Export <ChevronIcon />
+              </button>
+              {exportOpen && (
+                <>
+                  {/* click-away backdrop */}
+                  <div onPointerDown={() => setExportOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
+                  <div
+                    className="nd-pop"
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 38,
+                      width: 200,
+                      background: t.color.panel,
+                      border: `1px solid ${t.color.borderStrong}`,
+                      borderRadius: t.radius.lg,
+                      padding: 6,
+                      boxShadow: t.shadow.popover,
+                      zIndex: 50,
+                    }}
+                  >
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); exportPNG(); }}>
+                      PNG <span style={c.menuHint}>.png</span>
+                    </button>
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); exportSVG(); }}>
+                      SVG vector <span style={c.menuHint}>.svg</span>
+                    </button>
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); void exportGIF(); }}>
+                      Animated flow <span style={c.menuHint}>.gif</span>
+                    </button>
+                    <div style={{ height: 1, background: t.color.border, margin: '5px 4px' }} />
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); copySource(); }}>
+                      Copy source <span style={c.menuHint}>.nodus.json</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </Toolbar>
+        </header>
 
-        <div style={{ position: 'relative', flex: 1 }}>
-          {/* `imageNodeType` routes system-clipboard image pastes to the registered image node. */}
-          <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
-
-          <ToolPalette
-            editor={editor}
-            tools={tools}
-            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}
-          />
-
-          <Properties editor={editor} style={{ position: 'absolute', right: 12, top: 12 }} />
-
+        {/* ===== MAIN ROW ===== */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+          {/* LEFT RAIL */}
           <div
-            data-testid="minimap"
             style={{
-              position: 'absolute',
-              right: 12,
-              bottom: 12,
-              border: `1px solid ${t.color.border}`,
-              borderRadius: t.radius.lg,
-              overflow: 'hidden',
-              background: t.color.panel,
-              boxShadow: t.shadow.panel,
+              width: 50,
+              flexShrink: 0,
+              borderRight: `1px solid ${t.color.border}`,
+              background: t.color.surface,
+              zIndex: 30,
             }}
           >
-            <Minimap editor={editor} width={200} height={130} />
+            <ToolPalette editor={editor} tools={tools} style={railStyle} />
           </div>
 
-          <CommandPalette editor={editor} commands={commands} />
-          <ShortcutsDialog editor={editor} open={helpOpen} onClose={() => setHelpOpen(false)} sections={SHORTCUTS} />
-          <TemplatesModal editor={editor} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+          {/* CANVAS */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {/* The dotted background is the renderer's own camera-synced `theme.canvas.grid` (painted
+                behind every node), so no DOM overlay is needed here. */}
+            <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
+
+            <div style={{ position: 'absolute', left: 14, bottom: 14, zIndex: 15 }}>
+              <ZoomControls editor={editor} />
+            </div>
+
+            <div
+              data-testid="minimap"
+              style={{
+                position: 'absolute',
+                right: 14,
+                bottom: 14,
+                zIndex: 15,
+                border: `1px solid ${t.color.border}`,
+                borderRadius: t.radius.lg,
+                overflow: 'hidden',
+                background: t.color.panel,
+                boxShadow: t.shadow.panel,
+              }}
+            >
+              <Minimap editor={editor} width={200} height={130} />
+            </div>
+          </div>
+
+          {/* RIGHT PANEL */}
+          <div
+            style={{
+              width: 266,
+              flexShrink: 0,
+              borderLeft: `1px solid ${t.color.border}`,
+              background: t.color.surface,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              zIndex: 30,
+            }}
+          >
+            <div style={{ display: 'flex', padding: '8px 8px 0', gap: 4, borderBottom: `1px solid ${t.color.border}` }}>
+              <button type="button" onClick={() => setTab('props')} style={c.tabStyle(tab === 'props')} aria-pressed={tab === 'props'}>
+                Properties
+              </button>
+              <button type="button" onClick={() => setTab('source')} style={c.tabStyle(tab === 'source')} aria-pressed={tab === 'source'}>
+                Source
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+              {tab === 'props' ? (
+                selCount > 0 ? (
+                  <Properties
+                    editor={editor}
+                    style={{ position: 'static', width: '100%', background: 'transparent', border: 'none', boxShadow: 'none', borderRadius: 0 }}
+                  />
+                ) : (
+                  <div style={{ padding: '16px 15px' }}>
+                    <div style={{ fontSize: t.font.size.lg, fontWeight: 600, color: t.color.text }}>Scene</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <div style={c.statCard}>
+                        <div style={c.statNum}>{nodeCount}</div>
+                        <div style={c.statLbl}>nodes</div>
+                      </div>
+                      <div style={c.statCard}>
+                        <div style={c.statNum}>{edgeCount}</div>
+                        <div style={c.statLbl}>edges</div>
+                      </div>
+                    </div>
+
+                    <div style={c.secLabel}>Auto-layout</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      <button type="button" style={c.ghBtn} onClick={() => runLayout('dagre')}>
+                        dagre
+                      </button>
+                      <button type="button" style={c.ghBtn} onClick={() => runLayout('tree')}>
+                        tree
+                      </button>
+                      <button type="button" style={c.ghBtn} onClick={() => runLayout('force')}>
+                        force
+                      </button>
+                      <button type="button" style={c.ghBtn} onClick={() => runLayout('elk')}>
+                        elk
+                      </button>
+                    </div>
+
+                    <div style={c.secLabel}>Import</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button type="button" style={{ ...c.ghBtn, flex: 1 }} onClick={importMermaidFlow}>
+                        Mermaid
+                      </button>
+                      <button type="button" style={{ ...c.ghBtn, flex: 1 }} onClick={importTerraformFlow}>
+                        Terraform
+                      </button>
+                      <button type="button" style={{ ...c.ghBtn, flex: 1 }} onClick={importKubernetesFlow}>
+                        K8s
+                      </button>
+                    </div>
+
+                    <div style={c.secLabel}>Insert</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <select
+                        data-testid="type-select"
+                        aria-label="Infra node type"
+                        value={createType}
+                        onChange={(e) => {
+                          const next = e.target.value as InfraKind;
+                          setCreateType(next);
+                          if (editor.currentToolId === 'create') editor.setTool('create', { type: `infra.${next}` });
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          height: 34,
+                          padding: `0 ${t.space(1.5)}px`,
+                          borderRadius: t.radius.md,
+                          border: `1px solid ${t.color.borderStrong}`,
+                          background: t.color.canvas,
+                          color: t.color.text,
+                          fontFamily: t.font.mono,
+                          fontSize: t.font.size.sm,
+                        }}
+                      >
+                        {INFRA_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        data-testid="tool-create"
+                        style={{ ...c.ghBtn, padding: '0 14px', color: t.color.accent, borderColor: t.color.accent }}
+                        onClick={() => editor.setTool('create', { type: `infra.${createType}` })}
+                      >
+                        Create
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      <button type="button" style={{ ...c.ghBtn, flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={insertImage}>
+                        <ImageIcon /> Image
+                      </button>
+                      <button type="button" style={{ ...c.ghBtn, flex: 1 }} onClick={() => setTemplatesOpen(true)}>
+                        Templates
+                      </button>
+                    </div>
+                    <p style={{ fontSize: t.font.size.xs, color: t.color.textFaint, lineHeight: 1.5, margin: '10px 0 0' }}>
+                      Cloud icons and the stencil library live in the top bar. Drag a tile onto the canvas, or use a
+                      shape tool then click to place.
+                    </p>
+
+                    <div style={c.secLabel}>Shortcuts</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      <div style={c.tipRow}>
+                        <span>Command palette</span>
+                        <span style={c.kbd}>⌘K</span>
+                      </div>
+                      <div style={c.tipRow}>
+                        <span>Select tool</span>
+                        <span style={c.kbd}>V</span>
+                      </div>
+                      <div style={c.tipRow}>
+                        <span>Rectangle / Diamond</span>
+                        <span style={c.kbd}>R / D</span>
+                      </div>
+                      <div style={c.tipRow}>
+                        <span>Delete selected</span>
+                        <span style={c.kbd}>Del</span>
+                      </div>
+                      <div style={c.tipRow}>
+                        <span>Undo</span>
+                        <span style={c.kbd}>⌘Z</span>
+                      </div>
+                      <div style={c.tipRow}>
+                        <span>Zoom</span>
+                        <span style={c.kbd}>⌘ + scroll</span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: t.font.size.sm, color: t.color.textFaint, lineHeight: 1.5, margin: '16px 0 0' }}>
+                      Click a shape tool, then click the canvas to place a node. Double-click a node to rename. Drag to
+                      move, corners to resize. Press <span style={c.kbd}>?</span> for all shortcuts.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div style={{ padding: '12px 13px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontFamily: t.font.mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: t.color.textFaint }}>
+                      canonical · live
+                    </span>
+                    <button
+                      type="button"
+                      onClick={copySource}
+                      style={{
+                        marginLeft: 'auto',
+                        fontFamily: t.font.mono,
+                        fontSize: '11px',
+                        color: t.color.accent,
+                        background: 'transparent',
+                        border: `1px solid ${t.color.borderStrong}`,
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      copy
+                    </button>
+                  </div>
+                  <pre style={{ margin: 0, fontFamily: t.font.mono, fontSize: '11px', lineHeight: 1.6, color: t.color.textMuted, whiteSpace: 'pre', overflowX: 'auto' }}>
+                    {sourceJson}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* ===== OVERLAYS ===== */}
+        <CommandPalette editor={editor} commands={commands} />
+        <ShortcutsDialog editor={editor} open={helpOpen} onClose={() => setHelpOpen(false)} sections={SHORTCUTS} />
+        <TemplatesModal editor={editor} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       </div>
     </UiTokensProvider>
   );

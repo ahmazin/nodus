@@ -63,12 +63,15 @@ export function ToolPalette(
   };
 
   const vertical = orientation === 'vertical';
+  // Default (standalone) chrome. When docked flush by the app shell, the incoming `style` prop
+  // clears background/border/shadow/radius — it is spread LAST, so it always wins over these.
   const containerStyle: CSSProperties = {
     display: 'inline-flex',
     flexDirection: vertical ? 'column' : 'row',
     alignItems: 'center',
     gap: t.space(1),
-    padding: t.space(1),
+    padding: vertical ? `${t.space(2)}px 0` : `0 ${t.space(2)}px`,
+    ...(vertical ? { width: 50 } : {}),
     background: t.color.panel,
     border: `1px solid ${t.color.border}`,
     borderRadius: t.radius.lg,
@@ -77,6 +80,16 @@ export function ToolPalette(
     ['--nodus-font' as string]: t.font.family,
     ...style,
   };
+
+  // A tool is a 34px square. Active = translucent-accent glow wash behind an accent-colored glyph;
+  // idle = transparent with a muted glyph. Layered over `IconButton`'s ghost variant via `style`.
+  const toolButtonStyle = (isActive: boolean): CSSProperties => ({
+    width: 34,
+    height: 34,
+    ...(isActive
+      ? { background: t.color.selection, color: t.color.accent }
+      : { color: t.color.textMuted }),
+  });
 
   return (
     <div
@@ -88,7 +101,12 @@ export function ToolPalette(
     >
       {tools.map((entry, i) =>
         entry === 'divider' ? (
-          <Divider key={`div-${i}`} tokens={t} vertical={!vertical} style={vertical ? { width: '70%' } : { height: '70%' }} />
+          <Divider
+            key={`div-${i}`}
+            tokens={t}
+            vertical={!vertical}
+            style={vertical ? { width: 22, margin: `${t.space(1)}px 0` } : { height: 22, margin: `0 ${t.space(1)}px` }}
+          />
         ) : (
           <IconButton
             key={entry.id}
@@ -100,6 +118,7 @@ export function ToolPalette(
             title={entry.shortcut ? `${entry.label} — ${entry.shortcut}` : entry.label}
             data-testid={entry.testId}
             onClick={() => pick(entry)}
+            style={toolButtonStyle(entry.id === activeId)}
           />
         ),
       )}

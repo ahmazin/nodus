@@ -15,7 +15,7 @@ export interface IconProps {
   strokeWidth?: number;
 }
 
-function Svg({ size = 16, strokeWidth = 1.8, children }: IconProps & { children: ReactNode }): ReactElement {
+function Svg({ size = 16, strokeWidth = 1.7, children }: IconProps & { children: ReactNode }): ReactElement {
   return (
     <svg
       width={size}
@@ -128,6 +128,15 @@ export function EraserIcon(p: IconProps): ReactElement {
     <Svg {...p}>
       <path d="M4.5 14.5l6-6a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L13 18H8.5z" />
       <path d="M9 20h10" />
+    </Svg>
+  );
+}
+
+/** Pencil — the freehand / draw tool. */
+export function PenIcon(p: IconProps): ReactElement {
+  return (
+    <Svg {...p}>
+      <path d="M4 20l1.8-5.6L16 4.2l3.8 3.8L9.6 18.2z" />
     </Svg>
   );
 }

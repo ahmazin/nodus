@@ -5,11 +5,16 @@
  * reads `Theme.appearance`, so flipping the canvas theme re-skins the chrome in the same frame.
  * `useUiTokens(editor)` subscribes to the editor's theme atom and hands panels the right token set.
  *
+ * Values realize the "Playground" design language: near-black canvas + a lime accent (`#c4f24e`)
+ * in dark, a paper-white canvas + a *darkened* lime in light (see the a11y note on `light.accent`).
+ *
  * All values are plain CSS strings/numbers consumed via inline styles (repo convention — no CSS
- * modules). Contrast: every text-on-surface pair meets WCAG AA (>= 4.5:1); `focusRing` meets the
- * 3:1 non-text minimum (WCAG 1.4.11) against surface/panel/canvas. Ratios are recorded in
- * `docs`/the WS-0 contract report. `border`/`borderStrong` are decorative dividers (exempt from
- * 1.4.11); interactive affordance comes from fill/hover/text and the focus ring.
+ * modules). Contrast: `text`/`textMuted` meet WCAG AA (>= 4.5:1) on surface/panel/canvas;
+ * `textFaint` is tertiary/placeholder text and only meets the 3:1 large/non-essential-text floor
+ * (~3.5:1) — it is NOT for small essential body copy. `focusRing` and accent-used-as-fill meet the
+ * 3:1 non-text minimum (WCAG 1.4.11) against surface/panel/canvas. Measured ratios are recorded
+ * inline below. `border`/`borderStrong` are decorative dividers (exempt from 1.4.11); interactive
+ * affordance comes from fill/hover/text and the focus ring.
  */
 
 import type { Editor, Theme } from '@nodus/core';
@@ -37,9 +42,13 @@ export interface UiTokens {
     text: string;
     /** Secondary text (>= 4.5:1 on surface, panel, surfaceHover). */
     textMuted: string;
-    /** Tertiary/placeholder text (>= 4.5:1 on surface). */
+    /**
+     * Tertiary/placeholder text. NOTE: at the Playground ramp this is only ~3.5:1 on surface
+     * (`#676a76` dark, `#83868f` light) — it clears the 3:1 large/non-essential-text floor, NOT
+     * 4.5:1. Do not use it for small essential body copy.
+     */
     textFaint: string;
-    /** Accent fill (primary action background, active states). */
+    /** Accent fill (primary action background, active states). Also reused as active text/icon. */
     accent: string;
     /** Text/icon color placed ON `accent` (>= 4.5:1 on accent). */
     accentText: string;
@@ -56,76 +65,95 @@ export interface UiTokens {
   focusRing: string;
   font: {
     family: string;
+    /** Monospace stack for code, canonical JSON, numeric fields, and keycaps. */
+    mono: string;
     /** CSS-ready sizes. */
-    size: { xs: string; sm: string; md: string };
+    size: { xs: string; sm: string; md: string; lg: string };
   };
 }
 
 const FONT_STACK =
-  "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  "'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+const MONO_STACK = "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
-const RADIUS = { sm: 4, md: 6, lg: 10 } as const;
-const FONT_SIZE = { xs: '11px', sm: '12px', md: '13px' } as const;
+const RADIUS = { sm: 6, md: 8, lg: 11 } as const;
+const FONT_SIZE = { xs: '11px', sm: '12px', md: '13px', lg: '15px' } as const;
 const space = (n: number): number => n * 4;
 
 /**
- * Dark tokens — harmonized with the app's dark canvas (infra `#070a09`) and emerald accent
- * `#10b981`. Text ramp all >= 4.5:1 on surface; focusRing 7.1:1 on surface.
+ * Dark tokens — the Playground ramp: near-black canvas `#0a0b0e` with the lime accent `#c4f24e`.
+ * Lime as text/icon on the dark surfaces is very high contrast (accent-on-canvas 15.1:1), so it
+ * doubles as the active text color and the focus ring. Text ramp: `text` 15.4:1, `textMuted`
+ * 7.3:1, `textFaint` ~3.5:1 (tertiary), `danger` 6.0:1 — all on surface `#101319`.
  */
 const dark: UiTokens = {
   mode: 'dark',
   color: {
-    canvas: '#0a0d0c',
-    surface: '#121815',
-    surfaceHover: '#1d2621',
-    panel: '#1a221e',
-    border: '#2a332e',
-    borderStrong: '#3d4a43',
-    text: '#e6ede9',
-    textMuted: '#9db0a6',
-    textFaint: '#869388',
-    accent: '#10b981',
-    accentText: '#04231a',
-    danger: '#f87171',
-    selection: 'rgba(16,185,129,0.16)',
+    canvas: '#0a0b0e',
+    surface: '#101319',
+    surfaceHover: '#171b22',
+    panel: '#101319',
+    border: 'rgba(255,255,255,0.08)',
+    borderStrong: 'rgba(255,255,255,0.14)',
+    text: '#e9e9ee',
+    textMuted: '#9fa2ad',
+    textFaint: '#676a76',
+    accent: '#c4f24e',
+    accentText: '#0a0b0e', // 15.1:1 on the lime fill
+    danger: '#f0655c',
+    selection: 'rgba(196,242,78,0.16)',
   },
   radius: { ...RADIUS },
   space,
   shadow: {
-    panel: '0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.35)',
-    popover: '0 4px 12px rgba(0,0,0,0.5), 0 12px 32px rgba(0,0,0,0.45)',
+    panel: '0 8px 24px -12px rgba(0,0,0,0.5)',
+    popover: '0 20px 50px -18px rgba(0,0,0,0.6)',
   },
-  focusRing: '#10b981',
-  font: { family: FONT_STACK, size: { ...FONT_SIZE } },
+  focusRing: '#c4f24e', // 15.1:1 on canvas — far above the 3:1 non-text minimum
+  font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 
-/** Light tokens — clean neutral surface, emerald accent kept; text ramp all >= 4.5:1 on white. */
+/**
+ * Light tokens — paper-white surface from the design's `lightVars`. The bright lime `#c4f24e`
+ * is UNUSABLE here: the shell reuses `accent` as active text/icon color, and lime on white fails
+ * WCAG AA badly. So the light accent is a *darkened* lime `#3f6212` chosen to clear 4.5:1 as text
+ * on BOTH `#ffffff` and `surfaceHover #eeeee8`, while staying clearly in the lime/green family.
+ *
+ * Measured (WCAG 2.x) for `accent` `#3f6212`:
+ *   - as text on surface `#ffffff`       : 7.08:1  (AA text, need >= 4.5)  ✓
+ *   - as text on surfaceHover `#eeeee8`   : 6.08:1  (AA text, need >= 4.5)  ✓
+ *   - as text on canvas `#f7f7f3`         : 6.59:1                          ✓
+ *   - as fill / focus ring on surface     : 7.08:1  (need >= 3.0)           ✓
+ *   - as focus ring on canvas             : 6.59:1  (need >= 3.0)           ✓
+ * `accentText` is white `#ffffff` on the accent fill (7.08:1 — dark text would be only 2.78:1).
+ * Text ramp on white: `text` 17.9:1, `textMuted` 7.5:1, `textFaint` ~3.6:1 (tertiary), `danger`
+ * 5.4:1.
+ */
 const light: UiTokens = {
   mode: 'light',
   color: {
-    canvas: '#f4f6f5',
+    canvas: '#f7f7f3',
     surface: '#ffffff',
-    surfaceHover: '#eef2f0',
+    surfaceHover: '#eeeee8',
     panel: '#ffffff',
-    border: '#e3e8e5',
-    borderStrong: '#c8d2cd',
-    text: '#0f1714',
-    textMuted: '#586b62',
-    textFaint: '#6b7a72',
-    accent: '#10b981',
-    accentText: '#04231a',
-    danger: '#dc2626',
-    selection: 'rgba(16,185,129,0.14)',
+    border: 'rgba(10,11,14,0.10)',
+    borderStrong: 'rgba(10,11,14,0.16)',
+    text: '#15171c',
+    textMuted: '#52555d',
+    textFaint: '#83868f',
+    accent: '#3f6212', // darkened lime — 7.08:1 as text on white (bright lime would fail AA)
+    accentText: '#ffffff', // 7.08:1 on the darkened lime; dark-on-accent would be only 2.78:1
+    danger: '#cf222e',
+    selection: 'rgba(63,98,18,0.14)', // translucent light accent (#3f6212 @ 0.14)
   },
   radius: { ...RADIUS },
   space,
   shadow: {
-    panel: '0 1px 2px rgba(15,23,42,0.08), 0 4px 16px rgba(15,23,42,0.10)',
-    popover: '0 4px 12px rgba(15,23,42,0.12), 0 12px 32px rgba(15,23,42,0.14)',
+    panel: '0 8px 24px -12px rgba(15,23,42,0.18)',
+    popover: '0 20px 50px -18px rgba(15,23,42,0.22)',
   },
-  // Bright accent fails 3:1 on white as a thin outline — use a darker teal for the focus ring.
-  focusRing: '#0f766e',
-  font: { family: FONT_STACK, size: { ...FONT_SIZE } },
+  focusRing: '#3f6212', // same darkened lime — 7.08:1 on surface/panel, 6.59:1 on canvas
+  font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 
 /** Fully-specified light + dark token sets, keyed by mode. */

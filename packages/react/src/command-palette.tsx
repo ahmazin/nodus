@@ -64,6 +64,25 @@ export interface CommandPaletteProps {
 
 const LIST_ID = 'nodus-command-list';
 
+/**
+ * Curated 2-char (or symbolic) badge labels keyed by command group, shown in the chip at the left
+ * of each row. Unknown groups fall back to their first two letters uppercased; commands with no
+ * group get a neutral dot. Presentation only — never affects filtering or execution.
+ */
+const GROUP_BADGES: Record<string, string> = {
+  Layout: 'LO',
+  Arrange: 'AL',
+  Create: '+',
+  View: 'VW',
+  Export: 'EX',
+  Import: 'IM',
+};
+
+function commandBadge(group: string | undefined): string {
+  if (!group) return '•';
+  return GROUP_BADGES[group] ?? group.slice(0, 2).toUpperCase();
+}
+
 export function CommandPalette({ editor, commands, hotkey = true }: CommandPaletteProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -85,6 +104,14 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hotkey]);
+
+  // External open trigger: any chrome (e.g. the top-bar "Search ⌘K" button, Lane E) can open the
+  // palette by dispatching a `nodus:open-command-palette` window event — no prop wiring needed.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener('nodus:open-command-palette', onOpen);
+    return () => window.removeEventListener('nodus:open-command-palette', onOpen);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -123,7 +150,7 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
       <div
         data-nodus-ui=""
         onPointerDown={() => setOpen(false)}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '14vh', zIndex: 1000 }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '14vh', zIndex: 1000 }}
       >
         <Panel
           elevated
@@ -131,26 +158,33 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
           aria-modal="true"
           aria-label="Command palette"
           onPointerDown={(e) => e.stopPropagation()}
-          style={{ width: 'min(560px, 92vw)', padding: 0, overflow: 'hidden' }}
+          style={{ width: 'min(560px, 92vw)', padding: 0, overflow: 'hidden', border: `1px solid ${t.color.borderStrong}`, borderRadius: 14, boxShadow: t.shadow.popover }}
         >
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setIdx(0); }}
-            onKeyDown={onKeyDown}
-            placeholder="Type a command…"
-            aria-label="Search commands"
-            role="combobox"
-            aria-expanded
-            aria-controls={LIST_ID}
-            aria-activedescendant={filtered.length ? `nodus-cmd-${idx}` : undefined}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', background: 'transparent', border: 'none', borderBottom: `1px solid ${t.color.border}`, color: t.color.text, fontSize: 14, outline: 'none', fontFamily: t.font.family }}
-          />
-          <div ref={listRef} id={LIST_ID} role="listbox" aria-label="Commands" style={{ maxHeight: 360, overflowY: 'auto' }}>
+          {/* Header: search glyph + query input + an ESC affordance chip */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${t.color.border}` }}>
+            <svg aria-hidden="true" width={16} height={16} viewBox="0 0 24 24" fill="none" strokeWidth={2} style={{ stroke: t.color.textFaint, flexShrink: 0 }}>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.2-3.2" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={inputRef}
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setIdx(0); }}
+              onKeyDown={onKeyDown}
+              placeholder="Type a command…"
+              aria-label="Search commands"
+              role="combobox"
+              aria-expanded
+              aria-controls={LIST_ID}
+              aria-activedescendant={filtered.length ? `nodus-cmd-${idx}` : undefined}
+              style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', background: 'transparent', border: 'none', color: t.color.text, fontSize: t.font.size.lg, outline: 'none', fontFamily: t.font.family }}
+            />
+            <span aria-hidden="true" style={{ fontFamily: t.font.mono, fontSize: '10.5px', color: t.color.textFaint, border: `1px solid ${t.color.borderStrong}`, borderRadius: 4, padding: '2px 6px' }}>ESC</span>
+          </div>
+          <div ref={listRef} id={LIST_ID} role="listbox" aria-label="Commands" style={{ maxHeight: 'min(52vh, 380px)', overflowY: 'auto', padding: 6 }}>
             {filtered.length === 0 ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: t.color.textMuted, fontSize: t.font.size.md }}>
-                <div aria-hidden="true" style={{ fontSize: 22, marginBottom: 6, opacity: 0.7 }}>⌘</div>
-                No commands match{q.trim() ? ` “${q.trim()}”` : ''}
+              <div style={{ padding: 26, textAlign: 'center', color: t.color.textFaint, fontSize: t.font.size.md }}>
+                No matching commands
               </div>
             ) : (
               filtered.map((c, i) => {
@@ -165,17 +199,19 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
                     onPointerEnter={() => setIdx(i)}
                     onPointerDown={(e) => { e.preventDefault(); run(c); }}
                     style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-                      padding: '10px 16px', cursor: 'pointer', fontSize: t.font.size.md, color: t.color.text,
-                      background: activeRow ? t.color.selection : 'transparent',
-                      boxShadow: activeRow ? `inset 2px 0 0 ${t.color.accent}` : 'none',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '9px 10px', borderRadius: 9, cursor: 'pointer',
+                      background: activeRow ? t.color.canvas : 'transparent',
                     }}
                   >
-                    <span>
-                      {c.group && <span style={{ color: t.color.textFaint, marginRight: 8 }}>{c.group}</span>}
+                    <span aria-hidden="true" style={{ width: 26, height: 26, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, background: t.color.canvas, color: t.color.accent, fontFamily: t.font.mono, fontSize: 11, fontWeight: 700 }}>
+                      {commandBadge(c.group)}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, textAlign: 'left', fontSize: 14, color: t.color.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.title}
                     </span>
-                    {c.hint && <kbd style={{ color: t.color.textFaint, fontSize: t.font.size.xs }}>{c.hint}</kbd>}
+                    {c.hint && <kbd style={{ fontFamily: t.font.mono, fontSize: '11px', color: t.color.textFaint, flexShrink: 0 }}>{c.hint}</kbd>}
+                    {c.group && <span style={{ fontFamily: t.font.mono, fontSize: 11, color: t.color.textFaint, flexShrink: 0 }}>{c.group}</span>}
                   </div>
                 );
               })
