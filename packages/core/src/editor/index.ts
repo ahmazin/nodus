@@ -38,7 +38,14 @@ import { Store, type ChangeInfo, type StoreListener } from '../store/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
 import { History } from '../history/index.js';
 import { EventBus, type NodusEvent } from '../events/index.js';
-import { Registry, validateNodeUtil, validateEdgeUtil, type EdgeUtil, type NodeUtil } from '../registries/index.js';
+import {
+  Registry,
+  validateNodeUtil,
+  validateEdgeUtil,
+  type EdgeUtil,
+  type Migration,
+  type NodeUtil,
+} from '../registries/index.js';
 import { RouterRegistry, defaultRouters } from '../routing/index.js';
 import type { LayoutEngine, LayoutGraph, LayoutOptions } from '../layout/index.js';
 import type { EngineHost, OverlayLayer, Plugin } from '../plugins/index.js';
@@ -223,6 +230,8 @@ export class Editor implements EngineHost {
   readonly snap: SnapConfig = { grid: 0, toObjects: true, threshold: 7 };
 
   private zCounter = 0;
+  /** typeVersions from the most recently loaded snapshot — merged with current utils on save. */
+  private loadedTypeVersions: Record<string, number> = {};
   private readonly disposers: Dispose[] = [];
 
   constructor(opts: EditorOptions = {}) {
@@ -1159,11 +1168,44 @@ export class Editor implements EngineHost {
   // serialization
   // ==========================================================================
 
+  /** Resolve a record's ordered migrations from the registries. `undefined` ⇒ type not registered. */
+  private readonly resolveMigrations = (record: { typeName: string; type?: string }): Migration[] | undefined => {
+    const type = record.type ?? '';
+    if (record.typeName === 'node') {
+      const u = this.nodes.get(type);
+      return u ? (u.migrations ?? []) : undefined;
+    }
+    if (record.typeName === 'edge') {
+      const u = this.edges.get(type);
+      return u ? (u.migrations ?? []) : undefined;
+    }
+    return undefined;
+  };
+
+  /** Per-type version to stamp on save: max(loaded, current) so an old client never downgrades data. */
+  private computeTypeVersions(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const r of this.store.allRecords()) {
+      if (r.typeName !== 'node' && r.typeName !== 'edge') continue;
+      const type = (r as NodeRecord | EdgeRecord).type;
+      if (out[type] !== undefined) continue;
+      const util = r.typeName === 'node' ? this.nodes.get(type) : this.edges.get(type);
+      const current = util?.migrations?.length ?? 0;
+      const v = Math.max(this.loadedTypeVersions[type] ?? 0, current);
+      if (v > 0) out[type] = v; // omit v0 types to keep the map + diff minimal
+    }
+    return out;
+  }
+
   toJSON(meta?: Record<string, unknown>): Snapshot {
-    return serializeRecords(this.store.allRecords(), meta ? { meta } : undefined);
+    return serializeRecords(this.store.allRecords(), {
+      ...(meta ? { meta } : {}),
+      typeVersions: this.computeTypeVersions(),
+    });
   }
   loadSnapshot(snap: Snapshot, opts?: { fit?: boolean }): void {
-    const { records } = restore(snap);
+    this.loadedTypeVersions = snap.typeVersions ?? {};
+    const { records } = restore(snap, { resolveMigrations: this.resolveMigrations });
     batch(() => {
       this.store.load(records);
       this.sceneIndex.rebuild(this.store.allRecords());
