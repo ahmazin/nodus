@@ -130,6 +130,27 @@ getRoute(_edge, ctx) {
 `@nodus/preset-draw` (`rectShape` / `ellipseShape` / `diamondShape` / `textNode`, `lineEdge` /
 `arrowEdge`) is a small, complete worked reference for both node and edge types.
 
+### Migrating a custom shape
+
+When you change a custom type's `props` shape, add an up-migration so old documents keep loading.
+A migration is a pure `(props) => props`; the type's version is `migrations.length`.
+
+```ts
+const boxUtil: NodeUtil = {
+  type: 'box',
+  getDefaultProps: () => ({ radius: 4 }),
+  getGeometry: (n) => rectGeometry(n),
+  draw: (api, n, t) => { /* … */ },
+  // v0 stored { r }; v1 renamed it to { radius }.
+  migrations: [(p) => ({ radius: p.r })],
+};
+```
+
+On load, a record written at version `v` runs steps `v … length-1`. The version each type was
+written at is stored once per document in `typeVersions` (canonical, minimal-diff). A migration that
+throws drops only that record (`RestoreResult.migrationErrors`); a document written by a newer client
+is kept raw and never downgraded (`RestoreResult.unmigrated`).
+
 ---
 
 ## 2. Routers

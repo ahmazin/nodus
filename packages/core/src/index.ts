@@ -107,6 +107,7 @@ export {
   type RegistryOptions,
   type NodeUtil,
   type EdgeUtil,
+  type Migration,
   type Port,
   type NodeCapabilities,
   type EdgeRouteContext,
@@ -182,6 +183,7 @@ export {
   compareRecords,
   type Snapshot,
   type RestoreResult,
+  type RestoreOptions,
 } from './serialization/index.js';
 
 // editor

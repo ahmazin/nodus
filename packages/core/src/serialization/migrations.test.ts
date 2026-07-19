@@ -55,3 +55,13 @@ describe('restore migration execution', () => {
     expect(r.unmigrated).toBe(0);
   });
 });
+
+import * as nodus from '../index.js';
+it('exports Migration and RestoreOptions from the package root', () => {
+  // types are compile-time; this asserts the value graph imports cleanly and restore is the public one
+  expect(typeof nodus.restore).toBe('function');
+  const _m: nodus.Migration = (p) => p; // fails typecheck if Migration is not exported
+  const _o: nodus.RestoreOptions = {};  // fails typecheck if RestoreOptions is not exported
+  expect(_m({ a: 1 })).toEqual({ a: 1 });
+  expect(_o).toBeDefined();
+});

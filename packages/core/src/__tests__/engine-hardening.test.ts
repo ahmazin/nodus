@@ -2,7 +2,8 @@
  * Regression tests for the GA engine-hardening pass (WS-A). Each `it` fails on the pre-fix code:
  *   1. `store.apply` is genuinely atomic — a throw mid-apply rolls back store, history, and index.
  *   2. the mutation channel is crash-isolated from third-party utils/listeners (surfaced via onError).
- *   3. (covered elsewhere) migration API removed — its absence is enforced by typecheck.
+ *   3. (covered in serialization/migrations.test.ts) migration engine: versioned up-migrations run
+ *      at load, fault-isolated (a throwing migration drops one record, not the document).
  *   4. scene-index `nodeEdges` adjacency no longer leaks for an edge that never built.
  *   5. undo of a key-introducing update DELETES the key (strict in-memory `load(save(x)) === x`).
  *   6. `rebuild()` bulk-loads the R-tree; every record stays queryable.
