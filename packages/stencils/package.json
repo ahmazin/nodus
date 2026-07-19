@@ -1,0 +1,26 @@
+{
+  "name": "@nodus/stencils",
+  "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/nodus"
+  },
+  "license": "MIT",
+  "description": "Stencils & templates for Nodus — reusable element-group fragments and starting diagrams in a canonical, git-diffable format.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "sideEffects": false,
+  "dependencies": { "@nodus/core": "workspace:*" },
+  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
+  }
+}

@@ -21,6 +21,7 @@ export default defineConfig({
       '@nodus/mcp': src('./packages/mcp/src/index.ts'),
       '@nodus/persistence': src('./packages/persistence/src/index.ts'),
       '@nodus/react': src('./packages/react/src/index.tsx'),
+      '@nodus/stencils': src('./packages/stencils/src/index.ts'),
     },
   },
   test: {

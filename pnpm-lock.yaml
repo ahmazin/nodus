@@ -277,6 +277,12 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
 
+  packages/stencils:
+    dependencies:
+      '@nodus/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/text-to-diagram:
     dependencies:
       '@nodus/core':

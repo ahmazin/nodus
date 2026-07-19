@@ -60,6 +60,9 @@
       ],
       "@nodus/mcp": [
         "packages/mcp/src/index.ts"
+      ],
+      "@nodus/stencils": [
+        "packages/stencils/src/index.ts"
       ]
     }
   },
