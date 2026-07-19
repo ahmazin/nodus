@@ -8,6 +8,7 @@
  */
 
 import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import {
@@ -33,6 +34,8 @@ import {
   SelectIcon,
   ShortcutsDialog,
   SquareIcon,
+  StencilLibrary,
+  TemplatesGallery,
   TextIcon,
   ThemeToggle,
   Toolbar,
@@ -73,8 +76,32 @@ import { elkLayout } from '@nodus/layout-elk';
 import { freehandPlugin } from '@nodus/plugin-freehand';
 import { importMermaid } from '@nodus/from-mermaid';
 import { fromKubernetes, fromTerraform } from '@nodus/import-infra';
+import {
+  builtinStencils,
+  builtinTemplates,
+  parseLibrary,
+  serializeLibrary,
+  type Stencil,
+  type StencilLibrary as StencilLibraryType,
+} from '@nodus/stencils';
 
 const AUTOSAVE_KEY = 'nodus-example';
+const STENCILS_KEY = 'nodus-stencils';
+
+/**
+ * Load the user's saved stencil library from localStorage, tolerating a missing or corrupt value.
+ * `parseLibrary` throws only when the value isn't a stencil library at all (missing key / invalid
+ * JSON) — caught here into a fresh default — and otherwise silently drops any individually-corrupt
+ * stencil, so one bad entry never wipes the rest.
+ */
+function loadUserLibrary(): StencilLibraryType {
+  try {
+    const raw = localStorage.getItem(STENCILS_KEY);
+    return raw ? parseLibrary(raw) : { name: 'My stencils', stencils: [] };
+  } catch {
+    return { name: 'My stencils', stencils: [] };
+  }
+}
 
 function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
@@ -197,12 +224,101 @@ const SHORTCUTS: ShortcutSection[] = [
   },
 ];
 
+/**
+ * Full-screen modal (portal + backdrop) hosting the always-rendered `TemplatesGallery`. Mirrors the
+ * shell's `ShortcutsDialog` overlay pattern: fixed backdrop, Escape / backdrop-click to dismiss.
+ * `onBeforeOpen` guards against clobbering unsaved work; confirming both proceeds *and* closes the
+ * modal (which is what "close after a template opens" means from the user's side).
+ */
+function TemplatesModal({ editor, open, onClose }: { editor: Editor; open: boolean; onClose: () => void }): ReactElement | null {
+  const t = useUiTokens(editor);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      data-nodus-ui=""
+      data-testid="templates-modal"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: t.space(4),
+        background: 'rgba(0,0,0,0.45)',
+      }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Templates"
+        style={{
+          width: 'min(760px, 100%)',
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: t.color.panel,
+          color: t.color.text,
+          border: `1px solid ${t.color.border}`,
+          borderRadius: t.radius.lg,
+          boxShadow: t.shadow.popover,
+          fontFamily: t.font.family,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: `${t.space(2.5)}px ${t.space(3)}px`,
+            borderBottom: `1px solid ${t.color.border}`,
+          }}
+        >
+          <strong style={{ fontSize: t.font.size.md }}>Templates</strong>
+          <Button variant="ghost" aria-label="Close templates" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: t.space(3) }}>
+          <TemplatesGallery
+            editor={editor}
+            templates={builtinTemplates}
+            onBeforeOpen={() => {
+              const ok = window.confirm('Replace the current diagram?');
+              if (ok) onClose();
+              return ok;
+            }}
+            style={{ border: 'none', boxShadow: 'none', background: 'transparent', padding: 0 }}
+          />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function App(): ReactElement {
   const editor = useMemo(buildEditor, []);
   const t = useUiTokens(editor);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createType, setCreateType] = useState<InfraKind>('service');
   const [sketchOn, setSketchOn] = useState(false);
+  const [userLibrary, setUserLibrary] = useState<StencilLibraryType>(loadUserLibrary);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -216,6 +332,15 @@ function App(): ReactElement {
   }, [editor]);
 
   useAutosave(editor, { key: AUTOSAVE_KEY });
+
+  // Persist the user's stencil library (canonical, diff-stable JSON) whenever it changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STENCILS_KEY, serializeLibrary(userLibrary));
+    } catch {
+      // best-effort: ignore quota / serialization failures in the demo
+    }
+  }, [userLibrary]);
 
   // Keyboard: tool shortcuts (draw preset) + undo/redo/delete + `?` help.
   useEffect(() => {
@@ -426,6 +551,18 @@ function App(): ReactElement {
             <ImageIcon /> Image
           </Button>
           <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
+          {/* Stencil palette (built-in fragments + the user's saved library). Drag a tile onto the
+              canvas to place it; "Save selection as stencil" appends to the persisted user library. */}
+          <StencilLibrary
+            editor={editor}
+            libraries={[builtinStencils, userLibrary]}
+            onSaveSelection={(s: Stencil) => {
+              setUserLibrary((lib) => ({ ...lib, stencils: [...lib.stencils, s] }));
+            }}
+          />
+          <Button variant="ghost" onClick={() => setTemplatesOpen(true)}>
+            Templates
+          </Button>
           <Button data-testid="layout" variant="ghost" onClick={() => void editor.layout('dagre', { direction: 'LR' })}>
             Auto-layout
           </Button>
@@ -531,6 +668,7 @@ function App(): ReactElement {
 
           <CommandPalette editor={editor} commands={commands} />
           <ShortcutsDialog editor={editor} open={helpOpen} onClose={() => setHelpOpen(false)} sections={SHORTCUTS} />
+          <TemplatesModal editor={editor} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
         </div>
       </div>
     </UiTokensProvider>
