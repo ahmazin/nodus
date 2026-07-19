@@ -21,7 +21,7 @@ export function canonicalizeFile(file: string): { canonical: string; original: s
   const snap = JSON.parse(original) as Snapshot;
   const before = (snap.document?.records ?? []).length;
   const restored = restore(snap);
-  const canonical = toCanonicalString(serializeRecords(restored.records));
+  const canonical = toCanonicalString(serializeRecords(restored.records, { typeVersions: snap.typeVersions }));
   return { canonical, original, dropped: before - restored.records.length };
 }
 

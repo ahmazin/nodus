@@ -1160,7 +1160,7 @@ export class Editor implements EngineHost {
   // ==========================================================================
 
   toJSON(meta?: Record<string, unknown>): Snapshot {
-    return serializeRecords(this.store.allRecords(), meta);
+    return serializeRecords(this.store.allRecords(), meta ? { meta } : undefined);
   }
   loadSnapshot(snap: Snapshot, opts?: { fit?: boolean }): void {
     const { records } = restore(snap);

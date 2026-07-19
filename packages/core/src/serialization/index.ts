@@ -8,11 +8,15 @@
 import type { EdgeRecord, Endpoint, NodeRecord, NodusRecord, PageRecord } from '../model.js';
 import { isEdge, isNode, isPage } from '../model.js';
 
+export type { NodusRecord };
+
 export const SCHEMA_VERSION = 1;
 
 export interface Snapshot {
   schemaVersion: number;
   document: { records: NodusRecord[] };
+  /** Per-shape-`type` version its `props` were written at. Additive; absent ⇒ every type at v0. */
+  typeVersions?: Record<string, number>;
   meta?: Record<string, unknown>;
 }
 
@@ -20,12 +24,22 @@ export interface RestoreResult {
   records: NodusRecord[];
   /** Count of edges dropped because an endpoint referenced a missing node. */
   droppedEdges: number;
+  /** Count of records dropped because a migration threw. */
+  migrationErrors: number;
+  /** Count of records kept raw (newer-than-known version, or type util not registered). */
+  unmigrated: number;
 }
 
-export function serializeRecords(records: NodusRecord[], meta?: Record<string, unknown>): Snapshot {
+export function serializeRecords(
+  records: NodusRecord[],
+  opts?: { meta?: Record<string, unknown>; typeVersions?: Record<string, number> },
+): Snapshot {
   // document records only; camera/session/selection never appear here
   const clean = records.map((r) => ({ ...r }));
-  return { schemaVersion: SCHEMA_VERSION, document: { records: clean }, ...(meta ? { meta } : {}) };
+  const snap: Snapshot = { schemaVersion: SCHEMA_VERSION, document: { records: clean } };
+  if (opts?.typeVersions && Object.keys(opts.typeVersions).length > 0) snap.typeVersions = opts.typeVersions;
+  if (opts?.meta) snap.meta = opts.meta;
+  return snap;
 }
 
 /**
@@ -80,7 +94,11 @@ export function toCanonicalString(snapshot: Snapshot): string {
   const sorted = [...snapshot.document.records].sort(compareRecords);
   const lines = sorted.map((r) => stableStringify(canonicalRecord(r)));
   const body = lines.length ? `\n${lines.join(',\n')}\n` : '';
-  return `{"schemaVersion":${snapshot.schemaVersion},"document":{"records":[${body}]}}\n`;
+  const tv =
+    snapshot.typeVersions && Object.keys(snapshot.typeVersions).length > 0
+      ? `"typeVersions":${stableStringify(snapshot.typeVersions)},`
+      : '';
+  return `{"schemaVersion":${snapshot.schemaVersion},${tv}"document":{"records":[${body}]}}\n`;
 }
 
 function num(v: unknown, fallback = 0): number {
@@ -186,7 +204,7 @@ export function restore(input: Snapshot): RestoreResult {
     return true;
   });
 
-  return { records: [...pages, ...nodes, ...keptEdges], droppedEdges };
+  return { records: [...pages, ...nodes, ...keptEdges], droppedEdges, migrationErrors: 0, unmigrated: 0 };
 }
 
 export { isNode, isEdge, isPage };
