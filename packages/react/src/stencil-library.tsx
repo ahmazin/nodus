@@ -24,6 +24,13 @@ export interface StencilLibraryProps {
   onSaveSelection?: (stencil: Stencil) => void;
   className?: string;
   style?: CSSProperties;
+  /**
+   * How the expanded palette is laid out.
+   * - `'popover'` (default): a fixed-width popover floating over the page from the trigger button.
+   * - `'inline'`: the panel expands *in flow* at full container width (no absolute positioning, no
+   *   outside-click close, responsive thumbnails) so it fits inside a narrow docked side panel.
+   */
+  variant?: 'popover' | 'inline';
 }
 
 const TILE_W = 104; // preview box width in css px
@@ -100,19 +107,27 @@ interface Styles {
   scrollCss: string;
 }
 
-function buildStyles(t: UiTokens): Styles {
+function buildStyles(t: UiTokens, variant: 'popover' | 'inline' = 'popover'): Styles {
   const c = t.color;
+  const inline = variant === 'inline';
   const tileBase: CSSProperties = {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: 4,
     background: c.surface, borderWidth: 1, borderStyle: 'solid', borderColor: c.border, borderRadius: t.radius.md,
     cursor: 'grab', touchAction: 'none', userSelect: 'none',
   };
   return {
-    panel: {
-      position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 372, zIndex: 20,
-      background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
-      boxShadow: t.shadow.popover, color: c.text, fontFamily: t.font.family,
-    },
+    // Inline: flow at full container width so it fits a narrow docked panel (no float, no shadow).
+    panel: inline
+      ? {
+          position: 'static', width: '100%', marginTop: 6,
+          background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
+          color: c.text, fontFamily: t.font.family,
+        }
+      : {
+          position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 372, zIndex: 20,
+          background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
+          boxShadow: t.shadow.popover, color: c.text, fontFamily: t.font.family,
+        },
     input: {
       width: '100%', boxSizing: 'border-box', background: c.surface, color: c.text,
       border: `1px solid ${c.border}`, borderRadius: t.radius.md, padding: '6px 26px 6px 8px', fontSize: 12, outline: 'none',
@@ -142,7 +157,11 @@ function buildStyles(t: UiTokens): Styles {
       borderColor: open ? c.accent : c.border, borderRadius: t.radius.md, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
     }),
     tile: (active) => (active ? { ...tileBase, borderColor: c.accent, background: c.selection } : tileBase),
-    thumb: { width: TILE_W, height: TILE_H, objectFit: 'contain', display: 'block', pointerEvents: 'none' },
+    // Inline docks into a ~266px panel: let the thumbnail shrink to the column width (aspect kept by
+    // `contain`) instead of overflowing at its fixed 104px.
+    thumb: inline
+      ? { width: '100%', maxWidth: TILE_W, height: TILE_H, objectFit: 'contain', display: 'block', pointerEvents: 'none' }
+      : { width: TILE_W, height: TILE_H, objectFit: 'contain', display: 'block', pointerEvents: 'none' },
     scrollCss:
       `[data-stencil-scroll]{scrollbar-width:thin;scrollbar-color:${c.borderStrong} transparent}` +
       '[data-stencil-scroll]::-webkit-scrollbar{width:8px}' +
@@ -153,15 +172,16 @@ function buildStyles(t: UiTokens): Styles {
 }
 
 /** A stencil preview thumbnail (host-supplied `preview`, else rendered on demand and cached). */
-function Thumb({ editor, stencil, mode }: { editor: Editor; stencil: Stencil; mode: UiMode }): ReactElement {
-  const S = buildStyles(useUiTokens(editor));
+function Thumb({ editor, stencil, mode, variant }: { editor: Editor; stencil: Stencil; mode: UiMode; variant: 'popover' | 'inline' }): ReactElement {
+  const S = buildStyles(useUiTokens(editor), variant);
   const uri = useMemo(() => stencilThumb(editor, stencil, mode), [editor, stencil, mode]);
   return <img src={uri} alt="" aria-hidden="true" style={S.thumb} draggable={false} />;
 }
 
-export function StencilLibrary({ editor, libraries, onSaveSelection, className, style }: StencilLibraryProps): ReactElement | null {
+export function StencilLibrary({ editor, libraries, onSaveSelection, className, style, variant = 'popover' }: StencilLibraryProps): ReactElement | null {
   const t = useUiTokens(editor);
-  const S = buildStyles(t);
+  const S = buildStyles(t, variant);
+  const inline = variant === 'inline';
   useEffect(() => { injectGlobalStyles(); }, []);
 
   const [open, setOpen] = useState(false);
@@ -257,21 +277,23 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
   // stable `editor` prop and stable setters (setGhost/setRecents), so there is no stale closure.
   }, [ghost !== null]); // eslint-disable-line react-hooks/exhaustive-deps -- add/remove once per drag
 
-  // close on Escape or outside pointerdown (never while dragging)
+  // close on Escape or outside pointerdown (never while dragging). Inline (docked in a panel) skips
+  // the outside-pointerdown close so a canvas click/drag doesn't collapse the palette; Escape still closes.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    if (inline) return () => window.removeEventListener('keydown', onKey);
     const onDown = (e: PointerEvent): void => {
       if (dragRef.current) return;
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
-    window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerdown', onDown);
     };
-  }, [open]);
+  }, [open, inline]);
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
   useEffect(() => { if (!open) setQuery(''); }, [open]);
@@ -302,7 +324,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
       onPointerDown={(e) => onTilePointerDown(stencil, e)}
       onMouseEnter={() => setActiveIndex(i)}
     >
-      <Thumb editor={editor} stencil={stencil} mode={t.mode} />
+      <Thumb editor={editor} stencil={stencil} mode={t.mode} variant={variant} />
       <span style={S.tileLabel}>{stencil.name}</span>
     </div>
   );
@@ -312,13 +334,13 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
       ref={rootRef}
       data-nodus-ui=""
       className={className}
-      style={{ position: 'relative', display: 'inline-block', fontFamily: t.font.family, ...style }}
+      style={{ position: 'relative', display: inline ? 'block' : 'inline-block', width: inline ? '100%' : undefined, fontFamily: t.font.family, ...style }}
     >
       <button
         data-testid="stencil-library-button"
         aria-expanded={open}
         aria-haspopup="dialog"
-        style={S.toggle(open)}
+        style={inline ? { ...S.toggle(open), width: '100%', textAlign: 'left' } : S.toggle(open)}
         onClick={() => setOpen((o) => !o)}
       >
         Stencils ▾
@@ -398,7 +420,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
                         style={S.tile(false)}
                         onPointerDown={(e) => onTilePointerDown(stencil, e)}
                       >
-                        <Thumb editor={editor} stencil={stencil} mode={t.mode} />
+                        <Thumb editor={editor} stencil={stencil} mode={t.mode} variant={variant} />
                         <span style={S.tileLabel}>{stencil.name}</span>
                       </div>
                     ))}
@@ -422,8 +444,8 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
         </div>
       )}
       {ghost && (
-        <div style={{ position: 'fixed', left: ghost.x - TILE_W / 2, top: ghost.y - TILE_H / 2, pointerEvents: 'none', opacity: 0.9, zIndex: 100 }}>
-          <Thumb editor={editor} stencil={ghost.stencil} mode={t.mode} />
+        <div style={{ position: 'fixed', width: TILE_W, left: ghost.x - TILE_W / 2, top: ghost.y - TILE_H / 2, pointerEvents: 'none', opacity: 0.9, zIndex: 100 }}>
+          <Thumb editor={editor} stencil={ghost.stencil} mode={t.mode} variant="popover" />
         </div>
       )}
     </div>

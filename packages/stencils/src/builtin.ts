@@ -122,4 +122,143 @@ const cicd: Template = {
   },
 };
 
-export const builtinTemplates: Template[] = [blank, threeTier, cicd];
+/** A load balancer fanning out to three web servers that all share one database. */
+const loadBalancedWeb: Template = {
+  id: 'load-balanced-web',
+  name: 'Load-Balanced Web',
+  description: 'A load balancer spreading traffic across three web servers over a shared database.',
+  snapshot: {
+    schemaVersion: 1,
+    document: {
+      records: [
+        rect('node:lb', 200, 0, 160, 60, 'Load Balancer'),
+        rect('node:web1', 0, 160, 160, 60, 'Web 1'),
+        rect('node:web2', 200, 160, 160, 60, 'Web 2'),
+        rect('node:web3', 400, 160, 160, 60, 'Web 3'),
+        rect('node:db', 200, 320, 160, 60, 'Database'),
+        edge('edge:lb-web1', 'node:lb', 'node:web1'),
+        edge('edge:lb-web2', 'node:lb', 'node:web2'),
+        edge('edge:lb-web3', 'node:lb', 'node:web3'),
+        edge('edge:web1-db', 'node:web1', 'node:db'),
+        edge('edge:web2-db', 'node:web2', 'node:db'),
+        edge('edge:web3-db', 'node:web3', 'node:db'),
+      ],
+    },
+  },
+};
+
+/** An API gateway routing to three services, each backed by a shared database and cache. */
+const microservices: Template = {
+  id: 'microservices',
+  name: 'Microservices',
+  description: 'An API gateway fronting Users, Orders, and Payments services over a shared database and cache.',
+  snapshot: {
+    schemaVersion: 1,
+    document: {
+      records: [
+        rect('node:gateway', 200, 0, 160, 60, 'API Gateway'),
+        rect('node:users', 0, 160, 160, 60, 'Users'),
+        rect('node:orders', 200, 160, 160, 60, 'Orders'),
+        rect('node:payments', 400, 160, 160, 60, 'Payments'),
+        rect('node:db', 0, 320, 160, 60, 'Database'),
+        rect('node:cache', 400, 320, 160, 60, 'Cache'),
+        edge('edge:gw-users', 'node:gateway', 'node:users'),
+        edge('edge:gw-orders', 'node:gateway', 'node:orders'),
+        edge('edge:gw-payments', 'node:gateway', 'node:payments'),
+        edge('edge:users-db', 'node:users', 'node:db'),
+        edge('edge:orders-db', 'node:orders', 'node:db'),
+        edge('edge:orders-cache', 'node:orders', 'node:cache'),
+        edge('edge:payments-cache', 'node:payments', 'node:cache'),
+      ],
+    },
+  },
+};
+
+/** Client → API Gateway → Function → Datastore, with a queue fanning to a second function. */
+const serverlessEvent: Template = {
+  id: 'serverless-event',
+  name: 'Serverless Event-Driven',
+  description: 'A request path through an API gateway and function to a datastore, with a queue triggering a worker function.',
+  snapshot: {
+    schemaVersion: 1,
+    document: {
+      records: [
+        rect('node:client', 0, 0, 160, 60, 'Client'),
+        rect('node:gateway', 200, 0, 160, 60, 'API Gateway'),
+        rect('node:fn-api', 400, 0, 160, 60, 'API Function'),
+        rect('node:datastore', 600, 0, 160, 60, 'Datastore'),
+        rect('node:queue', 400, 160, 160, 60, 'Queue'),
+        rect('node:fn-worker', 600, 160, 160, 60, 'Worker Function'),
+        edge('edge:client-gw', 'node:client', 'node:gateway'),
+        edge('edge:gw-fn', 'node:gateway', 'node:fn-api'),
+        edge('edge:fn-datastore', 'node:fn-api', 'node:datastore'),
+        edge('edge:fn-queue', 'node:fn-api', 'node:queue'),
+        edge('edge:queue-worker', 'node:queue', 'node:fn-worker'),
+        edge('edge:worker-datastore', 'node:fn-worker', 'node:datastore'),
+      ],
+    },
+  },
+};
+
+/** Ingress → Service → three Pods, with a ConfigMap and a PersistentVolume attached. */
+const k8sCluster: Template = {
+  id: 'k8s-cluster',
+  name: 'Kubernetes Cluster',
+  description: 'Ingress routing through a Service to three Pods, backed by a ConfigMap and a PersistentVolume.',
+  snapshot: {
+    schemaVersion: 1,
+    document: {
+      records: [
+        rect('node:ingress', 200, 0, 160, 60, 'Ingress'),
+        rect('node:service', 200, 160, 160, 60, 'Service'),
+        rect('node:pod1', 0, 340, 160, 60, 'Pod A'),
+        rect('node:pod2', 200, 340, 160, 60, 'Pod B'),
+        rect('node:pod3', 400, 340, 160, 60, 'Pod C'),
+        rect('node:configmap', 600, 160, 160, 60, 'ConfigMap'),
+        rect('node:pv', 200, 500, 160, 60, 'PersistentVolume'),
+        edge('edge:ingress-service', 'node:ingress', 'node:service'),
+        edge('edge:service-pod1', 'node:service', 'node:pod1'),
+        edge('edge:service-pod2', 'node:service', 'node:pod2'),
+        edge('edge:service-pod3', 'node:service', 'node:pod3'),
+        edge('edge:pod3-configmap', 'node:pod3', 'node:configmap'),
+        edge('edge:pod2-pv', 'node:pod2', 'node:pv'),
+      ],
+    },
+  },
+};
+
+/** A left-to-right ETL flow from source to dashboard, branching raw data into a data lake. */
+const dataPipeline: Template = {
+  id: 'data-pipeline',
+  name: 'Data Pipeline',
+  description: 'A source-to-dashboard ETL flow — ingest, transform, warehouse — with a branch into a data lake.',
+  snapshot: {
+    schemaVersion: 1,
+    document: {
+      records: [
+        rect('node:source', 0, 0, 160, 60, 'Source'),
+        rect('node:ingest', 200, 0, 160, 60, 'Ingest'),
+        rect('node:transform', 400, 0, 160, 60, 'Transform'),
+        rect('node:warehouse', 600, 0, 160, 60, 'Warehouse'),
+        rect('node:dashboard', 800, 0, 160, 60, 'Dashboard'),
+        rect('node:lake', 200, 160, 160, 60, 'Data Lake'),
+        edge('edge:source-ingest', 'node:source', 'node:ingest'),
+        edge('edge:ingest-transform', 'node:ingest', 'node:transform'),
+        edge('edge:transform-warehouse', 'node:transform', 'node:warehouse'),
+        edge('edge:warehouse-dashboard', 'node:warehouse', 'node:dashboard'),
+        edge('edge:ingest-lake', 'node:ingest', 'node:lake'),
+      ],
+    },
+  },
+};
+
+export const builtinTemplates: Template[] = [
+  blank,
+  threeTier,
+  cicd,
+  loadBalancedWeb,
+  microservices,
+  serverlessEvent,
+  k8sCluster,
+  dataPipeline,
+];

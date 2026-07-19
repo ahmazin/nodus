@@ -17,6 +17,14 @@ export interface CloudIconPickerProps {
   /** Fallback tint for monochrome glyphs; cloud icons carry baked colors. Defaults to the themed
    *  text color (mode-aware) so glyphs stay visible on both dark and light tiles. */
   glyphColor?: string;
+  /**
+   * How the expanded palette is laid out.
+   * - `'popover'` (default): a fixed-width popover floating over the page from the trigger button —
+   *   for a roomy toolbar.
+   * - `'inline'`: the panel expands *in flow* at full container width (no absolute positioning, no
+   *   outside-click close) so it fits inside a narrow docked side panel.
+   */
+  variant?: 'popover' | 'inline';
 }
 
 const TILE = 46; // preview size in css px
@@ -59,19 +67,28 @@ interface PickerStyles {
   tile: (active: boolean) => CSSProperties;
 }
 
-function buildStyles(t: UiTokens): PickerStyles {
+function buildStyles(t: UiTokens, variant: 'popover' | 'inline' = 'popover'): PickerStyles {
   const c = t.color;
+  const inline = variant === 'inline';
   const tileBase: CSSProperties = {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: 4,
     background: c.surface, borderWidth: 1, borderStyle: 'solid', borderColor: c.border, borderRadius: t.radius.md,
     cursor: 'grab', touchAction: 'none', userSelect: 'none',
   };
   return {
-    panel: {
-      position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 404, zIndex: 20,
-      background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
-      boxShadow: t.shadow.popover, color: c.text, fontFamily: t.font.family,
-    },
+    // Inline: flow at full container width so it fits a narrow docked panel (no float, no shadow).
+    // Popover: a fixed-width card floating from the trigger.
+    panel: inline
+      ? {
+          position: 'static', width: '100%', marginTop: 6,
+          background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
+          color: c.text, fontFamily: t.font.family,
+        }
+      : {
+          position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 404, zIndex: 20,
+          background: c.panel, border: `1px solid ${c.border}`, borderRadius: t.radius.lg, padding: 10,
+          boxShadow: t.shadow.popover, color: c.text, fontFamily: t.font.family,
+        },
     input: {
       width: '100%', boxSizing: 'border-box', background: c.surface, color: c.text,
       border: `1px solid ${c.border}`, borderRadius: t.radius.md, padding: '6px 26px 6px 8px', fontSize: 12, outline: 'none',
@@ -190,9 +207,10 @@ function Preview({ name, color }: { name: string; color: string }): ReactElement
   return <canvas ref={ref} style={{ width: TILE, height: TILE, display: 'block' }} />;
 }
 
-export function CloudIconPicker({ editor, catalog, glyphColor }: CloudIconPickerProps): ReactElement {
+export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popover' }: CloudIconPickerProps): ReactElement {
   const t = useUiTokens(editor);
-  const S = buildStyles(t);
+  const S = buildStyles(t, variant);
+  const inline = variant === 'inline';
   // Monochrome-glyph fallback tint: caller override wins, else the themed text color so glyphs stay
   // visible on both dark and light tiles (a near-white default would vanish on the light surface).
   const glyph = glyphColor ?? t.color.text;
@@ -266,21 +284,24 @@ export function CloudIconPicker({ editor, catalog, glyphColor }: CloudIconPicker
   // changing state, this disable must be revisited.
   }, [ghost !== null]); // eslint-disable-line react-hooks/exhaustive-deps -- add/remove once per drag
 
-  // close on Escape or outside pointerdown (never while dragging)
+  // close on Escape or outside pointerdown (never while dragging). Inline (docked in a panel) skips
+  // the outside-pointerdown close so a canvas click/drag doesn't collapse the palette out from under
+  // the user; Escape still closes it.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    if (inline) return () => window.removeEventListener('keydown', onKey);
     const onDown = (e: PointerEvent): void => {
       if (dragRef.current) return;
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
-    window.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerdown', onDown);
     };
-  }, [open]);
+  }, [open, inline]);
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
 
@@ -307,15 +328,19 @@ export function CloudIconPicker({ editor, catalog, glyphColor }: CloudIconPicker
   };
 
   return (
-    <div ref={rootRef} data-nodus-ui="" style={{ position: 'relative', display: 'inline-block', fontFamily: t.font.family }}>
+    <div
+      ref={rootRef}
+      data-nodus-ui=""
+      style={{ position: 'relative', display: inline ? 'block' : 'inline-block', width: inline ? '100%' : undefined, fontFamily: t.font.family }}
+    >
       <button
         data-testid="cloud-picker-button"
         aria-expanded={open}
         aria-haspopup="listbox"
-        style={S.btn(open)}
+        style={inline ? { ...S.btn(open), width: '100%', textAlign: 'left' } : S.btn(open)}
         onClick={() => setOpen((o) => !o)}
       >
-        Cloud ▾
+        Cloud icons ▾
       </button>
       {open && (
         <div data-testid="cloud-picker-panel" style={S.panel} onPointerDown={(e) => e.stopPropagation()}>

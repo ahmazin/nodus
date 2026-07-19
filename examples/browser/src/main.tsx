@@ -511,7 +511,7 @@ function App(): ReactElement {
   const [flowOn, setFlowOn] = useState(() => editor.hasFlow());
   const [userLibrary, setUserLibrary] = useState<StencilLibraryType>(loadUserLibrary);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [tab, setTab] = useState<'props' | 'source'>('props');
+  const [tab, setTab] = useState<'props' | 'source' | 'insert'>('props');
   const [exportOpen, setExportOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
@@ -866,17 +866,6 @@ function App(): ReactElement {
             {nodeCount} nodes · {selCount} selected
           </span>
           <UndoRedo editor={editor} />
-          <span style={c.divider} />
-          {/* Insert pickers live here (not the right panel): their triggers open wide, right-anchored
-              popovers that only fit over the canvas — a 266px right-docked panel would clip them. */}
-          <CloudIconPicker editor={editor} catalog={cloudIconCatalog} />
-          <StencilLibrary
-            editor={editor}
-            libraries={[builtinStencils, userLibrary]}
-            onSaveSelection={(s: Stencil) => {
-              setUserLibrary((lib) => ({ ...lib, stencils: [...lib.stencils, s] }));
-            }}
-          />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
             {/* Persistent auto-layout (dagre). Always visible so it's reachable regardless of the
@@ -1031,6 +1020,9 @@ function App(): ReactElement {
               <button type="button" onClick={() => setTab('source')} style={c.tabStyle(tab === 'source')} aria-pressed={tab === 'source'}>
                 Source
               </button>
+              <button type="button" data-testid="tab-insert" onClick={() => setTab('insert')} style={c.tabStyle(tab === 'insert')} aria-pressed={tab === 'insert'}>
+                Insert
+              </button>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
@@ -1131,8 +1123,8 @@ function App(): ReactElement {
                       </button>
                     </div>
                     <p style={{ fontSize: t.font.size.xs, color: t.color.textFaint, lineHeight: 1.5, margin: '10px 0 0' }}>
-                      Cloud icons and the stencil library live in the top bar. Drag a tile onto the canvas, or use a
-                      shape tool then click to place.
+                      Cloud icons and stencils live in the <strong style={{ color: t.color.textMuted, fontWeight: 600 }}>Insert</strong> tab.
+                      Drag a tile onto the canvas, or use a shape tool then click to place.
                     </p>
 
                     <div style={c.secLabel}>Shortcuts</div>
@@ -1168,7 +1160,7 @@ function App(): ReactElement {
                     </p>
                   </div>
                 )
-              ) : (
+              ) : tab === 'source' ? (
                 <div style={{ padding: '12px 13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ fontFamily: t.font.mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: t.color.textFaint }}>
@@ -1195,6 +1187,24 @@ function App(): ReactElement {
                   <pre style={{ margin: 0, fontFamily: t.font.mono, fontSize: '11px', lineHeight: 1.6, color: t.color.textMuted, whiteSpace: 'pre', overflowX: 'auto' }}>
                     {sourceJson}
                   </pre>
+                </div>
+              ) : (
+                // Insert tab — always available (not selection-gated). Hosts the browsable palettes
+                // whose popovers can't fit the narrow docked panel, rendered in their inline variant.
+                <div style={{ padding: '16px 15px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: t.font.size.lg, fontWeight: 600, color: t.color.text }}>Insert</div>
+                  <p style={{ fontSize: t.font.size.xs, color: t.color.textFaint, lineHeight: 1.5, margin: 0 }}>
+                    Open a palette, then drag a tile onto the canvas — or click a tile to drop it at the viewport center.
+                  </p>
+                  <CloudIconPicker editor={editor} catalog={cloudIconCatalog} variant="inline" />
+                  <StencilLibrary
+                    editor={editor}
+                    libraries={[builtinStencils, userLibrary]}
+                    onSaveSelection={(s: Stencil) => {
+                      setUserLibrary((lib) => ({ ...lib, stencils: [...lib.stencils, s] }));
+                    }}
+                    variant="inline"
+                  />
                 </div>
               )}
             </div>

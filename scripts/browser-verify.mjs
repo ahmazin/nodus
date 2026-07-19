@@ -266,6 +266,8 @@ async function main() {
 
   console.log('8) cloud icon picker: open, search, drag onto canvas ...');
   const beforeCloud = (await snap(page)).nodes;
+  // The cloud/stencil palettes live in the right panel's always-available "Insert" tab now.
+  await page.click('[data-testid="tab-insert"]');
   await page.click('[data-testid="cloud-picker-button"]');
   await page.fill('[data-testid="cloud-picker-search"]', 'lambda');
   await page.waitForTimeout(120);
