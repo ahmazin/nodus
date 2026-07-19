@@ -42,6 +42,7 @@ import {
   ZoomControls,
   copyOrDownloadImage,
   defaultCommands,
+  exportFlowGIF,
   injectGlobalStyles,
   openFromFile,
   restoreAutosave,
@@ -449,6 +450,24 @@ function App(): ReactElement {
             }}
           >
             Export SVG
+          </Button>
+          <Button
+            variant="ghost"
+            title="Export the diagram as an animated GIF — a raster fallback for the animated SVG (plays in GitHub READMEs, etc.)"
+            onClick={async () => {
+              try {
+                const blob = await exportFlowGIF(editor);
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'diagram.gif';
+                a.click();
+                URL.revokeObjectURL(a.href);
+              } catch {
+                showToast('Nothing to export — the diagram is empty', 'error', { mode: t.mode });
+              }
+            }}
+          >
+            Export GIF
           </Button>
           {/* Global hand-drawn toggle: applies the seeded 'sketchy' roughness to every node's style
               bag (per-element roughness survives theme swaps). Fine-grained control stays in Properties. */}

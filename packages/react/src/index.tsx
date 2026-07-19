@@ -37,6 +37,9 @@ export {
   type ImageExportOptions,
 } from './clipboard.js';
 
+// animated GIF export (raster fallback for the animated-SVG flow export)
+export { exportFlowGIF, type FlowGIFOptions } from './gif.js';
+
 // design system (tokens, primitives, global styles)
 export {
   uiTokens,
