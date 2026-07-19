@@ -34,6 +34,29 @@ jobs:
       - name: Verify render (headless Skia)
         run: pnpm verify:render
 
+  # Dist-consumption gate: builds every package, packs real npm tarballs, and consumes them from a
+  # throwaway project OUTSIDE the workspace — verifying the published `dist/` (ESM + CJS + .d.ts +
+  # exports map + workspace:*→version rewrite) actually resolves and renders. This is the one path the
+  # src-first dev loop never exercises. Offline-safe (externals are symlinked from the pnpm store, no
+  # registry fetch at the verify step), so it needs `pnpm install` + `pnpm build` first, nothing more.
+  # Validated locally on linux-x64 (== ubuntu-latest). If a first CI run hits a store-layout quirk,
+  # add `continue-on-error: true` here to soften, then re-harden once observed green.
+  dist-consume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build all packages
+        run: pnpm build
+      - name: Verify dist is consumable from outside the workspace
+        run: node scripts/verify-dist.mjs
+
   # React-UI interaction gate: drives the real Vite app with headless Chromium (create/drag/undo/
   # rename/auto-layout/flow/cloud-picker) via scripts/browser-verify.mjs, asserting zero console
   # errors. Separate job so a browser-download/GL hiccup is isolated from the pure-logic `verify`
