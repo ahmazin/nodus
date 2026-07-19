@@ -35,6 +35,13 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
   multiline: false,
 };
 
+/**
+ * An ordered, up-only, pure props transform. A type with `migrations = [m1, m2]` is at version 2;
+ * a record stored at version `v` runs steps `v … length-1` to reach `length`. See the migration
+ * design spec.
+ */
+export type Migration<P extends Record<string, unknown> = Record<string, unknown>> = (props: P) => P;
+
 export interface NodeUtil<P extends Record<string, unknown> = Record<string, unknown>> {
   readonly type: string;
   getDefaultProps(): P;
@@ -46,6 +53,8 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
   getPorts?(node: NodeRecord): Port[];
   draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void;
   readonly capabilities?: Partial<NodeCapabilities>;
+  /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
+  readonly migrations?: Migration[];
 }
 
 export interface EdgeRouteContext {
@@ -71,6 +80,8 @@ export interface EdgeUtil<P extends Record<string, unknown> = Record<string, unk
   /** Hit tolerance (world units) around the polyline. */
   readonly hitWidth?: number;
   draw(api: DrawApi, edge: EdgeRecord, tokens: ResolvedTokens, route: Vec2[]): void;
+  /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
+  readonly migrations?: Migration[];
 }
 
 /** Render a value for an error message: strings quoted, everything else stringified. */
@@ -85,16 +96,27 @@ function requireMethod(util: { readonly type: string }, label: string, method: s
   }
 }
 
+/** Throw if `util.migrations` is present but not an array of functions. */
+function validateMigrations(util: { readonly type: string; migrations?: unknown }, label: string): void {
+  const m = util.migrations;
+  if (m === undefined) return;
+  if (!Array.isArray(m) || !m.every((fn) => typeof fn === 'function')) {
+    throw new Error(`Cannot register ${label} ${describe(util.type)}: 'migrations' must be an array of functions.`);
+  }
+}
+
 /** Structural validator for a `NodeUtil` — the geometry + paint methods the engine will call. */
 export function validateNodeUtil(util: NodeUtil): void {
   requireMethod(util, 'node type', 'getGeometry');
   requireMethod(util, 'node type', 'draw');
+  validateMigrations(util, 'node type');
 }
 
 /** Structural validator for an `EdgeUtil` — the routing + paint methods the engine will call. */
 export function validateEdgeUtil(util: EdgeUtil): void {
   requireMethod(util, 'edge type', 'getRoute');
   requireMethod(util, 'edge type', 'draw');
+  validateMigrations(util, 'edge type');
 }
 
 /** Tuning for how a `Registry` validates and reports registrations. */
