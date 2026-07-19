@@ -1,6 +1,6 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
-import type { Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
+import type { AlignEdge, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
 import { DEFAULT_FLOW } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Menu, MenuItem as UiMenuItem } from './ui/primitives.js';
@@ -19,6 +19,37 @@ function styleItems(editor: Editor, ids: Id[]): MenuItem[] {
     { label: 'Style → dashed', run: () => editor.setStyle(ids, { dash: [5, 4] }) },
     { label: 'Clear style', run: () => editor.clearStyle(ids) },
   ];
+}
+
+const ALIGN_OPTIONS: { label: string; edge: AlignEdge }[] = [
+  { label: 'Align left', edge: 'left' },
+  { label: 'Align center (horizontal)', edge: 'hcenter' },
+  { label: 'Align right', edge: 'right' },
+  { label: 'Align top', edge: 'top' },
+  { label: 'Align middle (vertical)', edge: 'vcenter' },
+  { label: 'Align bottom', edge: 'bottom' },
+];
+
+/**
+ * Align / distribute / lock actions for the given ids, filtered to node records. Returns [] when the
+ * selection can't support an action: align needs ≥2 nodes, distribute ≥3; lock/unlock show whichever
+ * applies to the current lock state (both, if the selection is mixed).
+ */
+function arrangeItems(editor: Editor, ids: Id[]): MenuItem[] {
+  const nodeIds = ids.filter((id) => editor.store.peek(id)?.typeName === 'node');
+  const items: MenuItem[] = [];
+  if (nodeIds.length >= 2) {
+    for (const o of ALIGN_OPTIONS) items.push({ label: o.label, run: () => editor.align(nodeIds, o.edge) });
+  }
+  if (nodeIds.length >= 3) {
+    items.push({ label: 'Distribute horizontally', run: () => editor.distribute(nodeIds, 'h') });
+    items.push({ label: 'Distribute vertically', run: () => editor.distribute(nodeIds, 'v') });
+  }
+  if (nodeIds.length > 0) {
+    if (nodeIds.some((id) => !editor.isLocked(id))) items.push({ label: 'Lock', run: () => editor.lock(nodeIds) });
+    if (nodeIds.some((id) => editor.isLocked(id))) items.push({ label: 'Unlock', run: () => editor.unlock(nodeIds) });
+  }
+  return items;
 }
 
 export function contextMenuItems(editor: Editor, target: RenderItem | null): MenuItem[] {
@@ -63,6 +94,7 @@ export function contextMenuItems(editor: Editor, target: RenderItem | null): Men
   else if (sel.length > 1 && editor.isSelected(id)) items.push({ label: 'Group selection', run: () => editor.group(sel) });
   items.push({ label: 'Bring to front', run: () => editor.bringToFront(editor.isSelected(id) ? sel : [id]) });
   items.push({ label: 'Send to back', run: () => editor.sendToBack(editor.isSelected(id) ? sel : [id]) });
+  items.push(...arrangeItems(editor, editor.isSelected(id) ? sel : [id]));
   items.push(...styleItems(editor, editor.isSelected(id) ? sel : [id]));
   items.push({ label: 'Delete', danger: true, run: () => editor.deleteRecords(editor.isSelected(id) ? sel : [id]) });
   return items;

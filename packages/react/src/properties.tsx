@@ -9,6 +9,19 @@ import { injectGlobalStyles } from './ui/global-styles.js';
 
 const NODE_STATES = ['accent', 'solid', 'ghost', 'locked'];
 
+// Stroke style as a 3-way choice over the `dash` style token (a Canvas-2D line-dash pattern in world
+// units). Solid clears the dash; dotted is a short/tight pattern; dashed keeps the previous `[5, 4]`
+// so existing diagrams round-trip byte-for-byte (canonical-serialization diff CI stays quiet).
+const STROKE_STYLES = ['solid', 'dotted', 'dashed'] as const;
+type StrokeStyle = (typeof STROKE_STYLES)[number];
+const DASH_BY_STYLE: Record<StrokeStyle, number[]> = { solid: [], dotted: [1, 3], dashed: [5, 4] };
+/** Map a stored `dash` array back to a named stroke style. A short first segment reads as dotted; any
+ *  longer pattern (including the legacy `[5, 4]` and `[4, 4]`) reads as dashed; empty/absent is solid. */
+function strokeStyleOf(dash: unknown): StrokeStyle {
+  if (!Array.isArray(dash) || dash.length === 0) return 'solid';
+  return (typeof dash[0] === 'number' ? dash[0] : 0) <= 2 ? 'dotted' : 'dashed';
+}
+
 const rowCss: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 26 };
 
 // Token-derived control styles (built per-render so the panel re-skins with the theme).
@@ -48,7 +61,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
   // undo entry with capture:'later', then commit() (mark) on release/blur — matching the drag tools.
   const set = (o: Partial<StateTokens>) => editor.setStyle(ids, o, { capture: 'later' });
   const commit = () => editor.mark();
-  const dashed = Array.isArray(st.dash) && st.dash.length > 0;
+  const dashStyle = strokeStyleOf(st.dash);
   const swatch = swatchStyle(t);
   const select = selectStyle(t);
   const checkbox: CSSProperties = { accentColor: t.color.accent };
@@ -75,7 +88,22 @@ export function Properties({ editor, className, style }: PropertiesProps): React
         {row('Fill', <input type="color" value={typeof st.fill === 'string' && st.fill.startsWith('#') ? st.fill : '#0c100f'} onChange={(e) => set({ fill: e.target.value })} onBlur={commit} style={swatch} aria-label="Fill color" />)}
         {row('Text', <input type="color" value={st.text ?? '#e5e5e5'} onChange={(e) => set({ text: e.target.value })} onBlur={commit} style={swatch} aria-label="Text color" />)}
         {row('Width', <input type="range" min={0.5} max={8} step={0.5} value={st.strokeWidth ?? 1.2} onChange={(e) => set({ strokeWidth: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0, accentColor: t.color.accent }} aria-label="Stroke width" />)}
-        {row('Dashed', <input type="checkbox" checked={dashed} onChange={(e) => { set({ dash: e.target.checked ? [5, 4] : [] }); commit(); }} style={checkbox} aria-label="Dashed stroke" />)}
+        {row('Opacity', <input type="range" min={0} max={1} step={0.05} value={st.opacity ?? 1} onChange={(e) => set({ opacity: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0, accentColor: t.color.accent }} aria-label="Opacity" />)}
+        {row(
+          'Stroke style',
+          <select
+            aria-label="Stroke style"
+            value={dashStyle}
+            onChange={(e) => { set({ dash: [...DASH_BY_STYLE[e.target.value as StrokeStyle]] }); commit(); }}
+            style={select}
+          >
+            {STROKE_STYLES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>,
+        )}
         {isNode &&
           row(
             'State',
@@ -98,6 +126,20 @@ export function Properties({ editor, className, style }: PropertiesProps): React
                 </option>
               ))}
             </select>,
+          )}
+        {isNode &&
+          row(
+            'Lock',
+            <input
+              type="checkbox"
+              // Edit-lock is node-only; lock/unlock internally filter to nodes and are discrete
+              // actions (default capture 'immediately' = one undo entry). Reflects the first node's
+              // state, which re-reads live because the panel re-renders on the scene-index version bump.
+              checked={editor.isLocked(ids[0]!)}
+              onChange={(e) => (e.target.checked ? editor.lock(ids) : editor.unlock(ids))}
+              style={checkbox}
+              aria-label="Lock selection"
+            />,
           )}
         <Button
           variant="default"

@@ -5,7 +5,7 @@
 
 import type { ResolvedTokens, Theme } from '../theme/index.js';
 import type { Box, Camera, EdgeRecord, FlowSpec, NodeRecord, Vec2 } from '../model.js';
-import type { EdgeRegistry, NodeRegistry } from '../registries/index.js';
+import type { EdgeRegistry, NodeRegistry, NodeUtil } from '../registries/index.js';
 import type { RenderItem } from '../scene-index/index.js';
 import { DrawApi } from './draw-api.js';
 import type { Ctx2D } from './context.js';
@@ -81,6 +81,42 @@ export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cs
   ctx.restore();
 }
 
+/**
+ * Draw a node, applying its `rotation` (radians, clockwise about the node's bounding-box center — the
+ * frozen contract shared with hit-testing and the select tool) as a canvas transform around the util's
+ * own axis-aligned `draw`. The transform is bracketed by its OWN `save`/`restore` in a `finally`, so a
+ * throwing `draw()` can't leak the rotation onto the rest of the frame — and because that restore runs
+ * *before* the exception reaches `paintItem`, the error placeholder there is drawn in the world
+ * (un-rotated) frame. A zero, absent, or non-finite rotation draws with no transform (identity fast path).
+ */
+function paintNode(
+  ctx: Ctx2D,
+  api: DrawApi,
+  node: NodeRecord,
+  util: NodeUtil | undefined,
+  tokens: ResolvedTokens,
+): void {
+  if (!util) return;
+  const rot = node.rotation;
+  if (!rot || !Number.isFinite(rot)) {
+    util.draw(api, node, tokens);
+    return;
+  }
+  const cx = node.x + node.w / 2;
+  const cy = node.y + node.h / 2;
+  ctx.save();
+  try {
+    // rotate about the box center: shift the origin there, rotate, shift back (Canvas2D +y is down,
+    // so a positive angle is clockwise — matches the contract with no sign flip).
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.translate(-cx, -cy);
+    util.draw(api, node, tokens);
+  } finally {
+    ctx.restore();
+  }
+}
+
 /** Paint one scene item (caller sets the world transform). */
 export function paintItem(
   ctx: Ctx2D,
@@ -103,7 +139,7 @@ export function paintItem(
   try {
     ctx.globalAlpha *= tokens.opacity;
     if (item.kind === 'node') {
-      nodes.get(rec.type)?.draw(api, rec as NodeRecord, tokens);
+      paintNode(ctx, api, rec as NodeRecord, nodes.get(rec.type), tokens);
     } else if (item.route) {
       edges.get(rec.type)?.draw(api, rec as EdgeRecord, tokens, item.route);
     }

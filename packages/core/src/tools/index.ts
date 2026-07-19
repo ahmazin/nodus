@@ -5,8 +5,8 @@
  * the active tool receives them. Every mutating gesture runs through the editor's change channel.
  */
 
-import { isEdge } from '../model.js';
-import type { Box, Endpoint, Id, Vec2 } from '../model.js';
+import { isEdge, isNode } from '../model.js';
+import type { Box, Endpoint, Id, NodeRecord, Vec2 } from '../model.js';
 import type { RenderItem } from '../scene-index/index.js';
 import type { Editor, ResizeHandle } from '../editor/index.js';
 
@@ -49,6 +49,13 @@ export abstract class ToolNode {
 
 const DRAG_THRESHOLD = 3; // screen px
 
+/** Grab radius (screen px) for the rotate / waypoint handles, matching the endpoint-handle tolerance. */
+const HANDLE_TOL = 8;
+/** Screen-px offset of the rotation handle above the selection's top edge. */
+const ROTATE_HANDLE_OFFSET = 24;
+/** Shift-snap step for rotation (15°). */
+const ROTATE_SNAP = Math.PI / 12;
+
 function boxFrom(a: Vec2, b: Vec2): Box {
   return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
 }
@@ -57,7 +64,16 @@ function boxFrom(a: Vec2, b: Vec2): Box {
 // Select
 // ============================================================================
 
-type SelectState = 'idle' | 'pointing' | 'translating' | 'marquee' | 'resizing' | 'endpoint' | 'porting';
+type SelectState =
+  | 'idle'
+  | 'pointing'
+  | 'translating'
+  | 'marquee'
+  | 'resizing'
+  | 'endpoint'
+  | 'porting'
+  | 'rotating'
+  | 'waypoint';
 
 const MIN_SIZE = 8;
 
@@ -100,6 +116,16 @@ export class SelectTool extends ToolNode {
   private epEdge: Id | null = null;
   private epWhich: 'from' | 'to' = 'from';
   private portFrom: { nodeId: Id; portId: string; point: Vec2 } | null = null;
+  // rotation gesture (single rotatable node): pivot + starting angles are captured at grab so the
+  // pivot stays fixed for the whole drag and we can drive an absolute (Shift-snappable) target angle
+  // through the delta-based editor.rotate().
+  private rotateNodeId: Id | null = null;
+  private rotateCenter: Vec2 = { x: 0, y: 0 };
+  private rotateStartAngle = 0;
+  private rotateStartRotation = 0;
+  // waypoint gesture (single edge): the edge being bent and the index of the waypoint we inserted+drag.
+  private wpEdge: Id | null = null;
+  private wpIndex = 0;
 
   override onPointerDown(p: PointerInfo): void {
     this.downScreen = p.screen;
@@ -110,6 +136,17 @@ export class SelectTool extends ToolNode {
     const sel = this.editor.selectedIdsArray();
     if (sel.length === 1) {
       const item = this.editor.sceneIndex.getItem(sel[0]!);
+      // rotation handle (above top-center) sits outside the box, clear of the resize handles, so it
+      // is checked first: grab it to spin the node about its bounding-box center.
+      const rh = this.rotateHandle();
+      if (rh && Math.hypot(p.world.x - rh.handle.x, p.world.y - rh.handle.y) < HANDLE_TOL / this.editor.camera.z) {
+        this.rotateNodeId = rh.id;
+        this.rotateCenter = rh.center;
+        this.rotateStartRotation = rh.rotation;
+        this.rotateStartAngle = Math.atan2(p.world.y - rh.center.y, p.world.x - rh.center.x);
+        this.state = 'rotating';
+        return;
+      }
       if (item && item.kind === 'node' && this.editor.canResizeNode(sel[0]!)) {
         const handle = this.editor.hitResizeHandle(item.aabb, p.world);
         if (handle) {
@@ -138,6 +175,22 @@ export class SelectTool extends ToolNode {
             this.epWhich = 'to';
             this.state = 'endpoint';
             return;
+          }
+        }
+        // segment-midpoint handles: grab one to bend the edge — insert a waypoint at the grab, drag it.
+        const wtol = HANDLE_TOL / this.editor.camera.z;
+        for (const wh of this.waypointHandles()) {
+          if (Math.hypot(p.world.x - wh.point.x, p.world.y - wh.point.y) < wtol) {
+            const rec = this.editor.store.peek(sel[0]!);
+            if (rec && isEdge(rec)) {
+              const wps = [...((rec.props.waypoints as Vec2[] | undefined) ?? [])];
+              wps.splice(wh.insertIndex, 0, { x: p.world.x, y: p.world.y });
+              this.editor.setWaypoints(sel[0]!, wps, { capture: 'later' });
+              this.wpEdge = sel[0]!;
+              this.wpIndex = wh.insertIndex;
+              this.state = 'waypoint';
+              return;
+            }
           }
         }
       }
@@ -213,6 +266,29 @@ export class SelectTool extends ToolNode {
       this.editor.setConnectDraft({ from: this.portFrom.point, to: p.world, valid: !onSame });
       return;
     }
+    if (this.state === 'rotating' && this.rotateNodeId) {
+      const rec = this.editor.store.peek(this.rotateNodeId);
+      if (rec && isNode(rec)) {
+        const a = Math.atan2(p.world.y - this.rotateCenter.y, p.world.x - this.rotateCenter.x);
+        let target = this.rotateStartRotation + (a - this.rotateStartAngle);
+        if (p.shift) target = Math.round(target / ROTATE_SNAP) * ROTATE_SNAP;
+        // editor.rotate is a DELTA API (adds to each node's rotation), so feed it the delta from the
+        // current angle — an absolute, Shift-snappable target lands correctly across many moves.
+        this.editor.rotate([this.rotateNodeId], target - (rec.rotation ?? 0), { capture: 'later' });
+      }
+      return;
+    }
+    if (this.state === 'waypoint' && this.wpEdge) {
+      const rec = this.editor.store.peek(this.wpEdge);
+      if (rec && isEdge(rec)) {
+        const wps = [...((rec.props.waypoints as Vec2[] | undefined) ?? [])];
+        if (this.wpIndex < wps.length) {
+          wps[this.wpIndex] = { x: p.world.x, y: p.world.y };
+          this.editor.setWaypoints(this.wpEdge, wps, { capture: 'later' });
+        }
+      }
+      return;
+    }
     if (this.state === 'pointing') {
       const moved = Math.hypot(p.screen.x - this.downScreen.x, p.screen.y - this.downScreen.y);
       // beginTranslate returns false for a wholly-locked selection → stay put (locked = immovable)
@@ -250,6 +326,18 @@ export class SelectTool extends ToolNode {
     if (this.state === 'endpoint') {
       this.editor.mark();
       this.epEdge = null;
+      this.state = 'idle';
+      return;
+    }
+    if (this.state === 'rotating') {
+      this.editor.mark(); // collapse the whole spin into one undo entry
+      this.rotateNodeId = null;
+      this.state = 'idle';
+      return;
+    }
+    if (this.state === 'waypoint') {
+      this.editor.mark(); // insert + drag collapse into one undo entry
+      this.wpEdge = null;
       this.state = 'idle';
       return;
     }
@@ -311,7 +399,14 @@ export class SelectTool extends ToolNode {
   override onExit(): void {
     // Aborting mid-gesture (tool switch while dragging): close any open history group so the drag
     // isn't merged into the next undo entry, and clear all ephemeral overlays + gesture state.
-    if (this.state === 'translating' || this.state === 'resizing' || this.state === 'endpoint' || this.state === 'porting') {
+    if (
+      this.state === 'translating' ||
+      this.state === 'resizing' ||
+      this.state === 'endpoint' ||
+      this.state === 'porting' ||
+      this.state === 'rotating' ||
+      this.state === 'waypoint'
+    ) {
       this.editor.mark();
     }
     this.editor.snapGuidesAtom.set([]);
@@ -320,8 +415,53 @@ export class SelectTool extends ToolNode {
     this.portFrom = null;
     this.resizeId = null;
     this.epEdge = null;
+    this.rotateNodeId = null;
+    this.wpEdge = null;
     this.dragIds = [];
     this.state = 'idle';
+  }
+
+  /** Rotation-handle geometry for the current selection when it's a single rotatable node: the handle
+   *  point (above top-center) and the pivot (bounding-box center), plus the node id and its current
+   *  angle. Null otherwise. A pure function of the selection's bounding box, so the renderer can
+   *  reproduce the handle position from the same inputs without a bespoke editor API. */
+  private rotateHandle(): { handle: Vec2; center: Vec2; id: Id; rotation: number } | null {
+    const sel = this.editor.selectedIdsArray();
+    if (sel.length !== 1) return null;
+    const id = sel[0]!;
+    const item = this.editor.sceneIndex.getItem(id);
+    if (!item || item.kind !== 'node') return null;
+    const node = item.record as NodeRecord;
+    if (node.locked === true) return null; // edit-locked: not rotatable (editor.rotate skips it too)
+    if (this.editor.nodes.get(node.type)?.capabilities?.canRotate === false) return null;
+    const b = item.aabb;
+    return {
+      handle: { x: b.x + b.w / 2, y: b.y - ROTATE_HANDLE_OFFSET / this.editor.camera.z },
+      center: { x: b.x + b.w / 2, y: b.y + b.h / 2 },
+      id,
+      rotation: node.rotation ?? 0,
+    };
+  }
+
+  /** Segment-midpoint handles for a selected single edge, using the engine's already-routed polyline.
+   *  Each handle carries the index in the edge's `waypoints` array that grabbing it inserts at —
+   *  exact for the straight router (route = [from, ...waypoints, to]); clamped for others. Empty when
+   *  the selection isn't a single edge with a resolvable route. */
+  private waypointHandles(): { point: Vec2; insertIndex: number }[] {
+    const sel = this.editor.selectedIdsArray();
+    if (sel.length !== 1) return [];
+    const item = this.editor.sceneIndex.getItem(sel[0]!);
+    if (!item || item.kind !== 'edge' || !item.route || item.route.length < 2) return [];
+    const rec = this.editor.store.peek(sel[0]!);
+    const wpCount = rec && isEdge(rec) ? ((rec.props.waypoints as Vec2[] | undefined)?.length ?? 0) : 0;
+    const route = item.route;
+    const handles: { point: Vec2; insertIndex: number }[] = [];
+    for (let i = 0; i < route.length - 1; i++) {
+      const a = route[i]!;
+      const b = route[i + 1]!;
+      handles.push({ point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, insertIndex: Math.min(i, wpCount) });
+    }
+    return handles;
   }
 
   override onKeyDown(k: KeyInfo): void {
@@ -332,6 +472,15 @@ export class SelectTool extends ToolNode {
       this.editor.clearSelection();
     } else if (k.meta && (k.key === 'a' || k.key === 'A')) {
       this.editor.selectAll();
+    } else if (k.meta && (k.key === 'x' || k.key === 'X')) {
+      // Cut = copy + delete as ONE undo entry. copy() only snapshots to the in-memory clipboard (no
+      // store mutation, no history), so the single deleteRecords() below is the lone undo entry and
+      // undo restores everything. Edit-locked nodes can't be deleted, so they're excluded from both.
+      const cut = this.editor.selectedIdsArray().filter((id) => !this.editor.isLocked(id));
+      if (cut.length > 0) {
+        this.editor.copy(cut);
+        this.editor.deleteRecords(cut);
+      }
     } else if (k.meta && (k.key === 'c' || k.key === 'C')) {
       this.editor.copy();
     } else if (k.meta && (k.key === 'v' || k.key === 'V')) {

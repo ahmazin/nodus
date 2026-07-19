@@ -38,12 +38,30 @@ importers:
       '@nodus/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@nodus/from-mermaid':
+        specifier: workspace:*
+        version: link:../../packages/from-mermaid
       '@nodus/icons-cloud':
         specifier: workspace:*
         version: link:../../packages/icons-cloud
+      '@nodus/import-infra':
+        specifier: workspace:*
+        version: link:../../packages/import-infra
       '@nodus/layout-dagre':
         specifier: workspace:*
         version: link:../../packages/layout-dagre
+      '@nodus/layout-elk':
+        specifier: workspace:*
+        version: link:../../packages/layout-elk
+      '@nodus/layout-force':
+        specifier: workspace:*
+        version: link:../../packages/layout-force
+      '@nodus/layout-tree':
+        specifier: workspace:*
+        version: link:../../packages/layout-tree
+      '@nodus/plugin-freehand':
+        specifier: workspace:*
+        version: link:../../packages/plugin-freehand
       '@nodus/preset-diagrams':
         specifier: workspace:*
         version: link:../../packages/preset-diagrams

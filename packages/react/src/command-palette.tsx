@@ -1,6 +1,6 @@
 /** A ⌘K command palette. Ships a default command set; accepts custom commands too. */
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { Editor } from '@nodus/core';
+import type { AlignEdge, Editor } from '@nodus/core';
 import { copyOrDownloadImage, downloadImage } from './clipboard.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel } from './ui/primitives.js';
@@ -17,6 +17,16 @@ export interface Command {
 
 export function defaultCommands(editor: Editor): Command[] {
   const hasSel = () => editor.selectedIdsArray().length > 0;
+  // Align/distribute/lock act on nodes only; count node records so entries gate on the real target set.
+  const selectedNodeIds = () => editor.selectedIdsArray().filter((id) => editor.store.peek(id)?.typeName === 'node');
+  const alignOptions: { id: string; title: string; edge: AlignEdge }[] = [
+    { id: 'arrange.alignLeft', title: 'Align left', edge: 'left' },
+    { id: 'arrange.alignHCenter', title: 'Align center (horizontal)', edge: 'hcenter' },
+    { id: 'arrange.alignRight', title: 'Align right', edge: 'right' },
+    { id: 'arrange.alignTop', title: 'Align top', edge: 'top' },
+    { id: 'arrange.alignVCenter', title: 'Align middle (vertical)', edge: 'vcenter' },
+    { id: 'arrange.alignBottom', title: 'Align bottom', edge: 'bottom' },
+  ];
   return [
     { id: 'tool.select', title: 'Tool: Select', group: 'Tools', run: () => editor.setTool('select') },
     { id: 'tool.connect', title: 'Tool: Connect', group: 'Tools', run: () => editor.setTool('connect') },
@@ -28,6 +38,11 @@ export function defaultCommands(editor: Editor): Command[] {
     { id: 'edit.group', title: 'Group selection', hint: '⌘G', group: 'Edit', when: hasSel, run: () => editor.group(editor.selectedIdsArray()) },
     { id: 'edit.front', title: 'Bring to front', group: 'Arrange', when: hasSel, run: () => editor.bringToFront(editor.selectedIdsArray()) },
     { id: 'edit.back', title: 'Send to back', group: 'Arrange', when: hasSel, run: () => editor.sendToBack(editor.selectedIdsArray()) },
+    ...alignOptions.map((o): Command => ({ id: o.id, title: o.title, group: 'Arrange', when: () => selectedNodeIds().length >= 2, run: () => editor.align(selectedNodeIds(), o.edge) })),
+    { id: 'arrange.distributeH', title: 'Distribute horizontally', group: 'Arrange', when: () => selectedNodeIds().length >= 3, run: () => editor.distribute(selectedNodeIds(), 'h') },
+    { id: 'arrange.distributeV', title: 'Distribute vertically', group: 'Arrange', when: () => selectedNodeIds().length >= 3, run: () => editor.distribute(selectedNodeIds(), 'v') },
+    { id: 'arrange.lock', title: 'Lock selection', group: 'Arrange', when: () => { const n = selectedNodeIds(); return n.length > 0 && n.some((id) => !editor.isLocked(id)); }, run: () => editor.lock(selectedNodeIds()) },
+    { id: 'arrange.unlock', title: 'Unlock selection', group: 'Arrange', when: () => { const n = selectedNodeIds(); return n.length > 0 && n.some((id) => editor.isLocked(id)); }, run: () => editor.unlock(selectedNodeIds()) },
     { id: 'edit.selectAll', title: 'Select all', hint: '⌘A', group: 'Edit', run: () => editor.selectAll() },
     { id: 'export.copyImage', title: 'Copy as image', group: 'Export', run: () => void copyOrDownloadImage(editor, { selection: hasSel() }) },
     { id: 'export.downloadPng', title: 'Download PNG', group: 'Export', run: () => void downloadImage(editor, 'diagram.png', { selection: hasSel() }) },

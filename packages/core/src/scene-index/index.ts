@@ -113,7 +113,9 @@ export class SceneIndex {
     for (const e of hits) {
       const item = this.items.get(e.id);
       if (!item) continue;
-      if (item.geometry.hitPoint(p, tolerance)) {
+      // A rotated node's geometry is still axis-aligned, so map the pointer into the node's local
+      // (un-rotated) frame before the narrow phase. Rotation is rigid, so `tolerance` stays world-unit.
+      if (item.geometry.hitPoint(localHitPoint(item, p), tolerance)) {
         if (!best || comparePaint(item, best) > 0) best = item;
       }
     }
@@ -267,7 +269,9 @@ export class SceneIndex {
       kind: 'node',
       record: node,
       geometry,
-      aabb: geometry.bounds(),
+      // broad-phase key: the axis-aligned box that CONTAINS the (possibly rotated) node, so culling,
+      // marquee, and content-bounds still bound the visible footprint. Unrotated -> geometry bounds.
+      aabb: nodeAabb(node, geometry),
       renderVersion: node.version,
     };
   }
@@ -358,6 +362,67 @@ export class SceneIndex {
       }
     }
   }
+}
+
+/**
+ * Contract for node rotation, shared with the renderer and the select tool: `rotation` is in radians,
+ * clockwise, about the node's bounding-box center `(x + w/2, y + h/2)`. A zero, absent, or non-finite
+ * rotation is treated as "no rotation" so a corrupt value can't poison culling or picking.
+ */
+function nodeRotationCenter(node: NodeRecord): { rot: number; cx: number; cy: number } | null {
+  const rot = node.rotation;
+  if (!rot || !Number.isFinite(rot)) return null;
+  return { rot, cx: node.x + node.w / 2, cy: node.y + node.h / 2 };
+}
+
+/**
+ * The world AABB of a node, accounting for its rotation. For a rotated node it is the axis-aligned box
+ * enclosing the four rotated corners of the un-rotated geometry bounds — guaranteed to contain the
+ * rotated shape, so it is a valid (conservative) broad-phase key for culling and marquee.
+ */
+function nodeAabb(node: NodeRecord, geometry: Geometry2d): Box {
+  const b = geometry.bounds();
+  const rc = nodeRotationCenter(node);
+  if (!rc) return b;
+  const cos = Math.cos(rc.rot);
+  const sin = Math.sin(rc.rot);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const corners: readonly [number, number][] = [
+    [b.x, b.y],
+    [b.x + b.w, b.y],
+    [b.x + b.w, b.y + b.h],
+    [b.x, b.y + b.h],
+  ];
+  for (const [px, py] of corners) {
+    const dx = px - rc.cx;
+    const dy = py - rc.cy;
+    const rx = rc.cx + dx * cos - dy * sin; // clockwise (Canvas2D +y-down) rotation of the corner
+    const ry = rc.cy + dx * sin + dy * cos;
+    if (rx < minX) minX = rx;
+    if (ry < minY) minY = ry;
+    if (rx > maxX) maxX = rx;
+    if (ry > maxY) maxY = ry;
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+/**
+ * Map a world point into a node's local (un-rotated) frame so it can be hit-tested against the node's
+ * axis-aligned geometry. Non-nodes and unrotated nodes pass the point through unchanged.
+ */
+function localHitPoint(item: RenderItem, p: Vec2): Vec2 {
+  if (item.kind !== 'node') return p;
+  const rc = nodeRotationCenter(item.record as NodeRecord);
+  if (!rc) return p;
+  // inverse of the render rotation: rotate `p` by `-rot` about the center.
+  const cos = Math.cos(rc.rot);
+  const sin = Math.sin(rc.rot);
+  const dx = p.x - rc.cx;
+  const dy = p.y - rc.cy;
+  return { x: rc.cx + dx * cos + dy * sin, y: rc.cy - dx * sin + dy * cos };
 }
 
 /** Paint order: edges below nodes; among nodes by z ascending. Returns >0 if `a` is on top. */

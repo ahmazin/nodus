@@ -17,7 +17,13 @@
     "@nodus/layout-dagre": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@nodus/preset-draw": "workspace:*"
+    "@nodus/preset-draw": "workspace:*",
+    "@nodus/plugin-freehand": "workspace:*",
+    "@nodus/from-mermaid": "workspace:*",
+    "@nodus/import-infra": "workspace:*",
+    "@nodus/layout-tree": "workspace:*",
+    "@nodus/layout-force": "workspace:*",
+    "@nodus/layout-elk": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

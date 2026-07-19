@@ -11,6 +11,7 @@ export { Nodus, type NodusProps } from './nodus-host.js';
 
 // signal → React bridge
 export { useValue } from './use-value.js';
+export { useNodusEditor } from './use-nodus-editor.js';
 
 // panels
 export { Minimap, type MinimapProps } from './minimap.js';

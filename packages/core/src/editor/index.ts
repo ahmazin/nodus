@@ -1333,12 +1333,52 @@ export class Editor implements EngineHost {
             fillHandle(ctx, c, hs, '#ffffff', accent);
           }
         }
+        // rotate handle: a round dot 24px above the box top-center, coinciding with SelectTool's
+        // hit-test (which reads the same raw item.aabb). Round shape distinguishes it from the square
+        // resize handles. Gated identically to editor.rotate(): unlocked + canRotate !== false.
+        if (
+          single &&
+          !locked &&
+          this.nodes.get((item.record as NodeRecord).type)?.capabilities?.canRotate !== false
+        ) {
+          const cx = item.aabb.x + item.aabb.w / 2;
+          const top = item.aabb.y;
+          const hy = top - px(24);
+          ctx.save();
+          ctx.strokeStyle = accent;
+          ctx.lineWidth = px(1);
+          ctx.beginPath();
+          ctx.moveTo(cx, top);
+          ctx.lineTo(cx, hy);
+          ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+          ctx.lineWidth = px(1.5);
+          ctx.beginPath();
+          ctx.arc(cx, hy, px(4.5), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
         if (locked) drawLockBadge(ctx, box.x, box.y, px(13), accent);
       } else if (single && item.route && item.route.length >= 2) {
         // selected edge: draggable endpoint handles at the route ends
         const hs = px(6);
         fillHandle(ctx, item.route[0]!, hs, '#ffffff', accent);
         fillHandle(ctx, item.route[item.route.length - 1]!, hs, '#ffffff', accent);
+        // waypoint (bend) handles: hollow dots at each segment midpoint, coinciding with SelectTool's
+        // waypoint hit-test. Grab one to add/move a bend. Smaller + ring-only to read as "optional".
+        ctx.save();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = px(1.25);
+        ctx.globalAlpha = 0.85;
+        for (let i = 0; i < item.route.length - 1; i++) {
+          const a = item.route[i]!;
+          const b = item.route[i + 1]!;
+          ctx.beginPath();
+          ctx.arc((a.x + b.x) / 2, (a.y + b.y) / 2, px(3.5), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
       } else {
         strokeWorldBox(ctx, padBox(item.aabb, px(3)), accent, px(1));
       }
