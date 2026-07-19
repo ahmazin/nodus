@@ -438,7 +438,9 @@ function App(): ReactElement {
             variant="ghost"
             title="Export the diagram as a vector SVG file"
             onClick={() => {
-              const blob = new Blob([renderSVG(editor)], { type: 'image/svg+xml' });
+              // animateFlow keeps any live flow moving in the exported .svg (a no-op when no edge
+              // has flow, so the static output is unchanged).
+              const blob = new Blob([renderSVG(editor, { animateFlow: true })], { type: 'image/svg+xml' });
               const a = document.createElement('a');
               a.href = URL.createObjectURL(blob);
               a.download = 'diagram.svg';
