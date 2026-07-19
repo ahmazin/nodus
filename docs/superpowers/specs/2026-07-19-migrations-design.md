@@ -199,7 +199,9 @@ code-reviewed in the PR, not applied invisibly.
 - `Editor`: builds `resolveMigrations` from its registries and threads it through its load path;
   retains loaded `typeVersions` for the save-side `max()` stamp.
 
-No existing signature is broken; every addition is optional/additive.
+`serializeRecords`'s second parameter changes from `meta?` to an options object `{ meta?,
+typeVersions? }` — a breaking change to that exported function, accepted while `@nodus/*` is
+pre-1.0/unpublished (see CHANGELOG). Every OTHER addition is optional/additive.
 
 ## Testing plan
 

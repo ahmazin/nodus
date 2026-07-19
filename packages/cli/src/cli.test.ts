@@ -78,6 +78,24 @@ describe('@nodus/cli', () => {
     expect(fmt([file], { check: true })[0]!.dropped).toBe(1);
   });
 
+  it('fmt preserves typeVersions (it runs without utils, so it must pass the map through verbatim)', () => {
+    const file = join(dir, 'versioned.nodus.json');
+    const snap = {
+      schemaVersion: 1,
+      typeVersions: { 'aws:ec2': 3, edge: 1 },
+      document: {
+        records: [
+          { id: 'n1', typeName: 'node', version: 0, type: 'aws:ec2', x: 0, y: 0, w: 10, h: 10, z: 'a0', visual: { state: 'solid' }, props: {} },
+        ],
+      },
+    };
+    writeFileSync(file, JSON.stringify(snap)); // minified, forces a reformat
+    expect(fmt([file])[0]!.changed).toBe(true);
+    const canonical = readFileSync(file, 'utf8');
+    expect(canonical).toContain('"typeVersions":{"aws:ec2":3,"edge":1}');
+    expect(JSON.parse(canonical).typeVersions).toEqual({ 'aws:ec2': 3, edge: 1 });
+  });
+
   it('diff reports a moved node as a single change with a field delta', () => {
     const ed = sampleEditor();
     const before = join(dir, 'before.nodus.json');

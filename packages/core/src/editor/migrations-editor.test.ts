@@ -53,4 +53,14 @@ describe('Editor migration integration', () => {
     expect(id).toBeTruthy();
     expect(ed.toJSON().typeVersions).toBeUndefined();
   });
+
+  it('a forward-version document is a stable fixed point: canonical bytes are identical across repeated saves', () => {
+    const ed = new Editor(); // this client only knows box@2
+    ed.registerNodeType(boxUtil);
+    ed.loadSnapshot(oldDoc({ radius: 999 }, { box: 5 })); // written by a newer client (box@5)
+    const first = toCanonicalString(ed.toJSON());
+    const second = toCanonicalString(ed.toJSON());
+    expect(first).toBe(second);
+    expect(first).toContain('"typeVersions":{"box":5}'); // re-stamped at 5, never downgraded to 2
+  });
 });

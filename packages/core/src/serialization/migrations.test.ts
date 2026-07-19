@@ -54,6 +54,22 @@ describe('restore migration execution', () => {
     expect(r.migrationErrors).toBe(0);
     expect(r.unmigrated).toBe(0);
   });
+  it('a resolver returning [] for a registered type keeps the record and counts unmigrated:0 (not 1)', () => {
+    const r = restore(snap([node('n1', 'known', { a: 1 })]), {
+      resolveMigrations: (rec) => (rec.type === 'known' ? [] : undefined),
+    });
+    expect(r.records.map((x) => x.id)).toEqual(['n1']);
+    expect(r.records[0]).toMatchObject({ props: { a: 1 } });
+    expect(r.unmigrated).toBe(0); // distinct from resolveMigrations() => undefined, which is unmigrated:1
+    expect(r.migrationErrors).toBe(0);
+  });
+  it('floors a hand-edited non-integer stored version instead of dropping the record', () => {
+    // typeVersions:{box:1.5} must not index steps[1.5] (undefined) — floors to 1, runs step index 1 only.
+    const r = restore(snap([node('n1', 'box', { radius: 5 })], { box: 1.5 }), { resolveMigrations: resolve });
+    expect(r.records.map((x) => x.id)).toEqual(['n1']);
+    expect(r.records[0]).toMatchObject({ props: { radius: 10 } }); // only step index 1 ran: 5 * 2
+    expect(r.migrationErrors).toBe(0);
+  });
 });
 
 import * as nodus from '../index.js';

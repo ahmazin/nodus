@@ -24,4 +24,12 @@ describe('typeVersions data model', () => {
     expect(r.migrationErrors).toBe(0);
     expect(r.unmigrated).toBe(0);
   });
+  it('serializeRecords({ meta }) sets meta (the options-object signature)', () => {
+    expect(serializeRecords(recs, { meta: { a: 1 } }).meta).toEqual({ a: 1 });
+  });
+  it('serializeRecords({ meta, typeVersions }) sets both fields', () => {
+    const snap = serializeRecords(recs, { meta: { a: 1 }, typeVersions: { box: 2 } });
+    expect(snap.meta).toEqual({ a: 1 });
+    expect(snap.typeVersions).toEqual({ box: 2 });
+  });
 });

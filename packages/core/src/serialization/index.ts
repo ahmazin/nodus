@@ -216,7 +216,9 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
         unmigrated++; // type not registered — keep raw
       } else {
         const current = steps.length;
-        const stored = typeVersions[type] ?? 0;
+        // restore() never trusts loaded data: a hand-edited non-integer version (e.g. 1.5) must not
+        // index steps[1.5] (undefined, silently dropping the record) — floor and clamp to >= 0.
+        const stored = Math.max(0, Math.floor(num(typeVersions[type])));
         if (stored > current) {
           unmigrated++; // newer than this client — keep raw, preserve
         } else if (stored < current) {
