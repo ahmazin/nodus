@@ -89,6 +89,8 @@ export function Properties({ editor, className, style }: PropertiesProps): React
         {row('Text', <input type="color" value={st.text ?? '#e5e5e5'} onChange={(e) => set({ text: e.target.value })} onBlur={commit} style={swatch} aria-label="Text color" />)}
         {row('Width', <input type="range" min={0.5} max={8} step={0.5} value={st.strokeWidth ?? 1.2} onChange={(e) => set({ strokeWidth: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0, accentColor: t.color.accent }} aria-label="Stroke width" />)}
         {row('Opacity', <input type="range" min={0} max={1} step={0.05} value={st.opacity ?? 1} onChange={(e) => set({ opacity: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0, accentColor: t.color.accent }} aria-label="Opacity" />)}
+        {/* Roughness: 0 = clean vector (default), higher = seeded hand-drawn "sketchy" outline. */}
+        {row('Rough', <input type="range" min={0} max={6} step={0.5} value={st.roughness ?? 0} onChange={(e) => set({ roughness: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={{ flex: 1, minWidth: 0, accentColor: t.color.accent }} aria-label="Roughness (hand-drawn style)" />)}
         {row(
           'Stroke style',
           <select
