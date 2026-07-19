@@ -7,10 +7,22 @@
 
 import type { EdgeRecord, Endpoint, NodeRecord, NodusRecord, PageRecord } from '../model.js';
 import { isEdge, isNode, isPage } from '../model.js';
+import type { Migration } from '../registries/index.js';
 
-export type { NodusRecord };
+export type { NodusRecord, Migration };
 
 export const SCHEMA_VERSION = 1;
+
+export interface RestoreOptions {
+  /** Ordered migrations for a record's type; `undefined` ⇒ the type is not registered. */
+  resolveMigrations?: (record: { typeName: string; type?: string }) => Migration[] | undefined;
+}
+
+/**
+ * Engine record-shape migrations, indexed by the `schemaVersion` being migrated FROM. Empty until
+ * the first breaking record-shape change (which bumps SCHEMA_VERSION and adds `engineMigrations[1]`).
+ */
+const engineMigrations: Array<(r: Record<string, unknown>) => Record<string, unknown>> = [];
 
 export interface Snapshot {
   schemaVersion: number;
@@ -171,14 +183,56 @@ function normalizePage(r: Record<string, unknown>): PageRecord | null {
   };
 }
 
-export function restore(input: Snapshot): RestoreResult {
+export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
   const raw = input.document?.records ?? [];
+  const typeVersions = input.typeVersions ?? {};
+  const fromSchema = num(input.schemaVersion, SCHEMA_VERSION);
 
   const nodes: NodeRecord[] = [];
   const edges: EdgeRecord[] = [];
   const pages: PageRecord[] = [];
+  let migrationErrors = 0;
+  let unmigrated = 0;
 
-  for (const r of raw as unknown as Array<Record<string, unknown>>) {
+  for (const original of raw as unknown as Array<Record<string, unknown>>) {
+    let r = original;
+
+    // 1. engine record-shape migrations (schemaVersion → SCHEMA_VERSION)
+    try {
+      for (let v = fromSchema; v < SCHEMA_VERSION; v++) {
+        const step = engineMigrations[v];
+        if (step) r = step(r);
+      }
+    } catch {
+      migrationErrors++;
+      continue;
+    }
+
+    // 2. custom-shape props migrations (nodes/edges only, and only when a resolver is provided)
+    if ((r.typeName === 'node' || r.typeName === 'edge') && opts?.resolveMigrations) {
+      const type = typeof r.type === 'string' ? r.type : '';
+      const steps = opts.resolveMigrations({ typeName: r.typeName, type });
+      if (steps === undefined) {
+        unmigrated++; // type not registered — keep raw
+      } else {
+        const current = steps.length;
+        const stored = typeVersions[type] ?? 0;
+        if (stored > current) {
+          unmigrated++; // newer than this client — keep raw, preserve
+        } else if (stored < current) {
+          try {
+            let props = (r.props as Record<string, unknown>) ?? {};
+            for (let i = stored; i < current; i++) props = steps[i]!(props);
+            r = { ...r, props };
+          } catch {
+            migrationErrors++;
+            continue;
+          }
+        }
+      }
+    }
+
+    // 3. normalize (validates the migrated record)
     if (r.typeName === 'node') {
       const n = normalizeNode(r);
       if (n) nodes.push(n);
@@ -204,7 +258,7 @@ export function restore(input: Snapshot): RestoreResult {
     return true;
   });
 
-  return { records: [...pages, ...nodes, ...keptEdges], droppedEdges, migrationErrors: 0, unmigrated: 0 };
+  return { records: [...pages, ...nodes, ...keptEdges], droppedEdges, migrationErrors, unmigrated };
 }
 
 export { isNode, isEdge, isPage };
