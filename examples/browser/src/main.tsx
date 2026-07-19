@@ -9,7 +9,7 @@
 
 import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Editor, type NodusRecord } from '@nodus/core';
+import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import {
   ArrowIcon,
   Button,
@@ -201,6 +201,7 @@ function App(): ReactElement {
   const t = useUiTokens(editor);
   const [helpOpen, setHelpOpen] = useState(false);
   const [createType, setCreateType] = useState<InfraKind>('service');
+  const [sketchOn, setSketchOn] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -432,6 +433,37 @@ function App(): ReactElement {
             onClick={() => void copyOrDownloadImage(editor, { selection: editor.selectedIdsArray().length > 0 })}
           >
             Copy PNG
+          </Button>
+          <Button
+            variant="ghost"
+            title="Export the diagram as a vector SVG file"
+            onClick={() => {
+              const blob = new Blob([renderSVG(editor)], { type: 'image/svg+xml' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = 'diagram.svg';
+              a.click();
+              URL.revokeObjectURL(a.href);
+            }}
+          >
+            Export SVG
+          </Button>
+          {/* Global hand-drawn toggle: applies the seeded 'sketchy' roughness to every node's style
+              bag (per-element roughness survives theme swaps). Fine-grained control stays in Properties. */}
+          <Button
+            variant="ghost"
+            aria-pressed={sketchOn}
+            title="Toggle a hand-drawn (sketchy) look for the whole diagram"
+            onClick={() => {
+              const next = !sketchOn;
+              setSketchOn(next);
+              editor.setStyle(
+                editor.store.nodes().map((n) => n.id),
+                { roughness: next ? 1.6 : 0 },
+              );
+            }}
+          >
+            {sketchOn ? '✎ Sketch: on' : '✎ Sketch'}
           </Button>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: t.space(2) }}>
