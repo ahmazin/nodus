@@ -23,7 +23,8 @@
     "@nodus/import-infra": "workspace:*",
     "@nodus/layout-tree": "workspace:*",
     "@nodus/layout-force": "workspace:*",
-    "@nodus/layout-elk": "workspace:*"
+    "@nodus/layout-elk": "workspace:*",
+    "@nodus/stencils": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

@@ -22,8 +22,12 @@
   "sideEffects": false,
   "peerDependencies": {
     "@nodus/core": "workspace:*",
+    "@nodus/stencils": "workspace:*",
     "react": ">=18",
     "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@nodus/stencils": { "optional": true }
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

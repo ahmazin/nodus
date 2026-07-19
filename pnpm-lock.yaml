@@ -74,6 +74,9 @@ importers:
       '@nodus/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@nodus/stencils':
+        specifier: workspace:*
+        version: link:../../packages/stencils
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -260,6 +263,9 @@ importers:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
+      '@nodus/stencils':
+        specifier: workspace:*
+        version: link:../stencils
       gifenc:
         specifier: ^1.0.3
         version: 1.0.3

@@ -21,6 +21,7 @@ export default defineConfig({
       '@nodus/layout-tree': src('../../packages/layout-tree/src/index.ts'),
       '@nodus/layout-force': src('../../packages/layout-force/src/index.ts'),
       '@nodus/layout-elk': src('../../packages/layout-elk/src/index.ts'),
+      '@nodus/stencils': src('../../packages/stencils/src/index.ts'),
     },
   },
   server: { port: 5188, strictPort: true },
