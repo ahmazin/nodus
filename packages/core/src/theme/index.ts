@@ -23,6 +23,14 @@ export interface StateTokens {
   radius?: number;
   /** Force the label to a fixed string (e.g. `"?"` for a locked/undiscovered node). */
   labelOverride?: string;
+  /**
+   * Hand-drawn "sketchy" outline roughness. `0`/`undefined` = today's clean rendering (the default);
+   * higher values (≈1–3) perturb stroked outlines more. The perturbation is a *deterministic* function
+   * of the record id computed at draw time — it is never written to the record or the serialized
+   * diagram, so canonical `*.nodus.json` and headless renders stay byte-stable. See the renderer's
+   * `DrawApi` for how the seed drives the jitter.
+   */
+  roughness?: number;
 }
 
 export interface Theme {
@@ -63,6 +71,8 @@ export interface ResolvedTokens {
   dash?: number[];
   radius: number;
   labelOverride?: string;
+  /** Resolved hand-drawn roughness; `undefined`/`0` renders the clean outline. See `StateTokens.roughness`. */
+  roughness?: number;
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
@@ -115,6 +125,7 @@ export function resolveTokens(
     dash: merged.dash,
     radius,
     labelOverride: merged.labelOverride,
+    roughness: merged.roughness,
     fontFamily: theme.typography.fontFamily,
     fontSize: theme.typography.size,
     lineHeight: theme.typography.lineHeight,

@@ -39,10 +39,46 @@ export interface LabelOpts {
   weight?: string;
 }
 
+/**
+ * Stable 32-bit hash of a record id → the per-shape roughness seed. FNV-1a: dependency-free,
+ * deterministic, and well-distributed for short id strings, so distinct ids get distinct-looking
+ * jitter while the *same* id always hashes to the same seed (same wobble every frame / reload / export).
+ */
+export function hashId(id: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    // 32-bit FNV prime multiply via imul; the >>>0 keeps it an unsigned 32-bit int.
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * `mulberry32` — a tiny, fast, dependency-free seeded PRNG. Given the same 32-bit seed it emits the
+ * exact same sequence in `[0, 1)`, which is what makes the sketchy jitter reproducible (NOT
+ * `Math.random`). Returns a stateful generator; callers reseed per stroke pass for independence.
+ */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export class DrawApi {
+  /**
+   * `seed` is the per-shape jitter seed (a hash of the record id, see `hashId`). It is threaded in by
+   * `paintItem` and consumed only when a resolved token carries `roughness > 0`; at roughness 0 it is
+   * ignored and every primitive paints its exact clean path.
+   */
   constructor(
     readonly ctx: Ctx2D,
     readonly tokens: ResolvedTokens,
+    readonly seed: number = 0,
   ) {}
 
   // ---- path construction ----
@@ -70,6 +106,95 @@ export class DrawApi {
     if (close) ctx.closePath();
   }
 
+  // ---- sketchy (hand-drawn) outlines ----
+
+  /** The four corners of `b`. Corner radius is intentionally dropped in sketchy mode — sharp,
+   *  slightly-overshot corners read as hand-drawn (matching the Excalidraw look). */
+  private rectCorners(b: Box): Vec2[] {
+    return [
+      { x: b.x, y: b.y },
+      { x: b.x + b.w, y: b.y },
+      { x: b.x + b.w, y: b.y + b.h },
+      { x: b.x, y: b.y + b.h },
+    ];
+  }
+
+  /** Sample an ellipse into a polyline so it can be perturbed like any other outline. The sample count
+   *  is a pure function of the size (deterministic), clamped for quality on tiny/huge shapes. */
+  private ellipseSamples(b: Box): Vec2[] {
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const rx = b.w / 2;
+    const ry = b.h / 2;
+    const n = Math.max(16, Math.min(64, Math.round((Math.abs(rx) + Math.abs(ry)) / 4)));
+    const out: Vec2[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      out.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
+    }
+    return out;
+  }
+
+  /**
+   * Trace `points` (optionally closed) into the current path as a hand-drawn line: each vertex is
+   * nudged by a seeded offset and each segment is bowed with a `quadraticCurveTo` whose control point
+   * is the segment midpoint pushed along its normal. `rng` is a seeded generator (see `mulberry32`),
+   * so the whole trace is a pure function of the seed + geometry — identical on every repaint/export.
+   */
+  private sketchTrace(points: Vec2[], close: boolean, rng: () => number, amp: number, bow: number): void {
+    const { ctx } = this;
+    if (points.length === 0) return;
+    const jitter = (): number => (rng() - 0.5) * 2 * amp;
+    const v = points.map((p) => ({ x: p.x + jitter(), y: p.y + jitter() }));
+    const seq = close ? [...v, v[0]!] : v;
+    ctx.beginPath();
+    ctx.moveTo(seq[0]!.x, seq[0]!.y);
+    for (let i = 1; i < seq.length; i++) {
+      const a = seq[i - 1]!;
+      const c = seq[i]!;
+      const mx = (a.x + c.x) / 2;
+      const my = (a.y + c.y) / 2;
+      const dx = c.x - a.x;
+      const dy = c.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const off = (rng() - 0.5) * 2 * bow;
+      // push the control point along the segment normal so the line bows rather than kinks
+      ctx.quadraticCurveTo(mx + (-dy / len) * off, my + (dx / len) * off, c.x, c.y);
+    }
+    if (close) ctx.closePath();
+  }
+
+  /**
+   * Stroke an outline in hand-drawn style: two overlapping passes with distinct seeds (the
+   * characteristic "double stroke"). Shares all stroke state (width/dash/glow/opacity) with the clean
+   * path so only the geometry differs. Deterministic: seeded solely from `this.seed`.
+   */
+  private sketchStroke(points: Vec2[], close: boolean, color: string, opts: StrokeOpts, rough: number): this {
+    const { ctx } = this;
+    ctx.save();
+    if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
+    if (opts.glow) {
+      ctx.shadowColor = opts.glow;
+      ctx.shadowBlur = opts.glowBlur ?? 14;
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = opts.width ?? 1;
+    ctx.lineCap = opts.cap ?? 'round';
+    ctx.lineJoin = opts.join ?? 'round';
+    if (opts.dash) ctx.setLineDash(opts.dash);
+    const r = Math.min(Math.max(rough, 0), 6);
+    const amp = r * 1.0;
+    const bow = r * 0.8;
+    for (let pass = 0; pass < 2; pass++) {
+      // distinct sub-seed per pass → the two strokes diverge; both are pure functions of this.seed
+      const rng = mulberry32((this.seed ^ Math.imul(pass + 1, 0x9e3779b1)) >>> 0);
+      this.sketchTrace(points, close, rng, amp, bow);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return this;
+  }
+
   // ---- filled shapes ----
 
   fillRoundRect(b: Box, radius: number, color: string, opts: FillOpts = {}): this {
@@ -88,6 +213,8 @@ export class DrawApi {
   }
 
   strokeRoundRect(b: Box, radius: number, color: string, opts: StrokeOpts = {}): this {
+    const rough = this.tokens.roughness ?? 0;
+    if (rough > 0) return this.sketchStroke(this.rectCorners(b), true, color, opts, rough);
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
@@ -121,6 +248,8 @@ export class DrawApi {
   }
 
   strokeEllipse(b: Box, color: string, opts: StrokeOpts = {}): this {
+    const rough = this.tokens.roughness ?? 0;
+    if (rough > 0) return this.sketchStroke(this.ellipseSamples(b), true, color, opts, rough);
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
@@ -154,6 +283,8 @@ export class DrawApi {
   }
 
   strokePolyline(points: Vec2[], color: string, opts: StrokeOpts = {}): this {
+    const rough = this.tokens.roughness ?? 0;
+    if (rough > 0) return this.sketchStroke(points, false, color, opts, rough);
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;

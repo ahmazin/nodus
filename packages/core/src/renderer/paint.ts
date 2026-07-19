@@ -7,7 +7,7 @@ import type { ResolvedTokens, Theme } from '../theme/index.js';
 import type { Box, Camera, EdgeRecord, FlowSpec, NodeRecord, Vec2 } from '../model.js';
 import type { EdgeRegistry, NodeRegistry, NodeUtil } from '../registries/index.js';
 import type { RenderItem } from '../scene-index/index.js';
-import { DrawApi } from './draw-api.js';
+import { DrawApi, hashId } from './draw-api.js';
 import type { Ctx2D } from './context.js';
 import { resolveTokensCached } from './token-cache.js';
 
@@ -134,7 +134,10 @@ export function paintItem(
     paintErrorHandler(err, rec);
     return;
   }
-  const api = new DrawApi(ctx, tokens);
+  // Per-shape jitter seed for the optional sketchy style (see DrawApi). A stable hash of the record id
+  // means the hand-drawn wobble is identical every frame, reload, and headless export — never random,
+  // never serialized. It is inert unless a resolved token carries roughness > 0.
+  const api = new DrawApi(ctx, tokens, hashId(rec.id));
   ctx.save();
   try {
     ctx.globalAlpha *= tokens.opacity;
