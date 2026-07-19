@@ -855,15 +855,14 @@ export class Editor implements EngineHost {
         rec.x += offset.x;
         rec.y += offset.y;
         rec.z = rec.type === 'group' ? '0' : this.makeZ();
-        if (rec.parentId) rec.parentId = idMap.get(rec.parentId) ?? undefined;
+        this.remapRefs(rec, idMap);
         changes.push({ op: 'add', record: rec });
         newIds.push(nid);
       } else if (isEdge(r)) {
         const rec = structuredClone(r) as EdgeRecord;
         rec.id = makeId('edge');
         rec.version = 0;
-        rec.from = this.remapEndpoint(rec.from, idMap);
-        rec.to = this.remapEndpoint(rec.to, idMap);
+        this.remapRefs(rec, idMap);
         changes.push({ op: 'add', record: rec });
       }
     }
@@ -877,11 +876,81 @@ export class Editor implements EngineHost {
     return this.pasteRecords(this.collectForCopy(ids), { x: 24, y: 24 });
   }
 
+  /**
+   * Capture a selection as a normalized, placement-agnostic **stencil** fragment: the nodes (+ their
+   * descendants) and interconnecting edges, deep-cloned, with ids renumbered to `node:n0…`/`edge:e0…`,
+   * cross-references (edge endpoints + `parentId`) rewritten to those ids, and node positions shifted so
+   * the fragment's top-left origin is `(0,0)`. Pure read — the store, history, and the originals are
+   * untouched; the result is a reusable value you later drop with `placeStencil`.
+   */
+  captureStencil(ids: Id[]): NodusRecord[] {
+    const recs = this.collectForCopy(ids); // already deep-cloned + edges-to-unselected-nodes dropped
+    if (recs.length === 0) return [];
+
+    // (1) deterministic old→new ids, numbered in sorted-id order so a fragment is stable across captures
+    const nodeMap = new Map<Id, Id<'node'>>();
+    const edgeMap = new Map<Id, Id<'edge'>>();
+    let ni = 0;
+    let ei = 0;
+    for (const r of [...recs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+      if (isNode(r)) nodeMap.set(r.id, makeId('node', `n${ni++}`));
+      else if (isEdge(r)) edgeMap.set(r.id, makeId('edge', `e${ei++}`));
+    }
+
+    // (2) rewrite each record's own id + cross-references, and zero the churny `version` counter so a
+    // serialized library diffs cleanly (read old ids before overwriting)
+    for (const r of recs) {
+      r.version = 0;
+      if (isNode(r)) {
+        this.remapRefs(r, nodeMap); // parentId first (still holds the old value)
+        r.id = nodeMap.get(r.id)!;
+      } else if (isEdge(r)) {
+        this.remapRefs(r, nodeMap); // from/to endpoints
+        r.id = edgeMap.get(r.id)!;
+      }
+    }
+
+    // (3) shift so the fragment's bounding-box min corner sits at the origin
+    const nodes = recs.filter(isNode);
+    if (nodes.length > 0) {
+      const minX = Math.min(...nodes.map((n) => n.x));
+      const minY = Math.min(...nodes.map((n) => n.y));
+      for (const n of nodes) {
+        n.x -= minX;
+        n.y -= minY;
+      }
+    }
+    return recs;
+  }
+
+  /**
+   * Drop a captured stencil fragment into the document at world point `at`, cloned with fresh ids as
+   * ONE undo entry. A fragment's origin is `(0,0)`, so `at` becomes its top-left. Returns (and selects)
+   * the new node ids.
+   */
+  placeStencil(records: NodusRecord[], at: Vec2): Id[] {
+    return this.pasteRecords(records, at);
+  }
+
   private remapEndpoint(ep: Endpoint, idMap: Map<Id, Id<'node'>>): Endpoint {
     if ((ep.kind === 'node' || ep.kind === 'outline') && idMap.has(ep.nodeId)) {
       return { ...ep, nodeId: idMap.get(ep.nodeId)! };
     }
     return ep;
+  }
+
+  /**
+   * Rewrite a cloned record's cross-references through an old→new node-id map, in place: a node's
+   * `parentId` (dropped if its target is outside the map) and an edge's `from`/`to` endpoints. Shared
+   * by `pasteRecords` (fresh random ids) and `captureStencil` (normalized ids) so both remap identically.
+   */
+  private remapRefs(rec: NodusRecord, idMap: Map<Id, Id<'node'>>): void {
+    if (isNode(rec)) {
+      if (rec.parentId) rec.parentId = idMap.get(rec.parentId) ?? undefined;
+    } else if (isEdge(rec)) {
+      rec.from = this.remapEndpoint(rec.from, idMap);
+      rec.to = this.remapEndpoint(rec.to, idMap);
+    }
   }
 
   connect(from: Endpoint, to: Endpoint, type?: string, opts?: ApplyOptions): Id<'edge'> | null {
