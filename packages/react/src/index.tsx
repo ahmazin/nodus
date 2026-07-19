@@ -24,6 +24,8 @@ export { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from './flow-shared.js';
 export { showToast, type ToastOptions } from './toast.js';
 export { CloudIconPicker, type CloudIconPickerProps } from './cloud-icon-picker.js';
 export { filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
+export { StencilLibrary, type StencilLibraryProps } from './stencil-library.js';
+export { TemplatesGallery, type TemplatesGalleryProps } from './templates-gallery.js';
 
 // clipboard / PNG export
 export {
