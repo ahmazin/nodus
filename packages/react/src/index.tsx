@@ -123,4 +123,16 @@ export {
   type ReviewModalProps,
 } from './review-modal.js';
 
+// shareable scene links (encode a diagram into a URL hash, load it back, copy link/SVG, embed)
+export {
+  encodeScene,
+  decodeScene,
+  buildShareUrl,
+  sceneFromHash,
+  loadSceneFromLocation,
+  copyShareLink,
+  copySvg,
+  buildEmbedSnippet,
+} from './share.js';
+
 export type { Editor, Id };

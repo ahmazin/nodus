@@ -42,10 +42,13 @@ import {
   UndoRedo,
   ZoomControls,
   copyOrDownloadImage,
+  copyShareLink,
+  copySvg,
   DEFAULT_FLOW,
   defaultCommands,
   exportFlowGIF,
   injectGlobalStyles,
+  loadSceneFromLocation,
   openFromFile,
   restoreAutosave,
   saveToFile,
@@ -521,7 +524,8 @@ function App(): ReactElement {
   // Restore a previous session if one exists (mount-only; the seed model stands if there's none).
   useEffect(() => {
     try {
-      restoreAutosave(editor, AUTOSAVE_KEY, { fit: true });
+      // A shared scene in the URL (#scene=…) takes precedence over the autosaved session.
+      if (!loadSceneFromLocation(editor)) restoreAutosave(editor, AUTOSAVE_KEY, { fit: true });
     } catch {
       showToast('Could not restore the last session', 'error', { mode: editor.themeAtom.peek().appearance ?? 'dark' });
     }
@@ -737,6 +741,16 @@ function App(): ReactElement {
     }
   }, [editor, t.mode]);
 
+  const shareLink = useCallback(async (): Promise<void> => {
+    const ok = await copyShareLink(editor);
+    showToast(ok ? 'Copied a share link' : 'Could not copy the link', ok ? 'ok' : 'error', { mode: t.mode });
+  }, [editor, t.mode]);
+
+  const copySvgToClipboard = useCallback(async (): Promise<void> => {
+    const ok = await copySvg(editor);
+    showToast(ok ? 'Copied SVG to clipboard' : 'Could not copy SVG', ok ? 'ok' : 'error', { mode: t.mode });
+  }, [editor, t.mode]);
+
   // The "Search ⌘K" button opens the palette via the shared `nodus:open-command-palette` window
   // event (Lane D added the listener inside <CommandPalette>); ⌘K itself is bound by the component.
   const openPalette = useCallback((): void => {
@@ -949,6 +963,12 @@ function App(): ReactElement {
                     <div style={{ height: 1, background: t.color.border, margin: '5px 4px' }} />
                     <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); copySource(); }}>
                       Copy source <span style={c.menuHint}>.nodus.json</span>
+                    </button>
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); void shareLink(); }}>
+                      Copy share link <span style={c.menuHint}>#scene</span>
+                    </button>
+                    <button type="button" style={c.menuItem} onClick={() => { setExportOpen(false); void copySvgToClipboard(); }}>
+                      Copy SVG <span style={c.menuHint}>clipboard</span>
                     </button>
                   </div>
                 </>
