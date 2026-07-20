@@ -57,6 +57,15 @@ describe('from-mermaid: flowchart', () => {
     expect(nodesOf(records)).toHaveLength(2);
     expect(edgesOf(records)).toHaveLength(1);
   });
+
+  it('reports skipped (unrecognized) flowchart lines', () => {
+    const { skipped } = fromMermaid('flowchart LR\n  A[Web] --> B[(DB)]\n  %% comment stripped\n  @@@ not a statement');
+    expect(skipped).toBe(1); // the "@@@" line is unparseable; comment is stripped, A/B parse fine
+  });
+
+  it('reports zero skipped for a clean flowchart', () => {
+    expect(fromMermaid('flowchart LR\n A --> B').skipped).toBe(0);
+  });
 });
 
 describe('from-mermaid: state diagram', () => {

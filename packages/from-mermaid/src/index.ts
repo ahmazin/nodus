@@ -30,6 +30,8 @@ export interface ParsedMermaid {
   kind: MermaidKind;
   direction: Direction;
   records: NodusRecord[];
+  /** Count of body statements that matched no rule (flowchart only in v1; 0 for state/er). */
+  skipped: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,9 +200,10 @@ function parseFlowStatement(stmt: string): { nodes: NodeTok[]; links: LinkTok[] 
   return { nodes, links };
 }
 
-function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[] } {
+function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]; skipped: number } {
   const steps = new Map<string, FlowStep>();
   const links: FlowLink[] = [];
+  let skipped = 0;
   const note = (t: NodeTok): void => {
     const existing = steps.get(t.id);
     // A labelled/shaped occurrence wins over a bare reference (`A[Start]` beats a later bare `A`).
@@ -210,7 +213,10 @@ function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]
   for (const line of bodyStatements(lines)) {
     if (/^(subgraph|end|direction|class|classDef|style|linkStyle|click)\b/i.test(line)) continue;
     const parsed = parseFlowStatement(line);
-    if (!parsed || parsed.nodes.length === 0) continue;
+    if (!parsed || parsed.nodes.length === 0) {
+      skipped++;
+      continue;
+    }
     for (const n of parsed.nodes) note(n);
     for (let i = 0; i < parsed.links.length; i++) {
       const from = parsed.nodes[i]!;
@@ -219,7 +225,7 @@ function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]
       links.push(l.label ? { from: from.id, to: to.id, label: l.label } : { from: from.id, to: to.id });
     }
   }
-  return { steps: [...steps.values()], links };
+  return { steps: [...steps.values()], links, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,11 +364,15 @@ export function fromMermaid(src: string): ParsedMermaid {
   const direction = kind === 'flowchart' ? readDirection(lines[0]!) : 'TB';
 
   let records: NodusRecord[];
-  if (kind === 'flowchart') records = buildFlowchart(parseFlowchart(lines));
-  else if (kind === 'state') records = buildStateMachine(parseStateDiagram(lines));
+  let skipped = 0;
+  if (kind === 'flowchart') {
+    const parsed = parseFlowchart(lines);
+    records = buildFlowchart(parsed);
+    skipped = parsed.skipped;
+  } else if (kind === 'state') records = buildStateMachine(parseStateDiagram(lines));
   else records = buildERD(parseERDiagram(lines));
 
-  return { kind, direction, records };
+  return { kind, direction, records, skipped };
 }
 
 export interface ImportMermaidOptions {
