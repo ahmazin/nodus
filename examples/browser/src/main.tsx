@@ -15,7 +15,8 @@ import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
 import { SyncInfra } from './sync-infra';
-import { ImportEditor, type ImportFormat } from './import-editor';
+import { ImportEditor } from './import-editor';
+import { analyzeImport, detectImportFormat, type ImportAnalysis, type ImportFormat } from './import-analyze';
 import {
   ArrowIcon,
   BranchBar,
@@ -73,7 +74,7 @@ import {
   modelToRecords,
   type InfraKind,
 } from '@nodus/preset-infra';
-import { iconNode, imageNode } from '@nodus/preset-diagrams';
+import { iconNode, imageNode, installDiagrams } from '@nodus/preset-diagrams';
 import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
 import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
 import { dagreLayout } from '@nodus/layout-dagre';
@@ -81,8 +82,6 @@ import { treeLayout } from '@nodus/layout-tree';
 import { forceLayout } from '@nodus/layout-force';
 import { elkLayout } from '@nodus/layout-elk';
 import { freehandPlugin } from '@nodus/plugin-freehand';
-import { importMermaid } from '@nodus/from-mermaid';
-import { fromKubernetes, fromTerraform } from '@nodus/import-infra';
 import {
   builtinStencils,
   builtinTemplates,
@@ -524,7 +523,8 @@ function App(): ReactElement {
   const [exportOpen, setExportOpen] = useState(false);
   const [describeOpen, setDescribeOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
-  const [importFormat, setImportFormat] = useState<ImportFormat | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importInitial, setImportInitial] = useState<ImportFormat | undefined>(undefined);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -652,40 +652,23 @@ function App(): ReactElement {
     [editor, t.mode],
   );
 
-  // The three import buttons/commands now open a proper code-editor modal (see runImportText below).
-  const importMermaidFlow = useCallback((): void => setImportFormat('mermaid'), []);
-  const importTerraformFlow = useCallback((): void => setImportFormat('terraform'), []);
-  const importKubernetesFlow = useCallback((): void => setImportFormat('kubernetes'), []);
+  // The three format-locked buttons/commands and the unified auto-detect entry all open the same
+  // analysis-driven modal; `openImport` sets which format it's pinned to (undefined = auto-detect).
+  const openImport = useCallback((f?: ImportFormat): void => {
+    setImportInitial(f);
+    setImportOpen(true);
+  }, []);
+  const importMermaidFlow = useCallback((): void => openImport('mermaid'), [openImport]);
+  const importTerraformFlow = useCallback((): void => openImport('terraform'), [openImport]);
+  const importKubernetesFlow = useCallback((): void => openImport('kubernetes'), [openImport]);
 
-  // Perform the import from the editor modal's text; returns an error message to show, or null on success.
-  const runImportText = useCallback(
-    async (text: string): Promise<string | null> => {
-      const src = text.trim();
-      if (!src) return 'Paste a diagram source to import.';
-      try {
-        if (importFormat === 'mermaid') {
-          await importMermaid(editor, src, { layout: 'elk' });
-          return null;
-        }
-        const parsed: unknown = JSON.parse(src);
-        if (importFormat === 'terraform') {
-          runImport(fromTerraform(parsed), 'dagre');
-          return null;
-        }
-        const objects = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray((parsed as { items?: unknown[] }).items)
-            ? (parsed as { items: unknown[] }).items
-            : [parsed];
-        runImport(fromKubernetes(objects as never), 'dagre');
-        return null;
-      } catch (e) {
-        return importFormat === 'mermaid'
-          ? 'Could not parse that Mermaid diagram — check the syntax.'
-          : `Could not read that ${importFormat} source — ${e instanceof Error ? e.message : String(e)}`;
-      }
+  // Commit an already-parsed analysis: ensure the needed node types exist, then add + lay out (one undo).
+  const commitImport = useCallback(
+    (analysis: ImportAnalysis): void => {
+      if (analysis.format === 'mermaid' && !editor.nodes.has('process')) installDiagrams(editor);
+      runImport(analysis.records, analysis.format === 'mermaid' ? 'elk' : 'dagre');
     },
-    [editor, importFormat, runImport],
+    [editor, runImport],
   );
 
   const runLayout = useCallback(
@@ -774,6 +757,7 @@ function App(): ReactElement {
   const commands = useMemo<Command[]>(
     () => [
       ...defaultCommands(editor),
+      { id: 'import.auto', title: 'Import diagram…', group: 'Import', run: () => openImport() },
       { id: 'import.mermaid', title: 'Import Mermaid…', group: 'Import', run: importMermaidFlow },
       { id: 'import.terraform', title: 'Import Terraform (show -json)…', group: 'Import', run: importTerraformFlow },
       { id: 'import.kubernetes', title: 'Import Kubernetes (JSON)…', group: 'Import', run: importKubernetesFlow },
@@ -793,6 +777,7 @@ function App(): ReactElement {
     ],
     [
       editor,
+      openImport,
       importMermaidFlow,
       importTerraformFlow,
       importKubernetesFlow,
@@ -1100,6 +1085,14 @@ function App(): ReactElement {
                     </div>
 
                     <div style={c.secLabel}>Import</div>
+                    <button
+                      type="button"
+                      data-testid="import-auto"
+                      style={{ ...c.ghBtn, width: '100%', marginBottom: 6 }}
+                      onClick={() => openImport()}
+                    >
+                      Import diagram…
+                    </button>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button type="button" style={{ ...c.ghBtn, flex: 1 }} onClick={importMermaidFlow}>
                         Mermaid
@@ -1254,7 +1247,15 @@ function App(): ReactElement {
           onGenerated={(records) => runImport(records, 'dagre')}
         />
         <SyncInfra editor={editor} open={syncOpen} onClose={() => setSyncOpen(false)} />
-        <ImportEditor editor={editor} format={importFormat} onClose={() => setImportFormat(null)} onImport={runImportText} />
+        <ImportEditor
+          editor={editor}
+          open={importOpen}
+          initialFormat={importInitial}
+          detect={detectImportFormat}
+          analyze={analyzeImport}
+          onClose={() => setImportOpen(false)}
+          onImport={commitImport}
+        />
       </div>
     </UiTokensProvider>
   );
