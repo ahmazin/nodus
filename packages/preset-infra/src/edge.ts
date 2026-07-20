@@ -20,6 +20,7 @@ export const infraConnectorUtil: EdgeUtil = {
       ...(ctx.waypoints ? { waypoints: ctx.waypoints } : {}),
       ...(ctx.fromBox ? { fromBox: ctx.fromBox } : {}),
       ...(ctx.toBox ? { toBox: ctx.toBox } : {}),
+      ...(ctx.obstacles ? { obstacles: ctx.obstacles } : {}),
       endGap: GAP,
     });
   },

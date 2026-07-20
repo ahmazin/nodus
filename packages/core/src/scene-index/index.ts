@@ -14,6 +14,11 @@ import { isEdge, isNode } from '../model.js';
 import type { EdgeRegistry, NodeRegistry } from '../registries/index.js';
 import type { RouterRegistry } from '../routing/index.js';
 
+/** Clearance (world units) added around each obstacle node, and used to widen the corridor query. */
+const OBSTACLE_MARGIN = 10;
+/** Cap on obstacle boxes handed to a router — keeps edge routing cheap under a dense scene / drag. */
+const MAX_OBSTACLES = 24;
+
 export interface RenderItem {
   id: Id;
   kind: 'node' | 'edge';
@@ -309,6 +314,7 @@ export class SceneIndex {
     const waypoints = Array.isArray(edge.props.waypoints)
       ? (edge.props.waypoints as Vec2[])
       : undefined;
+    const obstacles = this.gatherObstacles(fromPoint, toPoint, from.node?.id, to.node?.id, waypoints);
     const route = util.getRoute(edge, {
       from: fromPoint,
       to: toPoint,
@@ -319,6 +325,7 @@ export class SceneIndex {
       fromBox: from.geom?.bounds(),
       toBox: to.geom?.bounds(),
       ...(waypoints ? { waypoints } : {}),
+      ...(obstacles.length ? { obstacles } : {}),
       ...(this.deps.routers ? { router: this.deps.routers.get(edge.props.router as string) } : {}),
     });
     const geometry = new Polyline2d(route, util.hitWidth ?? 8);
@@ -331,6 +338,48 @@ export class SceneIndex {
       route,
       renderVersion: edge.version,
     };
+  }
+
+  /**
+   * Padded boxes of other nodes sitting in the corridor of an edge, for the router to route around.
+   * A cheap R-tree query over the endpoints' (and waypoints') bounding box grown by `OBSTACLE_MARGIN`,
+   * excluding the two endpoint nodes; each hit's AABB is padded by `OBSTACLE_MARGIN` for clearance and
+   * the list is capped so this stays inexpensive on the drag hot path.
+   */
+  private gatherObstacles(
+    from: Vec2,
+    to: Vec2,
+    fromId: Id | undefined,
+    toId: Id | undefined,
+    waypoints: Vec2[] | undefined,
+  ): Box[] {
+    let minX = Math.min(from.x, to.x);
+    let minY = Math.min(from.y, to.y);
+    let maxX = Math.max(from.x, to.x);
+    let maxY = Math.max(from.y, to.y);
+    if (waypoints) {
+      for (const p of waypoints) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+    }
+    const hits = this.tree.search({
+      minX: minX - OBSTACLE_MARGIN,
+      minY: minY - OBSTACLE_MARGIN,
+      maxX: maxX + OBSTACLE_MARGIN,
+      maxY: maxY + OBSTACLE_MARGIN,
+    });
+    const out: Box[] = [];
+    for (const e of hits) {
+      if (e.id === fromId || e.id === toId) continue; // never treat an endpoint as an obstacle
+      const item = this.items.get(e.id);
+      if (!item || item.kind !== 'node' || this.isHiddenItem(item)) continue;
+      out.push(padBox(item.aabb, OBSTACLE_MARGIN));
+      if (out.length >= MAX_OBSTACLES) break; // perf cap — the router degrades gracefully anyway
+    }
+    return out;
   }
 
   private resolveEndpoint(

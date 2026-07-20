@@ -184,6 +184,9 @@ export const flowEdge: EdgeUtil = {
       from: ctx.from,
       to: ctx.to,
       ...(ctx.waypoints ? { waypoints: ctx.waypoints } : {}),
+      ...(ctx.fromBox ? { fromBox: ctx.fromBox } : {}),
+      ...(ctx.toBox ? { toBox: ctx.toBox } : {}),
+      ...(ctx.obstacles ? { obstacles: ctx.obstacles } : {}),
       endGap: 7,
     });
   },

@@ -68,6 +68,8 @@ export interface EdgeRouteContext {
   toBox?: Box;
   /** User waypoints from `edge.props.waypoints`. */
   waypoints?: Vec2[];
+  /** Padded boxes of nearby non-endpoint nodes the route should avoid (orthogonal router only). */
+  obstacles?: Box[];
   /** The router resolved from `edge.props.router` (undefined -> the util's default). */
   router?: Router;
 }

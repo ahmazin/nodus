@@ -88,6 +88,7 @@ export {
   orthogonalRouter,
   bezierRouter,
   defaultRouters,
+  segmentHitsBoxInterior,
   type Router,
   type RouteContext,
 } from './routing/index.js';
