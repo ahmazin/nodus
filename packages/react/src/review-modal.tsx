@@ -11,10 +11,12 @@
  * Merge adopts the working tree as the new main; Discard resets the working tree to main.
  */
 
-import { useEffect, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@nodus/core';
 import { useBranch, type BranchInfo } from './use-branch.js';
+import { unifiedDiff, type UnifiedDiffLine } from './unified-diff.js';
+import { canonicalOf, editorToCanonical } from './round-trip.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel, Button, IconButton } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
@@ -47,6 +49,82 @@ function diffColors(t: UiTokens): DiffColors {
 }
 
 // ---------------------------------------------------------------------------
+// Shared unified-diff rows (Review + History diff views)
+// ---------------------------------------------------------------------------
+
+/**
+ * The GitHub-style red/green diff rows shared by `ReviewModal` and `HistoryModal`: old/new
+ * line-number gutters, a +/−/space sign column, and the line text. Emits one `data-testid="diff-row"`
+ * per line (`data-kind` = add/del/context) so both views are asserted the same way.
+ */
+function DiffRows({ lines, t, dc }: { lines: UnifiedDiffLine[]; t: UiTokens; dc: DiffColors }): ReactElement {
+  const gutterStyle: CSSProperties = {
+    flex: '0 0 auto',
+    width: 44,
+    paddingRight: t.space(2),
+    textAlign: 'right',
+    color: t.color.textFaint,
+    userSelect: 'none',
+    fontVariantNumeric: 'tabular-nums',
+  };
+  return (
+    <>
+      {lines.map((line, i) => {
+        const bg = line.kind === 'add' ? dc.addBg : line.kind === 'del' ? dc.delBg : 'transparent';
+        const sign = line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ';
+        const signColor =
+          line.kind === 'add' ? dc.addText : line.kind === 'del' ? dc.delText : t.color.textFaint;
+        return (
+          <div
+            key={i}
+            data-testid="diff-row"
+            data-kind={line.kind}
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              width: 'max-content',
+              minWidth: '100%',
+              padding: `0 ${t.space(3)}px`,
+              background: bg,
+            }}
+          >
+            <span style={gutterStyle}>{line.oldLineNo ?? ''}</span>
+            <span style={gutterStyle}>{line.newLineNo ?? ''}</span>
+            <span
+              aria-hidden
+              style={{
+                flex: '0 0 auto',
+                width: 16,
+                textAlign: 'center',
+                color: signColor,
+                userSelect: 'none',
+              }}
+            >
+              {sign}
+            </span>
+            <span style={{ flex: '1 1 auto', whiteSpace: 'pre', color: t.color.text }}>
+              {line.text}
+            </span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** A tiny relative-time formatter for version timestamps: "just now / 5m ago / 2h ago / 3d ago". */
+function relativeTime(at: number, now: number = Date.now()): string {
+  const s = Math.max(0, Math.floor((now - at) / 1000));
+  if (s < 45) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+// ---------------------------------------------------------------------------
 // BranchBar
 // ---------------------------------------------------------------------------
 
@@ -63,6 +141,7 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
   const t = useUiTokens(editor);
   const branch = useBranch(editor);
   const [open, setOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const dc = diffColors(t);
 
   const chipBase: CSSProperties = {
@@ -121,6 +200,30 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
       <Button
         tokens={t}
         size="sm"
+        variant="default"
+        data-testid="save-version"
+        onClick={() => branch.saveVersion()}
+        title="Save the current document as a version"
+        style={{ color: t.color.textMuted }}
+      >
+        Save version
+      </Button>
+
+      <Button
+        tokens={t}
+        size="sm"
+        variant="default"
+        data-testid="review-history"
+        onClick={() => setHistoryOpen(true)}
+        title="Browse and restore saved versions"
+        style={{ color: t.color.textMuted }}
+      >
+        History
+      </Button>
+
+      <Button
+        tokens={t}
+        size="sm"
         variant={branch.dirty ? 'primary' : 'default'}
         data-testid="review-open"
         onClick={() => setOpen(true)}
@@ -130,6 +233,12 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
       </Button>
 
       <ReviewModal editor={editor} branch={branch} open={open} onClose={() => setOpen(false)} />
+      <HistoryModal
+        editor={editor}
+        branch={branch}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   );
 }
@@ -174,16 +283,6 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
   if (typeof document === 'undefined') return null;
 
   const { semantic, unified, dirty, branchName } = branch;
-
-  const gutterStyle: CSSProperties = {
-    flex: '0 0 auto',
-    width: 44,
-    paddingRight: t.space(2),
-    textAlign: 'right',
-    color: t.color.textFaint,
-    userSelect: 'none',
-    fontVariantNumeric: 'tabular-nums',
-  };
 
   const overlay = (
     <UiTokensProvider tokens={t}>
@@ -305,50 +404,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
                 No changes — working tree matches {branchName}.
               </div>
             ) : (
-              unified.lines.map((line, i) => {
-                const bg =
-                  line.kind === 'add' ? dc.addBg : line.kind === 'del' ? dc.delBg : 'transparent';
-                const sign = line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ';
-                const signColor =
-                  line.kind === 'add'
-                    ? dc.addText
-                    : line.kind === 'del'
-                      ? dc.delText
-                      : t.color.textFaint;
-                return (
-                  <div
-                    key={i}
-                    data-testid="diff-row"
-                    data-kind={line.kind}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      width: 'max-content',
-                      minWidth: '100%',
-                      padding: `0 ${t.space(3)}px`,
-                      background: bg,
-                    }}
-                  >
-                    <span style={gutterStyle}>{line.oldLineNo ?? ''}</span>
-                    <span style={gutterStyle}>{line.newLineNo ?? ''}</span>
-                    <span
-                      aria-hidden
-                      style={{
-                        flex: '0 0 auto',
-                        width: 16,
-                        textAlign: 'center',
-                        color: signColor,
-                        userSelect: 'none',
-                      }}
-                    >
-                      {sign}
-                    </span>
-                    <span style={{ flex: '1 1 auto', whiteSpace: 'pre', color: t.color.text }}>
-                      {line.text}
-                    </span>
-                  </div>
-                );
-              })
+              <DiffRows lines={unified.lines} t={t} dc={dc} />
             )}
           </div>
 
@@ -401,6 +457,298 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
             >
               Approve &amp; merge
             </Button>
+          </div>
+        </Panel>
+      </div>
+    </UiTokensProvider>
+  );
+
+  return createPortal(overlay as ReactNode, document.body);
+}
+
+// ---------------------------------------------------------------------------
+// HistoryModal
+// ---------------------------------------------------------------------------
+
+export interface HistoryModalProps {
+  editor: Editor;
+  branch: BranchInfo;
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * A portalled version-history modal. Lists `branch.versions` (newest first); each row can be diffed
+ * against the CURRENT document (reusing the Review diff rows) or restored. Returns `null` when closed.
+ */
+export function HistoryModal(
+  { editor, branch, open, onClose }: HistoryModalProps,
+): ReactElement | null {
+  const t = useUiTokens(editor);
+  const dc = diffColors(t);
+  const { versions, branchName } = branch;
+
+  // null = the version list; a version id = its "version → current" diff view.
+  const [viewId, setViewId] = useState<string | null>(null);
+
+  // The version under review + its unified diff against the CURRENT document. Recomputed only when a
+  // row is opened (`viewId` set) — `unifiedDiff` over canonical text is the same engine ReviewModal uses.
+  const viewing = useMemo(() => {
+    if (viewId == null) return null;
+    const version = versions.find((v) => v.id === viewId);
+    if (!version) return null;
+    const unified = unifiedDiff(canonicalOf(version.snapshot), editorToCanonical(editor));
+    return { version, unified };
+  }, [viewId, versions, editor]);
+
+  // Escape backs out of a diff view first, then closes the modal.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setViewId((cur) => {
+        if (cur != null) return null;
+        onClose();
+        return null;
+      });
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  // Reset back to the list whenever the modal closes.
+  useEffect(() => {
+    if (!open) setViewId(null);
+  }, [open]);
+
+  if (!open) return null;
+  if (typeof document === 'undefined') return null;
+
+  const restore = (id: string): void => {
+    branch.restoreVersion(id);
+    onClose();
+  };
+
+  const emptyStateStyle: CSSProperties = {
+    padding: `${t.space(8)}px ${t.space(4)}px`,
+    textAlign: 'center',
+    color: t.color.textMuted,
+    fontFamily: t.font.family,
+  };
+
+  const overlay = (
+    <UiTokensProvider tokens={t}>
+      <div
+        data-nodus-ui=""
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: t.space(4),
+          background: 'rgba(0,0,0,0.55)',
+          fontFamily: t.font.family,
+        }}
+      >
+        <Panel
+          elevated
+          tokens={t}
+          data-testid="history-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Version history for ${branchName}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: 'min(820px, 100%)',
+            maxHeight: '80vh',
+            padding: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: t.space(3),
+              padding: `${t.space(3)}px ${t.space(4)}px`,
+              borderBottom: `1px solid ${t.color.border}`,
+            }}
+          >
+            <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', gap: t.space(2) }}>
+              {viewing && (
+                <Button
+                  tokens={t}
+                  size="sm"
+                  variant="default"
+                  data-testid="history-back"
+                  onClick={() => setViewId(null)}
+                >
+                  ← Back
+                </Button>
+              )}
+              <span
+                style={{
+                  fontSize: t.font.size.lg,
+                  fontWeight: 600,
+                  color: t.color.text,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {viewing ? `${viewing.version.label} → current` : 'Version history'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: t.space(2) }}>
+              {viewing ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: t.space(1.5),
+                    fontFamily: t.font.mono,
+                    fontSize: t.font.size.sm,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  <span style={{ color: dc.addText, fontWeight: 600 }}>+{viewing.unified.adds}</span>
+                  <span style={{ color: dc.delText, fontWeight: 600 }}>−{viewing.unified.dels}</span>
+                </span>
+              ) : (
+                <span style={{ fontSize: t.font.size.xs, color: t.color.textMuted }}>
+                  {versions.length} version{versions.length === 1 ? '' : 's'}
+                </span>
+              )}
+              <IconButton
+                tokens={t}
+                size="sm"
+                aria-label="Close history"
+                onClick={onClose}
+                icon={<span aria-hidden>✕</span>}
+              />
+            </div>
+          </div>
+
+          {/* Body */}
+          {viewing ? (
+            <div
+              style={{
+                flex: '1 1 auto',
+                overflow: 'auto',
+                background: t.color.canvas,
+                fontFamily: t.font.mono,
+                fontSize: t.font.size.sm,
+                lineHeight: 1.6,
+              }}
+            >
+              {viewing.unified.lines.length === 0 ? (
+                <div style={emptyStateStyle}>
+                  No differences — this version matches the current document.
+                </div>
+              ) : (
+                <DiffRows lines={viewing.unified.lines} t={t} dc={dc} />
+              )}
+            </div>
+          ) : (
+            <div style={{ flex: '1 1 auto', overflow: 'auto', background: t.color.canvas }}>
+              {versions.length === 0 ? (
+                <div style={emptyStateStyle}>
+                  No saved versions yet — Save version, or Approve &amp; merge to snapshot {branchName}.
+                </div>
+              ) : (
+                versions.map((v) => (
+                  <div
+                    key={v.id}
+                    data-testid="history-row"
+                    data-id={v.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: t.space(3),
+                      padding: `${t.space(2.5)}px ${t.space(4)}px`,
+                      borderBottom: `1px solid ${t.color.border}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        flex: '1 1 auto',
+                        minWidth: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: t.space(0.5),
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: t.color.text,
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {v.label}
+                      </span>
+                      <span style={{ fontSize: t.font.size.xs, color: t.color.textFaint }}>
+                        {relativeTime(v.at)}
+                      </span>
+                    </div>
+                    <Button
+                      tokens={t}
+                      size="sm"
+                      variant="default"
+                      data-testid="history-view"
+                      onClick={() => setViewId(v.id)}
+                    >
+                      View diff
+                    </Button>
+                    <Button
+                      tokens={t}
+                      size="sm"
+                      variant="default"
+                      data-testid="history-restore"
+                      onClick={() => restore(v.id)}
+                    >
+                      Restore
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: t.space(2),
+              padding: `${t.space(3)}px ${t.space(4)}px`,
+              borderTop: `1px solid ${t.color.border}`,
+            }}
+          >
+            <Button tokens={t} size="sm" variant="default" data-testid="history-close" onClick={onClose}>
+              Close
+            </Button>
+            {viewing && (
+              <Button
+                tokens={t}
+                size="sm"
+                variant="primary"
+                data-testid="history-restore"
+                onClick={() => restore(viewing.version.id)}
+              >
+                Restore this version
+              </Button>
+            )}
           </div>
         </Panel>
       </div>

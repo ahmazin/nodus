@@ -9,10 +9,15 @@
 
 import { describe, expect, it } from 'vitest';
 import { Editor } from '@nodus/core';
-import { computeBranch } from './use-branch.js';
+import { computeBranch, pushVersion, type VersionEntry } from './use-branch.js';
 
 function makeEditor(): Editor {
   return new Editor({ viewport: { w: 800, h: 600 } });
+}
+
+/** A minimal `VersionEntry` — `pushVersion` only touches ordering/length, not the snapshot payload. */
+function makeVersion(id: string, at = 0): VersionEntry {
+  return { id, label: `v-${id}`, at, snapshot: makeEditor().toJSON() };
 }
 
 describe('computeBranch', () => {
@@ -117,5 +122,38 @@ describe('computeBranch', () => {
     expect(fwd.semantic.added).toHaveLength(1);
     expect(fwd.semantic.removed).toHaveLength(1);
     expect(fwd.semantic.changed).toHaveLength(1);
+  });
+});
+
+describe('pushVersion', () => {
+  it('prepends the newest entry (newest-first order)', () => {
+    const a = makeVersion('a');
+    const b = makeVersion('b');
+
+    const list = pushVersion([a], b);
+
+    expect(list.map((v) => v.id)).toEqual(['b', 'a']);
+  });
+
+  it('caps the list at the given length, dropping the oldest', () => {
+    let list: VersionEntry[] = [];
+    for (const id of ['a', 'b', 'c', 'd']) {
+      list = pushVersion(list, makeVersion(id), 3);
+    }
+
+    // Newest-first and capped at 3, so the oldest ('a') fell off the end.
+    expect(list).toHaveLength(3);
+    expect(list.map((v) => v.id)).toEqual(['d', 'c', 'b']);
+  });
+
+  it('does not mutate the input array', () => {
+    const a = makeVersion('a');
+    const input = [a];
+
+    const out = pushVersion(input, makeVersion('b'));
+
+    expect(out).not.toBe(input);
+    expect(input).toHaveLength(1);
+    expect(input[0]).toBe(a);
   });
 });
