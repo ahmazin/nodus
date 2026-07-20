@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { AlignEdge, Editor } from '@nodus/core';
 import { copyOrDownloadImage, downloadImage } from './clipboard.js';
+import { fuzzyRank } from './fuzzy.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
@@ -64,6 +65,53 @@ export interface CommandPaletteProps {
 
 const LIST_ID = 'nodus-command-list';
 
+// --- Recents (MRU) -----------------------------------------------------------------------------
+// The ids of recently-run commands, newest first, persisted so they survive reloads. When the query
+// is empty they surface first (in MRU order); otherwise each recent gets a sub-1 score boost, so it
+// only ever breaks ties toward what you just used — never overriding a stronger fuzzy match.
+const RECENTS_KEY = 'nodus:command-palette:recents';
+const RECENTS_CAP = 8;
+const RECENT_BOOST_UNIT = 0.1; // max boost = RECENTS_CAP * unit = 0.8 (< 1) → tie-break only
+
+/** A usable `Storage`, or `null` under SSR / disabled / private-mode-throwing storage. */
+function safeStorage(): Storage | null {
+  try {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function loadRecents(): string[] {
+  const store = safeStorage();
+  if (!store) return [];
+  try {
+    const raw = store.getItem(RECENTS_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === 'string').slice(0, RECENTS_CAP);
+  } catch {
+    return []; // corrupt/blocked storage → start empty, never throw into render
+  }
+}
+
+function saveRecents(ids: string[]): void {
+  const store = safeStorage();
+  if (!store) return;
+  try {
+    store.setItem(RECENTS_KEY, JSON.stringify(ids));
+  } catch {
+    // quota exceeded / disabled — recents are best-effort, never fatal
+  }
+}
+
+/** Move `id` to the front of the MRU list, de-duplicated and capped. */
+function pushRecent(recents: string[], id: string): string[] {
+  return [id, ...recents.filter((x) => x !== id)].slice(0, RECENTS_CAP);
+}
+
 /**
  * Curated 2-char (or symbolic) badge labels keyed by command group, shown in the chip at the left
  * of each row. Unknown groups fall back to their first two letters uppercased; commands with no
@@ -87,6 +135,7 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
+  const [recents, setRecents] = useState<string[]>(() => loadRecents());
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const t = useUiTokens(editor);
@@ -123,9 +172,19 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
 
   const all = useMemo(() => (commands ?? defaultCommands(editor)).filter((c) => !c.when || c.when(editor)), [commands, editor, open]);
   const filtered = useMemo(() => {
-    const s = q.toLowerCase().trim();
-    return s ? all.filter((c) => c.title.toLowerCase().includes(s)) : all;
-  }, [all, q]);
+    // Fuzzy subsequence match/rank over title (+ group, so "arrange"/"view" also surface a group).
+    const ranked = fuzzyRank(q, all, (c) => (c.group ? `${c.title} ${c.group}` : c.title));
+    // Nudge recently-run commands up. The boost is < 1, so with an empty query (all scores 0) it
+    // orders recents first in MRU order; with a real query it only breaks otherwise-equal scores.
+    const boosted = ranked.map((r) => {
+      const rank = recents.indexOf(r.item.id);
+      const boost = rank === -1 ? 0 : (RECENTS_CAP - rank) * RECENT_BOOST_UNIT;
+      return { cmd: r.item, score: r.score + boost };
+    });
+    // `ranked` is already (score desc, input order); a stable sort keeps that order for ties.
+    boosted.sort((a, b) => b.score - a.score);
+    return boosted.map((b) => b.cmd);
+  }, [all, q, recents]);
 
   // keep the keyboard-cursor row scrolled into view as it moves
   useEffect(() => {
@@ -135,7 +194,13 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
 
   if (!open) return null;
 
-  const run = (c: Command) => { c.run(); setOpen(false); };
+  const run = (c: Command) => {
+    const next = pushRecent(recents, c.id);
+    setRecents(next);
+    saveRecents(next);
+    c.run();
+    setOpen(false);
+  };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, filtered.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
