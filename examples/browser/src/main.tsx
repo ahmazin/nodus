@@ -15,6 +15,7 @@ import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
 import { SyncInfra } from './sync-infra';
+import { ImportEditor, type ImportFormat } from './import-editor';
 import {
   ArrowIcon,
   BranchBar,
@@ -523,6 +524,7 @@ function App(): ReactElement {
   const [exportOpen, setExportOpen] = useState(false);
   const [describeOpen, setDescribeOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [importFormat, setImportFormat] = useState<ImportFormat | null>(null);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -650,36 +652,41 @@ function App(): ReactElement {
     [editor, t.mode],
   );
 
-  const importMermaidFlow = useCallback((): void => {
-    const src = window.prompt('Paste a Mermaid diagram (flowchart / stateDiagram / erDiagram)');
-    if (!src?.trim()) return;
-    // importMermaid registers the diagram node types, adds the records, runs the layout, and fits.
-    void importMermaid(editor, src, { layout: 'elk' }).catch(() =>
-      showToast('Could not parse that Mermaid diagram', 'error', { mode: t.mode }),
-    );
-  }, [editor, t.mode]);
+  // The three import buttons/commands now open a proper code-editor modal (see runImportText below).
+  const importMermaidFlow = useCallback((): void => setImportFormat('mermaid'), []);
+  const importTerraformFlow = useCallback((): void => setImportFormat('terraform'), []);
+  const importKubernetesFlow = useCallback((): void => setImportFormat('kubernetes'), []);
 
-  const importTerraformFlow = useCallback((): void => {
-    const text = window.prompt('Paste `terraform show -json` output');
-    if (!text?.trim()) return;
-    try {
-      runImport(fromTerraform(JSON.parse(text)), 'dagre');
-    } catch {
-      showToast('Not valid `terraform show -json` output', 'error', { mode: t.mode });
-    }
-  }, [t.mode, runImport]);
-
-  const importKubernetesFlow = useCallback((): void => {
-    const text = window.prompt('Paste Kubernetes manifests as JSON (an array, or `kubectl get -o json`)');
-    if (!text?.trim()) return;
-    try {
-      const parsed = JSON.parse(text);
-      const objects = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [parsed];
-      runImport(fromKubernetes(objects), 'dagre');
-    } catch {
-      showToast('Not valid Kubernetes JSON', 'error', { mode: t.mode });
-    }
-  }, [t.mode, runImport]);
+  // Perform the import from the editor modal's text; returns an error message to show, or null on success.
+  const runImportText = useCallback(
+    async (text: string): Promise<string | null> => {
+      const src = text.trim();
+      if (!src) return 'Paste a diagram source to import.';
+      try {
+        if (importFormat === 'mermaid') {
+          await importMermaid(editor, src, { layout: 'elk' });
+          return null;
+        }
+        const parsed: unknown = JSON.parse(src);
+        if (importFormat === 'terraform') {
+          runImport(fromTerraform(parsed), 'dagre');
+          return null;
+        }
+        const objects = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray((parsed as { items?: unknown[] }).items)
+            ? (parsed as { items: unknown[] }).items
+            : [parsed];
+        runImport(fromKubernetes(objects as never), 'dagre');
+        return null;
+      } catch (e) {
+        return importFormat === 'mermaid'
+          ? 'Could not parse that Mermaid diagram — check the syntax.'
+          : `Could not read that ${importFormat} source — ${e instanceof Error ? e.message : String(e)}`;
+      }
+    },
+    [editor, importFormat, runImport],
+  );
 
   const runLayout = useCallback(
     (id: string): void => {
@@ -1247,6 +1254,7 @@ function App(): ReactElement {
           onGenerated={(records) => runImport(records, 'dagre')}
         />
         <SyncInfra editor={editor} open={syncOpen} onClose={() => setSyncOpen(false)} />
+        <ImportEditor editor={editor} format={importFormat} onClose={() => setImportFormat(null)} onImport={runImportText} />
       </div>
     </UiTokensProvider>
   );
