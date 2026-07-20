@@ -162,6 +162,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     });
 
     const onPointerDown = (e: PointerEvent): void => {
+      host.focus({ preventScroll: true }); // route keyboard (Tab traversal, shortcuts) to the canvas
       canvas.setPointerCapture(e.pointerId);
       if (e.button === 1 || (e.button === 0 && spaceDown)) {
         panning = true;
@@ -213,6 +214,18 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
         if (!panning) canvas.style.cursor = 'grab';
         return;
       }
+      // ---- Tab / Shift+Tab: cycle the selection through nodes, but ONLY when the canvas owns
+      //      focus. Elsewhere (toolbar, panels) Tab keeps its normal DOM focus-move behavior. ----
+      if (e.key === 'Tab') {
+        const t = e.target as HTMLElement | null;
+        const inField =
+          !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+        if (!inField && document.activeElement === host) {
+          e.preventDefault();
+          editor.selectNextNode(e.shiftKey ? -1 : 1);
+        }
+        return;
+      }
       const meta = e.metaKey || e.ctrlKey;
       if (meta && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
@@ -245,6 +258,10 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
           const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
           const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
           editor.nudge(sel, dx, dy);
+        } else if (document.activeElement === host) {
+          // Nothing selected + canvas focused → start keyboard traversal (Up/Left = prev, Down/Right = next).
+          e.preventDefault();
+          editor.selectNextNode(e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1);
         }
         return;
       }
@@ -303,7 +320,15 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
   }, [editor]);
 
   return (
-    <div ref={hostRef} className={className} style={{ position: 'relative', overflow: 'hidden', ...style }}>
+    <div
+      ref={hostRef}
+      className={className}
+      data-nodus-ui=""
+      role="application"
+      aria-label="Diagram canvas — Tab to move between nodes, arrow keys to nudge"
+      tabIndex={0}
+      style={{ position: 'relative', overflow: 'hidden', ...style }}
+    >
       <canvas ref={canvasRef} style={{ display: 'block', touchAction: 'none' }} />
       <EditOverlay editor={editor} />
       {contextMenu !== false && ctxMenu && (

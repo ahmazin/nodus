@@ -32,7 +32,7 @@ import {
   viewportWorldBounds,
   zoomAt,
 } from '../camera/index.js';
-import { dist, padBox, unionBox } from '../geometry/index.js';
+import { boxEncloses, dist, padBox, unionBox } from '../geometry/index.js';
 import { defaultTheme, type StateTokens, type Theme } from '../theme/index.js';
 import { Store, type ChangeInfo, type StoreListener } from '../store/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
@@ -1063,6 +1063,51 @@ export class Editor implements EngineHost {
       if (item) boxes.push(item.aabb);
     }
     return unionBox(boxes);
+  }
+
+  /**
+   * Keyboard traversal: move the sole selection to the next (`dir === 1`) or previous
+   * (`dir === -1`) node in reading order — top-to-bottom by `y`, then left-to-right by `x`,
+   * ties broken by `id` for stability. With nothing selected, selects the first node
+   * (`dir === 1`) or the last (`dir === -1`); otherwise advances from the last-selected node,
+   * wrapping around the ends. The new node becomes the only selection, and the camera pans
+   * (keeping the current zoom) to center it when it lies outside the viewport. Returns the
+   * selected node id, or `null` when there are no nodes.
+   */
+  selectNextNode(dir: 1 | -1): Id | null {
+    const ordered = this.store
+      .nodes()
+      .slice()
+      .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x !== b.x ? a.x - b.x : a.id < b.id ? -1 : 1));
+    if (ordered.length === 0) return null;
+
+    const sel = this.selectedAtom.peek();
+    let idx: number;
+    if (sel.size === 0) {
+      idx = dir === 1 ? 0 : ordered.length - 1;
+    } else {
+      const selArr = [...sel];
+      let cur = -1;
+      for (let i = selArr.length - 1; i >= 0 && cur === -1; i--) {
+        cur = ordered.findIndex((n) => n.id === selArr[i]);
+      }
+      idx = cur === -1 ? (dir === 1 ? 0 : ordered.length - 1) : (cur + dir + ordered.length) % ordered.length;
+    }
+
+    const next = ordered[idx]!;
+    this.select([next.id]);
+    // Pan (keeping zoom) to bring the focused node into view when it is off-screen.
+    const item = this.sceneIndex.getItem(next.id);
+    if (item && !boxEncloses(this.worldViewport(), item.aabb)) {
+      const vp = this.viewportAtom.peek();
+      const z = this.camera.z;
+      this.setCamera({
+        x: item.aabb.x + item.aabb.w / 2 - vp.w / (2 * z),
+        y: item.aabb.y + item.aabb.h / 2 - vp.h / (2 * z),
+        z,
+      });
+    }
+    return next.id;
   }
   private emitSelection(): void {
     this.events.emit({ type: 'selection', ids: [...this.selectedAtom.peek()] });
