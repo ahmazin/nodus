@@ -19,6 +19,8 @@ export interface ImportAnalysis {
   notes: string[];
   /** Real parser message; when set, records is [] and the modal disables Import. */
   error: string | null;
+  /** Mermaid's parsed flow direction (`flowchart TB`/`LR`/`RL`/`BT`); unset for terraform/kubernetes. */
+  direction?: 'TB' | 'LR' | 'RL' | 'BT';
 }
 
 const MERMAID_HEADER = /^(graph|flowchart|stateDiagram(-v2)?|erDiagram)\b/i;
@@ -75,9 +77,11 @@ export function analyzeImport(text: string, format: ImportFormat): ImportAnalysi
     let records: NodusRecord[];
     let skipped: { label: string; count: number }[] = [];
     let notes: string[] = [];
+    let direction: ImportAnalysis['direction'];
     if (format === 'mermaid') {
       const parsed = fromMermaid(text);
       records = parsed.records;
+      direction = parsed.direction;
       if (parsed.skipped > 0) skipped = [{ label: 'unrecognized line', count: parsed.skipped }];
     } else if (format === 'terraform') {
       const a = analyzeTerraform(JSON.parse(text));
@@ -94,6 +98,7 @@ export function analyzeImport(text: string, format: ImportFormat): ImportAnalysi
       skipped,
       notes,
       error: null,
+      direction,
     };
   } catch (e) {
     return { format, records: [], nodeCount: 0, edgeCount: 0, skipped: [], notes: [], error: humanError(format, e) };

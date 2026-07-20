@@ -44,4 +44,10 @@ describe('analyzeImport', () => {
     expect(a.error).toBeNull();
     expect(a.nodeCount).toBe(2);
   });
+  it('carries the parsed mermaid direction; other formats leave it undefined', () => {
+    const mermaid = analyzeImport('flowchart TB\n  A --> B', 'mermaid');
+    expect(mermaid.direction).toBe('TB');
+    const terraform = analyzeImport('{"values":{"root_module":{"resources":[]}}}', 'terraform');
+    expect(terraform.direction).toBeUndefined();
+  });
 });

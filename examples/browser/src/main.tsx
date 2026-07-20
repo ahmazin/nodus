@@ -637,7 +637,7 @@ function App(): ReactElement {
   // Importers — add the parsed records in one undoable step, reindex, then lay out + fit. These are
   // the same programmatic importers the CLI/MCP use; a prompt() paste is enough for the reference app.
   const runImport = useCallback(
-    (records: NodusRecord[], layoutId: string): void => {
+    (records: NodusRecord[], layoutId: string, direction: 'TB' | 'LR' | 'RL' | 'BT' = 'LR'): void => {
       if (records.length === 0) {
         showToast('Nothing to import from that input', 'error', { mode: t.mode });
         return;
@@ -647,7 +647,7 @@ function App(): ReactElement {
         { capture: 'immediately' }, // one undo entry for the whole import
       );
       editor.sceneIndex.rebuild(editor.store.allRecords());
-      void editor.layout(layoutId, { direction: 'LR' }).then(() => editor.zoomToFit(48));
+      void editor.layout(layoutId, { direction }).then(() => editor.zoomToFit(48));
     },
     [editor, t.mode],
   );
@@ -666,7 +666,7 @@ function App(): ReactElement {
   const commitImport = useCallback(
     (analysis: ImportAnalysis): void => {
       if (analysis.format === 'mermaid' && !editor.nodes.has('process')) installDiagrams(editor);
-      runImport(analysis.records, analysis.format === 'mermaid' ? 'elk' : 'dagre');
+      runImport(analysis.records, analysis.format === 'mermaid' ? 'elk' : 'dagre', analysis.direction);
     },
     [editor, runImport],
   );
