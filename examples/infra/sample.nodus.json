@@ -1,0 +1,9 @@
+{"schemaVersion":1,"document":{"records":[
+{"h":74,"id":"node:aws_db_instance.main","label":"main","props":{"key":"aws_db_instance.main"},"type":"infra.db","typeName":"node","visual":{"state":"accent"},"w":74,"x":0,"y":0,"z":"0000000002"},
+{"h":74,"id":"node:aws_elasticache_cluster.cache","label":"cache","props":{"key":"aws_elasticache_cluster.cache"},"type":"infra.cache","typeName":"node","visual":{"state":"accent"},"w":74,"x":0,"y":0,"z":"0000000003"},
+{"h":74,"id":"node:aws_instance.api","label":"api","props":{"key":"aws_instance.api"},"type":"infra.service","typeName":"node","visual":{"state":"accent"},"w":74,"x":0,"y":0,"z":"0000000001"},
+{"h":74,"id":"node:aws_lb.edge","label":"edge","props":{"key":"aws_lb.edge"},"type":"infra.lb","typeName":"node","visual":{"state":"accent"},"w":74,"x":0,"y":0,"z":"0000000000"},
+{"from":{"kind":"node","nodeId":"node:aws_lb.edge","portId":"out"},"id":"edge:0x25xe7","props":{},"to":{"kind":"node","nodeId":"node:aws_instance.api","portId":"in"},"type":"infra.connector","typeName":"edge","visual":{"state":"solid"}},
+{"from":{"kind":"node","nodeId":"node:aws_instance.api","portId":"out"},"id":"edge:1x4buse","props":{},"to":{"kind":"node","nodeId":"node:aws_db_instance.main","portId":"in"},"type":"infra.connector","typeName":"edge","visual":{"state":"solid"}},
+{"from":{"kind":"node","nodeId":"node:aws_instance.api","portId":"out"},"id":"edge:2x6hs6l","props":{},"to":{"kind":"node","nodeId":"node:aws_elasticache_cluster.cache","portId":"in"},"type":"infra.connector","typeName":"edge","visual":{"state":"solid"}}
+]}}

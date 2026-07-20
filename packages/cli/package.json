@@ -17,6 +17,7 @@
   "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
   "dependencies": {
     "@nodus/core": "workspace:*",
+    "@nodus/import-infra": "workspace:*",
     "@nodus/preset-diagrams": "workspace:*",
     "@nodus/preset-infra": "workspace:*",
     "@nodus/preset-draw": "workspace:*",

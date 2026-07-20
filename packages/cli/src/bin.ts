@@ -6,8 +6,9 @@
 import { fmt } from './commands/fmt.js';
 import { render, type Preset } from './commands/render.js';
 import { diffReport } from './commands/diff.js';
+import { driftReport } from './commands/drift.js';
 
-const VALUE_FLAGS = new Set(['out', 'preset', 'scale', 'theme']);
+const VALUE_FLAGS = new Set(['out', 'preset', 'scale', 'theme', 'source']);
 
 function parseArgs(args: string[]): { positionals: string[]; flags: Record<string, string | boolean> } {
   const positionals: string[] = [];
@@ -31,6 +32,7 @@ Usage:
   nodus fmt <file...> [--check]      Canonicalize diagram files (or verify, no writes, with --check)
   nodus render <file> [--out f.png] [--preset infra|draw|diagrams] [--scale n] [--no-bg] [--grid]
   nodus diff <a> <b> [--json]        Semantic diff between two diagram files
+  nodus drift <diagram.nodus.json> <source> [--source terraform|kubernetes|auto] [--json]  Exit 1 if the diagram drifts from the source
 `;
 
 async function main(argv: string[]): Promise<number> {
@@ -87,6 +89,18 @@ async function main(argv: string[]): Promise<number> {
       const report = diffReport(a, b);
       console.log(flags.json ? JSON.stringify(report.result, null, 2) : report.text);
       return 0;
+    }
+
+    case 'drift': {
+      const [diagram, src] = rest;
+      if (!diagram || !src) {
+        console.error('drift: need a diagram file and a source file');
+        return 1;
+      }
+      const source = typeof flags.source === 'string' ? (flags.source as 'terraform' | 'kubernetes' | 'auto') : undefined;
+      const report = driftReport(diagram, src, { source });
+      console.log(flags.json ? JSON.stringify(report.result, null, 2) : report.text);
+      return report.drifted ? 1 : 0;
     }
 
     default:

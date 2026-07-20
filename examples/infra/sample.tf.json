@@ -1,0 +1,14 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.7.0",
+  "values": {
+    "root_module": {
+      "resources": [
+        { "address": "aws_lb.edge", "mode": "managed", "type": "aws_lb", "name": "edge" },
+        { "address": "aws_instance.api", "mode": "managed", "type": "aws_instance", "name": "api", "depends_on": ["aws_lb.edge"] },
+        { "address": "aws_db_instance.main", "mode": "managed", "type": "aws_db_instance", "name": "main", "depends_on": ["aws_instance.api"] },
+        { "address": "aws_elasticache_cluster.cache", "mode": "managed", "type": "aws_elasticache_cluster", "name": "cache", "depends_on": ["aws_instance.api"] }
+      ]
+    }
+  }
+}

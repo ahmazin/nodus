@@ -102,6 +102,9 @@ importers:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
+      '@nodus/import-infra':
+        specifier: workspace:*
+        version: link:../import-infra
       '@nodus/preset-diagrams':
         specifier: workspace:*
         version: link:../preset-diagrams

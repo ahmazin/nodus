@@ -1,0 +1,36 @@
+name: Infra drift
+
+# "Diagrams that can't go stale": fail the build when a committed architecture diagram no longer
+# matches its declared infra source. Runs `nodus drift <diagram> <source>`, which re-imports the
+# source and exits nonzero if any resource was added / removed / changed since the diagram was
+# rendered. This is the CI half of the "never drift from source of truth" moat — the same
+# computeDrift the in-app "Sync from infra source" panel uses.
+#
+# The committed pair (examples/infra/sample.nodus.json ↔ sample.tf.json) is kept in sync, so this
+# gate passes today; edit the .tf.json without re-rendering the diagram and it fails, by design.
+on:
+  pull_request:
+    paths:
+      - 'examples/infra/**'
+      - 'packages/import-infra/**'
+      - 'packages/preset-infra/**'
+      - 'packages/cli/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Drift gate (diagram must match declared infra)
+        run: pnpm -s nodus drift examples/infra/sample.nodus.json examples/infra/sample.tf.json --source terraform
