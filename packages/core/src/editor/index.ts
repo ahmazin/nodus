@@ -129,6 +129,9 @@ export interface ConnectDraft {
   from: Vec2;
   to: Vec2;
   valid: boolean;
+  /** A candidate target port under the cursor mid-drag, drawn as a highlighted drop-target ring
+   *  (green when the connection would be accepted, accent when not). */
+  targetPort?: { point: Vec2; valid: boolean };
 }
 
 export interface SnapConfig {
@@ -970,6 +973,32 @@ export class Editor implements EngineHost {
     return edge.id;
   }
 
+  /** Whether an edge endpoint may bind to this node under interaction — its type's
+   *  `capabilities.canConnect` (default true). */
+  canConnectTo(nodeId: Id): boolean {
+    const rec = this.store.peek(nodeId);
+    if (!rec || !isNode(rec)) return false;
+    return this.nodes.get(rec.type)?.capabilities?.canConnect !== false;
+  }
+
+  /**
+   * Interaction-layer connection gate. `connect()` itself stays unvalidated so programmatic callers
+   * (importers, presets) can wire anything; the tools call this to honor the two connection-validity
+   * axes: the target node must be connectable (`capabilities.canConnect`), and if the source endpoint
+   * is a named port with an `isValidConnection` predicate, that predicate must accept the pair.
+   */
+  connectAllowed(from: Endpoint, to: Endpoint): boolean {
+    if (to.kind !== 'point' && !this.canConnectTo(to.nodeId)) return false;
+    if (from.kind === 'node' && from.portId) {
+      const rec = this.store.peek(from.nodeId);
+      if (rec && isNode(rec)) {
+        const port = this.nodes.get(rec.type)?.getPorts?.(rec)?.find((p) => p.id === from.portId);
+        if (port?.isValidConnection && !port.isValidConnection(from, to)) return false;
+      }
+    }
+    return true;
+  }
+
   deleteRecords(ids: Id[], opts?: ApplyOptions): void {
     const toRemove = new Set<Id>();
     // Deleting a group deletes its contents too (descendants + their edges); otherwise a surviving
@@ -1495,6 +1524,18 @@ export class Editor implements EngineHost {
       }
     }
 
+    // Group affordance: a single dashed, low-emphasis box enclosing a multi-selection (in addition
+    // to the per-node rings above), matching Figma/Excalidraw's union bounds.
+    if (this.selectedAtom.peek().size > 1) {
+      const gb = this.selectionBounds();
+      if (gb) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        strokeWorldBox(ctx, padBox(gb, px(6)), accent, px(1), [px(6), px(4)]);
+        ctx.restore();
+      }
+    }
+
     const mq = this.marqueeAtom.peek();
     if (mq) {
       ctx.save();
@@ -1516,14 +1557,32 @@ export class Editor implements EngineHost {
       ctx.lineTo(cd.to.x, cd.to.y);
       ctx.stroke();
       ctx.restore();
+      // drop-target affordance: highlight the candidate port under the cursor
+      if (cd.targetPort) {
+        const c = cd.targetPort.valid ? '#10b981' : accent;
+        ctx.save();
+        ctx.strokeStyle = c;
+        ctx.fillStyle = c;
+        ctx.lineWidth = px(1.5);
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        ctx.arc(cd.targetPort.point.x, cd.targetPort.point.y, px(6), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(cd.targetPort.point.x, cd.targetPort.point.y, px(6), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     const cp = this.createPreviewAtom.peek();
     if (cp) strokeWorldBox(ctx, cp, accent, px(1), [px(4), px(4)]);
 
-    // port dots on the hovered node — drag from one to connect (create a node if dropped in space)
+    // port dots on the hovered node — drag from one to connect (create a node if dropped in space).
+    // Shown during a connect draft too, so the node under the cursor reveals its ports as drop targets.
     const hoverId = this.hoveredAtom.peek();
-    if (hoverId && !mq && !cd && !cp) {
+    if (hoverId && !mq && !cp) {
       const item = this.sceneIndex.getItem(hoverId);
       if (item && item.kind === 'node') {
         const node = item.record as NodeRecord;
