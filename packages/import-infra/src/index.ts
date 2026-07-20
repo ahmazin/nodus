@@ -1,7 +1,8 @@
 /**
  * @nodus/import-infra — turn live infrastructure into a Nodus diagram.
  *  - `fromTerraform(showJson)`: parses `terraform show -json` (state or plan) — resources become
- *    nodes, `depends_on` becomes edges.
+ *    nodes; edges come from `depends_on` plus implicit interpolation references inferred from the
+ *    `configuration` block (e.g. `subnet_id = aws_subnet.main.id`).
  *  - `fromKubernetes(objects)`: maps manifest kinds to node types; Ingress→Service→workload edges
  *    are inferred from backends and label selectors.
  * Both return infra records ready to load or hand to `InfraCanvas`.
@@ -50,25 +51,132 @@ function collectResources(mod: TfModule | undefined, out: TfResource[]): void {
   for (const c of mod.child_modules ?? []) collectResources(c, out);
 }
 
-export function fromTerraform(showJson: unknown): NodusRecord[] {
-  const root = (showJson as { values?: { root_module?: TfModule }; planned_values?: { root_module?: TfModule } });
+interface TfConfigResource {
+  address: string; // module-qualified, non-indexed, e.g. "aws_instance.web" or "module.data.aws_subnet.db"
+  expressions?: Record<string, unknown>;
+}
+
+interface TfConfigModule {
+  resources?: Array<{ address?: string; type?: string; name?: string; expressions?: Record<string, unknown> }>;
+  module_calls?: Record<string, { module?: TfConfigModule }>;
+}
+
+/** Recursively collect configuration resources, qualifying each address with its module path. */
+function collectConfigResources(mod: TfConfigModule | undefined, modulePrefix: string, out: TfConfigResource[]): void {
+  if (!mod) return;
+  for (const r of mod.resources ?? []) {
+    const base = r.address ?? (r.type && r.name ? `${r.type}.${r.name}` : undefined);
+    if (!base) continue;
+    out.push({ address: modulePrefix ? `${modulePrefix}.${base}` : base, expressions: r.expressions });
+  }
+  for (const [name, call] of Object.entries(mod.module_calls ?? {})) {
+    collectConfigResources(call.module, modulePrefix ? `${modulePrefix}.module.${name}` : `module.${name}`, out);
+  }
+}
+
+/** Recursively gather every `references: string[]` under an expressions tree (blocks nest arrays/objects). */
+function collectReferences(expr: unknown, out: string[]): void {
+  if (!expr || typeof expr !== 'object') return;
+  if (Array.isArray(expr)) {
+    for (const v of expr) collectReferences(v, out);
+    return;
+  }
+  const o = expr as Record<string, unknown>;
+  if (Array.isArray(o['references'])) for (const ref of o['references']) if (typeof ref === 'string') out.push(ref);
+  for (const [k, v] of Object.entries(o)) {
+    if (k === 'references' || k === 'constant_value') continue;
+    collectReferences(v, out);
+  }
+}
+
+// References that never point at a managed resource node.
+const IGNORED_REF = /^(var|local|data|each|count|path|self|terraform|module)\./;
+
+/** Resolve a reference to a known managed-resource address (module-relative first, then root), or null. */
+function resolveRef(ref: string, modulePrefix: string, known: Set<string>): string | null {
+  if (IGNORED_REF.test(ref)) return null;
+  const candidates = modulePrefix ? [`${modulePrefix}.${ref}`, ref] : [ref];
+  for (const cand of candidates) {
+    const segs = cand.split('.');
+    for (let len = segs.length; len >= 2; len--) {
+      const prefix = segs.slice(0, len).join('.');
+      if (known.has(prefix)) return prefix;
+    }
+  }
+  return null;
+}
+
+/** Node keys (values addresses) matching a config address: exact, or its count/for_each instances. */
+function nodeKeysFor(configAddr: string, nodeKeys: string[]): string[] {
+  return nodeKeys.filter((k) => k === configAddr || k.startsWith(`${configAddr}[`));
+}
+
+export interface TerraformAnalysis {
+  records: NodusRecord[];
+  skipped: { label: string; count: number }[];
+  notes: string[];
+}
+
+export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
+  const root = showJson as {
+    values?: { root_module?: TfModule };
+    planned_values?: { root_module?: TfModule };
+    configuration?: { root_module?: TfConfigModule };
+  };
   const rootModule = root.values?.root_module ?? root.planned_values?.root_module;
   const resources: TfResource[] = [];
   collectResources(rootModule, resources);
 
-  const addresses = new Set(resources.map((r) => r.address));
+  const nodeKeys = resources.map((r) => r.address);
+  const addresses = new Set(nodeKeys);
   const model: InfraModel = {
     nodes: resources.map((r) => ({ key: r.address, type: terraformKind(r.type), label: r.name, x: 0, y: 0 })),
     edges: [],
   };
+
+  const seen = new Set<string>();
+  const addEdge = (from: string, to: string): void => {
+    if (from === to) return;
+    const sig = `${from} ${to}`;
+    if (seen.has(sig)) return;
+    seen.add(sig);
+    model.edges!.push({ from, to });
+  };
+
+  // (1) explicit depends_on
   for (const r of resources) {
     for (const dep of r.depends_on ?? []) {
-      // depends_on may be an address or a prefix; match to a known resource
       const target = addresses.has(dep) ? dep : resources.find((o) => dep.startsWith(o.address))?.address;
-      if (target) model.edges!.push({ from: target, to: r.address });
+      if (target) addEdge(target, r.address);
     }
   }
-  return modelToRecords(model);
+
+  // (2) implicit interpolation references from the configuration block
+  const notes: string[] = [];
+  if (root.configuration?.root_module) {
+    const configResources: TfConfigResource[] = [];
+    collectConfigResources(root.configuration.root_module, '', configResources);
+    const known = new Set(configResources.map((c) => c.address));
+    for (const c of configResources) {
+      const prefix = c.address.split('.').slice(0, -2).join('.'); // strip the trailing type.name
+      const refs: string[] = [];
+      collectReferences(c.expressions, refs);
+      for (const ref of refs) {
+        const targetAddr = resolveRef(ref, prefix, known);
+        if (!targetAddr) continue;
+        for (const fromKey of nodeKeysFor(targetAddr, nodeKeys))
+          for (const toKey of nodeKeysFor(c.address, nodeKeys)) addEdge(fromKey, toKey);
+      }
+    }
+  } else {
+    notes.push('state JSON — edges limited to depends_on; import a plan (terraform show -json <plan>) for full topology.');
+  }
+
+  return { records: modelToRecords(model), skipped: [], notes };
+}
+
+export function fromTerraform(showJson: unknown): NodusRecord[] {
+  return analyzeTerraform(showJson).records;
 }
 
 // ---------------------------------------------------------------------------
