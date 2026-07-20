@@ -80,9 +80,12 @@ export function ImportEditor({ editor, open, initialFormat, detect, analyze, onC
   const submit = (): void => {
     if (!canImport || !analysis) return;
     setBusy(true);
-    onImport(analysis);
-    setBusy(false);
-    onClose();
+    try {
+      onImport(analysis);
+    } finally {
+      setBusy(false);
+      onClose();
+    }
   };
 
   if (!open) return null;
