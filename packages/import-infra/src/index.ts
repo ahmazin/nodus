@@ -3,8 +3,9 @@
  *  - `fromTerraform(showJson)`: parses `terraform show -json` (state or plan) — resources become
  *    nodes; edges come from `depends_on` plus implicit interpolation references inferred from the
  *    `configuration` block (e.g. `subnet_id = aws_subnet.main.id`).
- *  - `fromKubernetes(objects)`: maps manifest kinds to node types; Ingress→Service→workload edges
- *    are inferred from backends and label selectors.
+ *  - `fromKubernetes(input)`: accepts multi-doc YAML/JSON (a string), a `List`, an array, or one
+ *    object; maps manifest kinds to node types; Ingress→Service→workload edges are inferred from
+ *    backends and label selectors. `analyzeKubernetes` additionally reports skipped (unmapped) kinds.
  * Both return infra records ready to load or hand to `InfraCanvas`.
  */
 
@@ -19,6 +20,7 @@ import {
   type NodusRecord,
 } from '@nodus/core';
 import { modelToRecords, type InfraModel } from '@nodus/preset-infra';
+import { parseAllDocuments } from 'yaml';
 
 // ---------------------------------------------------------------------------
 // Terraform
@@ -216,15 +218,41 @@ function workloadLabels(obj: K8sObject): Record<string, string> {
   return tmpl ?? obj.metadata?.labels ?? {};
 }
 
-export function fromKubernetes(objects: K8sObject[]): NodusRecord[] {
+/** Normalize string (YAML/JSON, multi-doc) or a pre-parsed array into a flat list of manifest objects. */
+function toK8sObjects(input: string | K8sObject[]): K8sObject[] {
+  const raw: unknown[] = typeof input === 'string'
+    ? parseAllDocuments(input).map((d) => d.toJS()).filter((v) => v != null)
+    : input;
+  const objs: K8sObject[] = [];
+  for (const doc of raw) {
+    if (Array.isArray(doc)) objs.push(...(doc as K8sObject[]));
+    else if (doc && (doc as { kind?: string }).kind === 'List' && Array.isArray((doc as { items?: unknown[] }).items))
+      objs.push(...((doc as { items: K8sObject[] }).items));
+    else if (doc) objs.push(doc as K8sObject);
+  }
+  return objs.filter((o) => o && typeof o === 'object' && typeof o.kind === 'string');
+}
+
+export interface KubernetesAnalysis {
+  records: NodusRecord[];
+  skipped: { label: string; count: number }[];
+  notes: string[];
+}
+
+export function analyzeKubernetes(input: string | K8sObject[]): KubernetesAnalysis {
+  const objects = toK8sObjects(input);
   const nodes: InfraModel['nodes'] = [];
   const edges: NonNullable<InfraModel['edges']> = [];
-  const byName = new Map<string, K8sObject>(); // name -> object (for lookups)
+  const byName = new Map<string, K8sObject>();
+  const skipCounts = new Map<string, number>();
   const keyOf = (o: K8sObject) => `${o.kind}/${o.metadata?.name ?? '?'}`;
 
   for (const o of objects) {
     const type = kubernetesKind(o.kind);
-    if (!type) continue;
+    if (!type) {
+      skipCounts.set(o.kind, (skipCounts.get(o.kind) ?? 0) + 1);
+      continue;
+    }
     nodes.push({ key: keyOf(o), type, label: o.metadata?.name ?? o.kind, x: 0, y: 0 });
     byName.set(o.metadata?.name ?? '', o);
   }
@@ -232,15 +260,13 @@ export function fromKubernetes(objects: K8sObject[]): NodusRecord[] {
 
   for (const o of objects) {
     if (o.kind === 'Ingress') {
-      // Ingress -> Service (extensions/v1 backend.serviceName OR networking.k8s.io backend.service.name)
       const rules = (o.spec?.rules as Array<{ http?: { paths?: Array<{ backend?: { serviceName?: string; service?: { name?: string } } }> } }>) ?? [];
-      for (const rule of rules) {
+      for (const rule of rules)
         for (const path of rule.http?.paths ?? []) {
           const svc = path.backend?.serviceName ?? path.backend?.service?.name;
           const target = svc && byName.get(svc);
           if (target && included.has(keyOf(o)) && included.has(keyOf(target))) edges.push({ from: keyOf(o), to: keyOf(target) });
         }
-      }
     } else if (o.kind === 'Service') {
       const selector = (o.spec?.selector as Record<string, string>) ?? {};
       if (Object.keys(selector).length === 0) continue;
@@ -250,7 +276,15 @@ export function fromKubernetes(objects: K8sObject[]): NodusRecord[] {
       }
     }
   }
-  return modelToRecords({ nodes, edges });
+
+  const skipped = [...skipCounts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+  const notes: string[] = [];
+  if (nodes.length === 0) notes.push('No workloads, services, or ingress found to import.');
+  return { records: modelToRecords({ nodes, edges }), skipped, notes };
+}
+
+export function fromKubernetes(input: string | K8sObject[]): NodusRecord[] {
+  return analyzeKubernetes(input).records;
 }
 
 // ---------------------------------------------------------------------------

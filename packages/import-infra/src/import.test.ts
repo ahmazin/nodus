@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord, type NodeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind } from '@nodus/import-infra';
+import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind } from '@nodus/import-infra';
 
 describe('terraform import', () => {
   it('maps resource types to infra kinds', () => {
@@ -163,5 +163,66 @@ describe('kubernetes import', () => {
     expect(ed.store.nodes()).toHaveLength(4); // ConfigMap skipped
     // Ingress web -> Service orders-svc, Service orders-svc -> Deployment orders
     expect(ed.store.edges().length).toBeGreaterThanOrEqual(2);
+  });
+
+  const YAML_MANIFEST = `
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: { name: web }
+spec:
+  rules:
+    - http:
+        paths:
+          - backend: { service: { name: orders-svc } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: orders-svc }
+spec:
+  selector: { app: orders }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: orders }
+spec:
+  template:
+    metadata:
+      labels: { app: orders }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: cfg }
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: creds }
+`;
+
+  it('imports multi-doc YAML and reports skipped kinds', () => {
+    const { records, skipped } = analyzeKubernetes(YAML_MANIFEST);
+    const ed = new Editor();
+    installInfraPreset(ed);
+    ed.loadSnapshot({ schemaVersion: 1, document: { records } });
+    expect(ed.store.nodes()).toHaveLength(3); // Ingress, Service, Deployment
+    expect(ed.store.edges().length).toBeGreaterThanOrEqual(2); // Ingress→Service, Service→Deployment
+    expect(skipped).toEqual(expect.arrayContaining([
+      { label: 'ConfigMap', count: 1 },
+      { label: 'Secret', count: 1 },
+    ]));
+  });
+
+  it('accepts a kind:List and a single object, and matches array input', () => {
+    const list = JSON.stringify({ kind: 'List', items: [
+      { kind: 'Deployment', metadata: { name: 'a' } },
+      { kind: 'Service', metadata: { name: 'a-svc' }, spec: { selector: {} } },
+    ] });
+    expect(analyzeKubernetes(list).records.filter((r) => r.typeName === 'node')).toHaveLength(2);
+
+    const single = analyzeKubernetes('{ "kind": "Deployment", "metadata": { "name": "solo" } }');
+    expect(single.records.filter((r) => r.typeName === 'node')).toHaveLength(1);
+
+    // string vs pre-parsed array parity (the existing array path must still work)
+    const arr = [{ kind: 'Deployment', metadata: { name: 'solo' } }];
+    expect(analyzeKubernetes(arr).records.length).toBe(single.records.length);
   });
 });
