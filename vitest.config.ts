@@ -25,7 +25,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/**/*.test.{ts,tsx}'],
+    include: ['packages/**/*.test.{ts,tsx}', 'examples/browser/src/import-analyze.test.ts'],
     environment: 'node',
   },
 });
