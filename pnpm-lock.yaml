@@ -77,6 +77,9 @@ importers:
       '@nodus/stencils':
         specifier: workspace:*
         version: link:../../packages/stencils
+      '@nodus/text-to-diagram':
+        specifier: workspace:*
+        version: link:../../packages/text-to-diagram
       react:
         specifier: ^18.3.1
         version: 18.3.1

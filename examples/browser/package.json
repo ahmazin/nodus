@@ -21,6 +21,7 @@
     "@nodus/plugin-freehand": "workspace:*",
     "@nodus/from-mermaid": "workspace:*",
     "@nodus/import-infra": "workspace:*",
+    "@nodus/text-to-diagram": "workspace:*",
     "@nodus/layout-tree": "workspace:*",
     "@nodus/layout-force": "workspace:*",
     "@nodus/layout-elk": "workspace:*",

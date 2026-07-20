@@ -13,6 +13,7 @@ import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperti
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
+import { DescribeDiagram } from './describe-diagram';
 import {
   ArrowIcon,
   BranchBar,
@@ -519,6 +520,7 @@ function App(): ReactElement {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [tab, setTab] = useState<'props' | 'source' | 'layers' | 'insert'>('props');
   const [exportOpen, setExportOpen] = useState(false);
+  const [describeOpen, setDescribeOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -769,6 +771,7 @@ function App(): ReactElement {
       { id: 'insert.image', title: 'Insert image…', group: 'Insert', run: insertImage },
       { id: 'insert.template', title: 'Add template…', group: 'Insert', run: () => setTemplatesOpen(true) },
       { id: 'insert.create', title: `Create ${createType} node`, group: 'Insert', run: () => editor.setTool('create', { type: `infra.${createType}` }) },
+      { id: 'ai.describe', title: 'Describe a diagram (AI)…', group: 'Insert', run: () => setDescribeOpen(true) },
       { id: 'view.sketch', title: sketchOn ? 'Disable hand-drawn (Sketch)' : 'Enable hand-drawn (Sketch)', group: 'View', run: toggleSketch },
       { id: 'view.flow', title: flowOn ? 'Stop animated flow' : 'Animate flow', group: 'View', run: toggleFlow },
       { id: 'export.svg', title: 'Export SVG (vector)', group: 'Export', run: exportSVG },
@@ -1199,6 +1202,14 @@ function App(): ReactElement {
                   <p style={{ fontSize: t.font.size.xs, color: t.color.textFaint, lineHeight: 1.5, margin: 0 }}>
                     Open a palette, then drag a tile onto the canvas — or click a tile to drop it at the viewport center.
                   </p>
+                  <button
+                    type="button"
+                    data-testid="insert-describe"
+                    onClick={() => setDescribeOpen(true)}
+                    style={{ ...c.ghBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: t.color.accent, borderColor: t.color.accent }}
+                  >
+                    ✦ Describe a diagram (AI)
+                  </button>
                   <CloudIconPicker editor={editor} catalog={cloudIconCatalog} variant="inline" />
                   <StencilLibrary
                     editor={editor}
@@ -1218,6 +1229,12 @@ function App(): ReactElement {
         <CommandPalette editor={editor} commands={commands} />
         <ShortcutsDialog editor={editor} open={helpOpen} onClose={() => setHelpOpen(false)} sections={SHORTCUTS} />
         <TemplatesModal editor={editor} open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+        <DescribeDiagram
+          editor={editor}
+          open={describeOpen}
+          onClose={() => setDescribeOpen(false)}
+          onGenerated={(records) => runImport(records, 'dagre')}
+        />
       </div>
     </UiTokensProvider>
   );
