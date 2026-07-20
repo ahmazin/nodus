@@ -654,6 +654,28 @@ export class Editor implements EngineHost {
     return !!r && isNode(r) && r.locked === true;
   }
 
+  /**
+   * Show/hide the given nodes — the visibility toggle a layers/outline panel drives. A hidden node stays
+   * in the document (so the tree can still list it) but is excluded from rendering, hit-testing, and
+   * marquee (see SceneIndex). Undoable (one entry). Hiding sets `hidden:true`; showing CLEARS the key
+   * (patch `undefined`, like `unlock`) so serialization stays canonical (never a `hidden:false`).
+   */
+  setNodesHidden(ids: Id[], hidden: boolean, opts?: ApplyOptions): void {
+    const changes: Change[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (!r || !isNode(r)) continue;
+      if (hidden && r.hidden !== true) changes.push({ op: 'update', id, patch: { hidden: true } });
+      else if (!hidden && r.hidden === true) changes.push({ op: 'update', id, patch: { hidden: undefined } });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+  /** Whether the node is currently hidden (visibility-off). `record.hidden === true`. */
+  isHidden(id: Id): boolean {
+    const r = this.store.peek(id);
+    return !!r && isNode(r) && r.hidden === true;
+  }
+
   /** Fit the current selection into the viewport with padding. */
   zoomToSelection(padding = 48): void {
     const bounds = this.selectionBounds();
@@ -1188,6 +1210,48 @@ export class Editor implements EngineHost {
   }
   sendToBack(ids: Id[]): void {
     this.reorder(ids, 'back');
+  }
+
+  /** Move `ids` one step within the z-order (a single swap past the nearest non-selected neighbor),
+   *  then renumber. `forward` raises toward the front (higher z); `backward` lowers toward the back.
+   *  A contiguous run of selected nodes moves together. Groups stay pinned behind their children. */
+  private stepReorder(ids: Id[], dir: 'forward' | 'backward'): void {
+    const set = new Set(ids);
+    const arr = this.store
+      .nodes()
+      .slice()
+      .filter((n) => n.type !== 'group')
+      .sort((a, b) => (a.z < b.z ? -1 : a.z > b.z ? 1 : a.id < b.id ? -1 : 1));
+    if (!arr.some((n) => set.has(n.id))) return;
+    if (dir === 'forward') {
+      // walk high→low so a selected run shifts up as a block without cascading past itself
+      for (let i = arr.length - 2; i >= 0; i--) {
+        if (set.has(arr[i]!.id) && !set.has(arr[i + 1]!.id)) {
+          [arr[i], arr[i + 1]] = [arr[i + 1]!, arr[i]!];
+        }
+      }
+    } else {
+      for (let i = 1; i < arr.length; i++) {
+        if (set.has(arr[i]!.id) && !set.has(arr[i - 1]!.id)) {
+          [arr[i], arr[i - 1]] = [arr[i - 1]!, arr[i]!];
+        }
+      }
+    }
+    const changes: Change[] = [];
+    arr.forEach((n, i) => {
+      const z = i.toString(36).padStart(10, '0');
+      if (n.z !== z) changes.push({ op: 'update', id: n.id, patch: { z } });
+    });
+    if (changes.length) {
+      this.zCounter = Math.max(this.zCounter, arr.length);
+      this.store.apply(changes, { capture: 'immediately' });
+    }
+  }
+  bringForward(ids: Id[]): void {
+    this.stepReorder(ids, 'forward');
+  }
+  sendBackward(ids: Id[]): void {
+    this.stepReorder(ids, 'backward');
   }
   /** Whether label editing for this node should be multi-line (text nodes). */
   isMultilineEdit(id: Id): boolean {

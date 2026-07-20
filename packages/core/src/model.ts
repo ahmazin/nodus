@@ -145,6 +145,13 @@ export interface NodeRecord extends BaseRecord<'node'> {
    * which is a theme skin, not an interaction guard.
    */
   locked?: boolean;
+  /**
+   * Visibility: when true the node is HIDDEN — it stays in the document (so a layers/outline tree can
+   * still list it) but is excluded from rendering, hit-testing, and marquee selection (see SceneIndex).
+   * Optional and omit-when-false: absent ⇒ visible, so a never-hidden node serializes byte-identically
+   * to today. Distinct from the `'ghost'` VISUAL state, which draws the node faintly rather than not at all.
+   */
+  hidden?: boolean;
   /** Group/frame parent, by id-reference. */
   parentId?: Id;
   visual: VisualState;

@@ -26,6 +26,7 @@ import {
   EraserIcon,
   HandIcon,
   ImageIcon,
+  LayersPanel,
   LineIcon,
   Minimap,
   Nodus,
@@ -516,7 +517,7 @@ function App(): ReactElement {
   const [flowOn, setFlowOn] = useState(() => editor.hasFlow());
   const [userLibrary, setUserLibrary] = useState<StencilLibraryType>(loadUserLibrary);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [tab, setTab] = useState<'props' | 'source' | 'insert'>('props');
+  const [tab, setTab] = useState<'props' | 'source' | 'layers' | 'insert'>('props');
   const [exportOpen, setExportOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
@@ -1040,6 +1041,9 @@ function App(): ReactElement {
               <button type="button" onClick={() => setTab('source')} style={c.tabStyle(tab === 'source')} aria-pressed={tab === 'source'}>
                 Source
               </button>
+              <button type="button" onClick={() => setTab('layers')} style={c.tabStyle(tab === 'layers')} aria-pressed={tab === 'layers'}>
+                Layers
+              </button>
               <button type="button" data-testid="tab-insert" onClick={() => setTab('insert')} style={c.tabStyle(tab === 'insert')} aria-pressed={tab === 'insert'}>
                 Insert
               </button>
@@ -1184,6 +1188,9 @@ function App(): ReactElement {
                 // Live, editable `.nodus.json`. Type valid JSON → the canvas rebuilds; a parse error
                 // shows a red line and leaves the canvas untouched; canvas edits flow back into the text.
                 <CodePanel editor={editor} style={{ height: '100%' }} />
+              ) : tab === 'layers' ? (
+                // Scene tree: select · inline-rename · hide/show · lock · reorder, synced to the canvas.
+                <LayersPanel editor={editor} style={{ height: '100%' }} />
               ) : (
                 // Insert tab — always available (not selection-gated). Hosts the browsable palettes
                 // whose popovers can't fit the narrow docked panel, rendered in their inline variant.

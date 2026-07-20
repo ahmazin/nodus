@@ -135,4 +135,12 @@ export {
   buildEmbedSnippet,
 } from './share.js';
 
+// layers / outline tree (scene panel: select · rename · hide · lock · reorder)
+export {
+  LayersPanel,
+  buildLayerTree,
+  type LayersPanelProps,
+  type LayerNode,
+} from './layers-panel.js';
+
 export type { Editor, Id };

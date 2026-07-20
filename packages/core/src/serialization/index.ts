@@ -131,6 +131,9 @@ function normalizeNode(r: Record<string, unknown>): NodeRecord | null {
     h: num(r.h, 50),
     ...(r.rotation !== undefined ? { rotation: num(r.rotation) } : {}),
     ...(typeof r.locked === 'boolean' ? { locked: r.locked } : {}),
+    // Visibility is omit-when-false: only a truly-hidden node carries the key, so canonical bytes
+    // never gain a `"hidden":false` and a never-hidden node round-trips byte-identically.
+    ...(r.hidden === true ? { hidden: true } : {}),
     z: typeof r.z === 'string' ? r.z : '00000000',
     ...(typeof r.parentId === 'string' ? { parentId: r.parentId as NodeRecord['parentId'] } : {}),
     visual: { state: visual.state ?? 'solid', ...(visual.overlay ? { overlay: visual.overlay } : {}), ...(visual.focused ? { focused: true } : {}) },
