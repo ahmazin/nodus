@@ -80,7 +80,7 @@ export function modelToRecords(model: InfraModel, overlays?: Record<string, stri
 
   for (const spec of model.nodes) {
     const type = isInfraKind(spec.type) ? `infra.${spec.type}` : spec.type;
-    const id = spec.id ?? makeId('node');
+    const id = spec.id ?? (spec.key ? makeId('node', spec.key) : makeId('node'));
     if (spec.key) idMap.set(spec.key, id);
     idMap.set(spec.id ?? id, id);
     const overlayName = overlays?.[spec.key ?? spec.id ?? ''] ?? spec.overlay;

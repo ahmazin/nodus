@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
+import { SyncInfra } from './sync-infra';
 import {
   ArrowIcon,
   BranchBar,
@@ -521,6 +522,7 @@ function App(): ReactElement {
   const [tab, setTab] = useState<'props' | 'source' | 'layers' | 'insert'>('props');
   const [exportOpen, setExportOpen] = useState(false);
   const [describeOpen, setDescribeOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -772,6 +774,7 @@ function App(): ReactElement {
       { id: 'insert.template', title: 'Add template…', group: 'Insert', run: () => setTemplatesOpen(true) },
       { id: 'insert.create', title: `Create ${createType} node`, group: 'Insert', run: () => editor.setTool('create', { type: `infra.${createType}` }) },
       { id: 'ai.describe', title: 'Describe a diagram (AI)…', group: 'Insert', run: () => setDescribeOpen(true) },
+      { id: 'infra.sync', title: 'Sync from infra source (drift)…', group: 'Import', run: () => setSyncOpen(true) },
       { id: 'view.sketch', title: sketchOn ? 'Disable hand-drawn (Sketch)' : 'Enable hand-drawn (Sketch)', group: 'View', run: toggleSketch },
       { id: 'view.flow', title: flowOn ? 'Stop animated flow' : 'Animate flow', group: 'View', run: toggleFlow },
       { id: 'export.svg', title: 'Export SVG (vector)', group: 'Export', run: exportSVG },
@@ -1101,6 +1104,14 @@ function App(): ReactElement {
                         K8s
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      data-testid="scene-sync"
+                      style={{ ...c.ghBtn, marginTop: 6, color: t.color.accent, borderColor: t.color.accent }}
+                      onClick={() => setSyncOpen(true)}
+                    >
+                      ⟳ Sync from infra source (drift)
+                    </button>
 
                     <div style={c.secLabel}>Insert</div>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -1235,6 +1246,7 @@ function App(): ReactElement {
           onClose={() => setDescribeOpen(false)}
           onGenerated={(records) => runImport(records, 'dagre')}
         />
+        <SyncInfra editor={editor} open={syncOpen} onClose={() => setSyncOpen(false)} />
       </div>
     </UiTokensProvider>
   );
