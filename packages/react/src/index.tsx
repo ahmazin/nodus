@@ -90,4 +90,37 @@ export {
   type UseAutosaveOptions,
 } from './persistence.js';
 
+// git-native round-trip + PR-review
+// Lossless text↔canvas editor and an in-app "branch vs main" diff/review flow, both anchored on
+// core's canonical serialization (`toCanonicalString`) as the single source of "same document."
+export { CodePanel, type CodePanelProps } from './code-panel.js';
+export {
+  editorToSource,
+  editorToCanonical,
+  canonicalOf,
+  parseSource,
+  sourceMatchesEditor,
+  applySource,
+  type SourceParse,
+} from './round-trip.js';
+export {
+  unifiedDiff,
+  type DiffLineKind,
+  type UnifiedDiffLine,
+  type UnifiedDiffResult,
+} from './unified-diff.js';
+export {
+  useBranch,
+  computeBranch,
+  type BranchInfo,
+  type BranchComparison,
+  type UseBranchOptions,
+} from './use-branch.js';
+export {
+  BranchBar,
+  ReviewModal,
+  type BranchBarProps,
+  type ReviewModalProps,
+} from './review-modal.js';
+
 export type { Editor, Id };

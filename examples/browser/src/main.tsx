@@ -15,9 +15,11 @@ import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import {
   ArrowIcon,
+  BranchBar,
   Button,
   CircleIcon,
   CloudIconPicker,
+  CodePanel,
   CommandPalette,
   ConnectIcon,
   DiamondIcon,
@@ -584,10 +586,6 @@ function App(): ReactElement {
   const selCount = useValue(() => editor.selectedAtom.get().size);
   const nodeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.nodes().length));
   const edgeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.edges().length));
-  // Live source — re-serializes on every document mutation (version bump). We call `editor.toJSON()`
-  // WITHOUT meta so there's no volatile `updated: Date.now()` (which `serializeDocument` injects) to
-  // churn the view; the result is stable and diff-clean.
-  const sourceJson = useValue(() => (editor.sceneIndex.version.get(), JSON.stringify(editor.toJSON(), null, 2)));
 
   const insertImage = useCallback((): void => {
     const input = document.createElement('input');
@@ -866,6 +864,8 @@ function App(): ReactElement {
             {nodeCount} nodes · {selCount} selected
           </span>
           <UndoRedo editor={editor} />
+          {/* Git-native: working tree vs an in-app "main" baseline — live +adds/−dels + a review/diff modal. */}
+          <BranchBar editor={editor} />
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7 }}>
             {/* Persistent auto-layout (dagre). Always visible so it's reachable regardless of the
@@ -1161,33 +1161,9 @@ function App(): ReactElement {
                   </div>
                 )
               ) : tab === 'source' ? (
-                <div style={{ padding: '12px 13px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontFamily: t.font.mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: t.color.textFaint }}>
-                      canonical · live
-                    </span>
-                    <button
-                      type="button"
-                      onClick={copySource}
-                      style={{
-                        marginLeft: 'auto',
-                        fontFamily: t.font.mono,
-                        fontSize: '11px',
-                        color: t.color.accent,
-                        background: 'transparent',
-                        border: `1px solid ${t.color.borderStrong}`,
-                        borderRadius: 6,
-                        padding: '3px 8px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      copy
-                    </button>
-                  </div>
-                  <pre style={{ margin: 0, fontFamily: t.font.mono, fontSize: '11px', lineHeight: 1.6, color: t.color.textMuted, whiteSpace: 'pre', overflowX: 'auto' }}>
-                    {sourceJson}
-                  </pre>
-                </div>
+                // Live, editable `.nodus.json`. Type valid JSON → the canvas rebuilds; a parse error
+                // shows a red line and leaves the canvas untouched; canvas edits flow back into the text.
+                <CodePanel editor={editor} style={{ height: '100%' }} />
               ) : (
                 // Insert tab — always available (not selection-gated). Hosts the browsable palettes
                 // whose popovers can't fit the narrow docked panel, rendered in their inline variant.
