@@ -12,27 +12,55 @@ import {
   type ResolvedTokens,
 } from '../index.js';
 
-/** A no-op Ctx2D that records how often key paint ops fire and captures drawn text. */
+/**
+ * A no-op Ctx2D that records how often key paint ops fire, captures drawn text, and — for the glass
+ * material assertions — snapshots `fillStyle`/`strokeStyle` + shadow state at each `fill()`/`stroke()`
+ * call (since this fake ctx has no real save/restore stack, sampling at call-time is the only way to
+ * associate paint state with a specific op) and records gradient stops created via
+ * `createLinearGradient`.
+ */
 function stubCtx() {
   const calls: Record<string, number> = {};
   const rec = (name: string) => {
     calls[name] = (calls[name] ?? 0) + 1;
   };
   const texts: string[] = [];
+  const gradientStops: { at: number; color: string }[][] = [];
+  const fillSnapshots: { fillStyle: unknown; shadowColor: string; shadowBlur: number; shadowOffsetY: number }[] = [];
+  const strokeSnapshots: { strokeStyle: unknown; shadowColor: string; shadowBlur: number }[] = [];
   const ctx = {
     save() {}, restore() {}, scale() {}, translate() {}, rotate() {}, setTransform() {}, transform() {},
     clearRect() {}, fillRect() { rec('fillRect'); }, strokeRect() {},
     beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, arcTo() {}, ellipse() {},
     quadraticCurveTo() {}, bezierCurveTo() {}, rect() {},
-    fill() { rec('fill'); }, stroke() { rec('stroke'); }, clip() {},
+    fill() {
+      rec('fill');
+      fillSnapshots.push({
+        fillStyle: ctx.fillStyle,
+        shadowColor: ctx.shadowColor,
+        shadowBlur: ctx.shadowBlur,
+        shadowOffsetY: ctx.shadowOffsetY,
+      });
+    },
+    stroke() {
+      rec('stroke');
+      strokeSnapshots.push({ strokeStyle: ctx.strokeStyle, shadowColor: ctx.shadowColor, shadowBlur: ctx.shadowBlur });
+    },
+    clip() {},
     fillText(t: string) { rec('fillText'); texts.push(t); }, strokeText() {},
     measureText(t: string) { return { width: t.length * 6 }; },
     setLineDash() {},
+    createLinearGradient() {
+      rec('createLinearGradient');
+      const stops: { at: number; color: string }[] = [];
+      gradientStops.push(stops);
+      return { addColorStop(at: number, color: string) { stops.push({ at, color }); } };
+    },
     fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '', lineDashOffset: 0,
     font: '', textAlign: '', textBaseline: '', globalAlpha: 1,
     shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
   };
-  return { ctx: ctx as unknown as Ctx2D, calls, texts };
+  return { ctx: ctx as unknown as Ctx2D, calls, texts, gradientStops, fillSnapshots, strokeSnapshots };
 }
 
 const TOKENS: ResolvedTokens = {
@@ -98,6 +126,44 @@ describe('built-in glyphs', () => {
       expect(() => draw(ctx, 0, 0, 40, '#3b82f6', '#3b82f6')).not.toThrow();
       expect(() => draw(ctx, 0, 0, 40, '#3b82f6')).not.toThrow(); // fill omitted -> body falls back
     }
+  });
+});
+
+describe('drawStencil glass material', () => {
+  const SHADOW = { color: 'rgba(0,0,0,0.30)', blur: 16, dy: 4 };
+  const GLASS_TOKENS: ResolvedTokens = { ...TOKENS, glass: 0.16, shadow: SHADOW };
+
+  it('glass>0: tile fills with a two-stop gradient + shadow; glow moves to the stroke; rim-light strokes', () => {
+    const { ctx, fillSnapshots, gradientStops, strokeSnapshots } = stubCtx();
+    drawStencil(new DrawApi(ctx, GLASS_TOKENS), node(), GLASS_TOKENS, { icon: 'balancer', label: 'Load Balancer' });
+
+    // the tile fill (first fill() call) used a gradient, not a flat color
+    const tileFill = fillSnapshots[0]!;
+    expect(gradientStops.length).toBeGreaterThan(0);
+    expect(typeof tileFill.fillStyle).not.toBe('string');
+    expect(gradientStops[0]).toHaveLength(2);
+
+    // ...and carried the offset drop-shadow
+    expect(tileFill.shadowColor).toBe(SHADOW.color);
+    expect(tileFill.shadowBlur).toBe(SHADOW.blur);
+
+    // the category glow rides the stroke instead (glowBlur 8)
+    expect(strokeSnapshots.some((s) => s.shadowColor === GLASS_TOKENS.glow && s.shadowBlur === 8)).toBe(true);
+
+    // a white inner rim-light was stroked
+    expect(
+      strokeSnapshots.some((s) => typeof s.strokeStyle === 'string' && (s.strokeStyle as string).startsWith('rgba(255,255,255,')),
+    ).toBe(true);
+  });
+
+  it('glass unset: flat fill, no gradient — unchanged from today', () => {
+    const { ctx, fillSnapshots, gradientStops } = stubCtx();
+    drawStencil(new DrawApi(ctx, TOKENS), node(), TOKENS, { icon: 'balancer', label: 'Load Balancer' });
+
+    expect(gradientStops.length).toBe(0);
+    const tileFill = fillSnapshots[0]!;
+    expect(tileFill.fillStyle).toBe(TOKENS.fill);
+    expect(tileFill.shadowBlur).toBe(14); // today's plain glow blur on the fill
   });
 });
 

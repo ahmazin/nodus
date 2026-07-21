@@ -44,7 +44,14 @@ export const darkInfraTheme: Theme = {
   states: {
     // accent: fill + width only; stroke/text/glow come from the type's byType slice (layered before
     // the state), so per-type accent colors win. Non-infra types fall back to BASE stroke/text.
-    accent: { fill: '#0c100f', strokeWidth: 1 } as Theme['states'][string],
+    // glass/shadow give infra tiles a glassy material (S1 T3): vertical gradient fill + offset
+    // drop-shadow + inner rim-light; no ambient wash here (that's a separate follow-up).
+    accent: {
+      fill: '#0c100f',
+      strokeWidth: 1,
+      glass: 0.16,
+      shadow: { color: 'rgba(0,0,0,0.30)', blur: 16, dy: 4 },
+    } as Theme['states'][string],
     // solid: neutral grey border/text, no glow
     solid: { fill: '#0c100f', stroke: '#3a423f', strokeWidth: 1, text: '#e5e5e5', glow: null },
     // ghost: faded previous-layer look
@@ -101,7 +108,13 @@ export const infraLightTheme: Theme = {
   canvas: { fill: '#f7f9f8', grid: { color: 'rgba(7,10,9,0.05)', size: 24 } },
   states: {
     // accent: light card fill only; stroke/text/glow come from the type's byType slice.
-    accent: { fill: '#f3faf7', strokeWidth: 1 } as Theme['states'][string],
+    // Calmer glass than dark — depth without a heavy wash (bloom/washes are a later pass).
+    accent: {
+      fill: '#f3faf7',
+      strokeWidth: 1,
+      glass: 0.08,
+      shadow: { color: 'rgba(20,30,40,0.16)', blur: 12, dy: 3 },
+    } as Theme['states'][string],
     // solid: neutral grey border, dark ink, no glow.
     solid: { fill: '#ffffff', stroke: '#cbd5e1', strokeWidth: 1, text: '#1a2420', glow: null },
     // ghost: faded previous-layer look.

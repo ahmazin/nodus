@@ -8,6 +8,7 @@
 import { getIconMeta } from '../icons/index.js';
 import type { NodeRecord } from '../model.js';
 import type { ResolvedTokens } from '../theme/index.js';
+import { shade } from './color.js';
 import type { DrawApi } from './draw-api.js';
 
 const TILE = 54; // glyph tile side at the default size
@@ -51,14 +52,46 @@ export function drawStencil(api: DrawApi, node: NodeRecord, tokens: ResolvedToke
     h: tile,
   };
 
-  api.fillRoundRect(tileBox, tokens.radius, tokens.fill, {
-    glow: tokens.glow ?? undefined,
-    glowBlur: 14,
-  });
-  api.strokeRoundRect(tileBox, tokens.radius, tokens.stroke, {
-    width: tokens.strokeWidth,
-    dash: tokens.dash,
-  });
+  // Glassy material (gradient fill + offset drop-shadow + inner rim-light) when the theme opts in via
+  // `tokens.glass`; otherwise the fast path paints exactly as before (flat fill + plain stroke).
+  const glass = tokens.glass ?? 0;
+  if (glass > 0) {
+    api.fillRoundRect(tileBox, tokens.radius, tokens.fill, {
+      gradient: {
+        stops: [
+          { at: 0, color: shade(tokens.fill, glass) },
+          { at: 1, color: shade(tokens.fill, -glass) },
+        ],
+      },
+      ...(tokens.shadow ? { shadow: tokens.shadow } : {}),
+    });
+    // category glow rides the stroke (offset shadow + symmetric glow can't share one fill call)
+    api.strokeRoundRect(tileBox, tokens.radius, tokens.stroke, {
+      width: tokens.strokeWidth,
+      dash: tokens.dash,
+      glow: tokens.glow ?? undefined,
+      glowBlur: 8,
+    });
+    // 1px inner top rim-light
+    const r = tokens.radius;
+    api.strokePolyline(
+      [
+        { x: tileBox.x + r, y: tileBox.y + 1 },
+        { x: tileBox.x + tileBox.w - r, y: tileBox.y + 1 },
+      ],
+      `rgba(255,255,255,${Math.min(0.4, glass * 1.1).toFixed(3)})`,
+      { width: 1 },
+    );
+  } else {
+    api.fillRoundRect(tileBox, tokens.radius, tokens.fill, {
+      glow: tokens.glow ?? undefined,
+      glowBlur: 14,
+    });
+    api.strokeRoundRect(tileBox, tokens.radius, tokens.stroke, {
+      width: tokens.strokeWidth,
+      dash: tokens.dash,
+    });
+  }
 
   // Locked nodes hide the glyph and show the override label ('?').
   const locked = tokens.labelOverride !== undefined;
