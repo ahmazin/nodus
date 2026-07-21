@@ -15,6 +15,11 @@ const TILE = 54; // glyph tile side at the default size
 const GAP = 4; // gap between tile and label band
 const LABEL_BAND = 16; // reserved height for the label under the tile
 
+/** Depth-of-field LOD threshold: below this camera zoom, `drawStencil` drops the glyph (+ its optional
+ *  chip) and the sub-label, painting only the tile fill + stroke — small, zoomed-out nodes declutter
+ *  instead of rendering illegible glyphs/text. At/above threshold: today's full detail. */
+const LOD_THRESHOLD = 0.5;
+
 /** Layout constants + the default square-ish node size for stencil nodes. */
 export const STENCIL = {
   TILE,
@@ -92,6 +97,10 @@ export function drawStencil(api: DrawApi, node: NodeRecord, tokens: ResolvedToke
       dash: tokens.dash,
     });
   }
+
+  // Depth-of-field LOD: below the threshold, zoomed-out nodes skip the glyph + sub-label entirely —
+  // just the tile. At/above threshold, today's full detail (glyph + label).
+  if (api.zoom < LOD_THRESHOLD) return;
 
   // Locked nodes hide the glyph and show the override label ('?').
   const locked = tokens.labelOverride !== undefined;

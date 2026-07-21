@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   DrawApi,
   STENCIL,
@@ -164,6 +164,32 @@ describe('drawStencil glass material', () => {
     const tileFill = fillSnapshots[0]!;
     expect(tileFill.fillStyle).toBe(TOKENS.fill);
     expect(tileFill.shadowBlur).toBe(14); // today's plain glow blur on the fill
+  });
+});
+
+describe('drawStencil depth-of-field LOD', () => {
+  it('below the LOD threshold (zoom 0.4), the glyph and label are skipped — tile only', () => {
+    const { ctx } = stubCtx();
+    const api = new DrawApi(ctx, TOKENS, 0, 0.4);
+    const iconSpy = vi.spyOn(api, 'icon');
+    const labelSpy = vi.spyOn(api, 'label');
+
+    drawStencil(api, node(), TOKENS, { icon: 'balancer', label: 'Load Balancer' });
+
+    expect(iconSpy).not.toHaveBeenCalled();
+    expect(labelSpy).not.toHaveBeenCalled();
+  });
+
+  it('at zoom 1 (default), the glyph and label are drawn — full detail', () => {
+    const { ctx } = stubCtx();
+    const api = new DrawApi(ctx, TOKENS, 0, 1);
+    const iconSpy = vi.spyOn(api, 'icon');
+    const labelSpy = vi.spyOn(api, 'label');
+
+    drawStencil(api, node(), TOKENS, { icon: 'balancer', label: 'Load Balancer' });
+
+    expect(iconSpy).toHaveBeenCalledTimes(1);
+    expect(labelSpy).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -91,11 +91,17 @@ export class DrawApi {
    * `seed` is the per-shape jitter seed (a hash of the record id, see `hashId`). It is threaded in by
    * `paintItem` and consumed only when a resolved token carries `roughness > 0`; at roughness 0 it is
    * ignored and every primitive paints its exact clean path.
+   *
+   * `zoom` is the camera zoom at paint time (world→screen scale). It is threaded in by `paintItem` and
+   * consumed by depth-of-field LOD (see `drawStencil`'s `LOD_THRESHOLD`) to drop fine detail (glyph +
+   * sub-label) below a zoomed-out threshold; it defaults to 1 (full detail) so callers that never pass
+   * a zoom — like `paintRegion`'s PNG export — keep today's exact behavior.
    */
   constructor(
     readonly ctx: Ctx2D,
     readonly tokens: ResolvedTokens,
     readonly seed: number = 0,
+    readonly zoom: number = 1,
   ) {}
 
   // ---- path construction ----

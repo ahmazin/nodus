@@ -226,7 +226,10 @@ export interface ItemPresentation {
  *  omitted is the exact prior behavior (fast path) — layer-cache output is unchanged. `override`, when
  *  supplied, is shallow-merged over the resolved tokens (`{ ...tokens, ...override }`) before the item
  *  is drawn — e.g. the editor uses it to inject a per-edge source→target `strokeGradient` that only it
- *  can compute (it alone can see both endpoint nodes' colors). Omitted is the exact prior behavior. */
+ *  can compute (it alone can see both endpoint nodes' colors). Omitted is the exact prior behavior.
+ *  `zoom`, when supplied, is threaded into the `DrawApi` for depth-of-field LOD (e.g. `drawStencil`
+ *  drops the glyph + sub-label below its threshold); omitted defaults to 1 (full detail) — the
+ *  `paintRegion`/PNG-export call site passes none, so exports always render full detail. */
 export function paintItem(
   ctx: Ctx2D,
   item: RenderItem,
@@ -235,6 +238,7 @@ export function paintItem(
   theme: Theme,
   present?: ItemPresentation,
   override?: Partial<ResolvedTokens>,
+  zoom?: number,
 ): void {
   const rec = item.record;
   let tokens: ResolvedTokens;
@@ -249,7 +253,7 @@ export function paintItem(
   // Per-shape jitter seed for the optional sketchy style (see DrawApi). A stable hash of the record id
   // means the hand-drawn wobble is identical every frame, reload, and headless export — never random,
   // never serialized. It is inert unless a resolved token carries roughness > 0.
-  const api = new DrawApi(ctx, tokens, hashId(rec.id));
+  const api = new DrawApi(ctx, tokens, hashId(rec.id), zoom ?? 1);
   ctx.save();
   try {
     ctx.globalAlpha *= tokens.opacity;

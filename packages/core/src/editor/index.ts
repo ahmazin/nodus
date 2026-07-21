@@ -1563,7 +1563,7 @@ export class Editor implements EngineHost {
     this.setWorldTransform(ctx, dpr);
     for (const item of items) {
       const override = item.kind === 'edge' ? this.edgeGradientOverride(item, theme) : undefined;
-      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override);
+      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override, cam.z);
     }
   }
 
