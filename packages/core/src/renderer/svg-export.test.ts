@@ -217,4 +217,58 @@ describe('SVGContext gradients', () => {
     expect(a).toContain('fill="url(#nd-grad-1)"');
     expect(build()).toBe(a); // deterministic
   });
+
+  it('emits a deterministic radialGradient def and references it via url()', () => {
+    const ctx = new SVGContext();
+    const g = ctx.createRadialGradient(50, 50, 0, 50, 50, 80);
+    g.addColorStop(0, '#112233');
+    g.addColorStop(1, '#445566');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.rect(0, 0, 100, 100);
+    ctx.fill();
+    const out = ctx.toSVG(100, 100);
+    expect(out).toContain('<defs>');
+    expect(out).toContain(
+      '<radialGradient id="nd-rgrad-0" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="80" fx="50" fy="50">',
+    );
+    expect(out).toContain('<stop offset="0" stop-color="#112233"/>');
+    expect(out).toContain('<stop offset="1" stop-color="#445566"/>');
+    expect(out).toContain('fill="url(#nd-rgrad-0)"');
+    // determinism: identical scene → identical markup
+    const ctx2 = new SVGContext();
+    const g2 = ctx2.createRadialGradient(50, 50, 0, 50, 50, 80);
+    g2.addColorStop(0, '#112233');
+    g2.addColorStop(1, '#445566');
+    ctx2.fillStyle = g2;
+    ctx2.beginPath();
+    ctx2.rect(0, 0, 100, 100);
+    ctx2.fill();
+    expect(ctx2.toSVG(100, 100)).toBe(out);
+  });
+
+  it('assigns radial ids in draw order, independent of the linear counter', () => {
+    const ctx = new SVGContext();
+    const lin = ctx.createLinearGradient(0, 0, 0, 10);
+    lin.addColorStop(0, '#000000');
+    lin.addColorStop(1, '#ffffff');
+    ctx.fillStyle = lin;
+    ctx.beginPath();
+    ctx.rect(0, 0, 10, 10);
+    ctx.fill();
+
+    const rad = ctx.createRadialGradient(5, 5, 0, 5, 5, 5);
+    rad.addColorStop(0, '#111111');
+    rad.addColorStop(1, '#222222');
+    ctx.fillStyle = rad;
+    ctx.beginPath();
+    ctx.rect(10, 0, 10, 10);
+    ctx.fill();
+
+    const out = ctx.toSVG(20, 10);
+    expect(out).toContain('id="nd-grad-0"');
+    expect(out).toContain('id="nd-rgrad-0"');
+    expect(out).toContain('fill="url(#nd-grad-0)"');
+    expect(out).toContain('fill="url(#nd-rgrad-0)"');
+  });
 });

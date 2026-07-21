@@ -21,8 +21,8 @@
  *  - `drawImage` emits `<image href>` only if the drawable exposes a string `src`/`currentSrc`;
  *    otherwise a dashed placeholder box is drawn. The engine-owned `DrawableImage` type only
  *    guarantees `width`/`height`, so the href is read best-effort.
- *  - Linear gradients render as `<linearGradient>` defs (see `paintValue`); other paint types
- *    (patterns, radial gradients) are not supported by `createLinearGradient`'s recorder.
+ *  - Linear and radial gradients render as `<linearGradient>`/`<radialGradient>` defs (see
+ *    `paintValue`); other paint types (patterns) are not supported.
  */
 
 import type { Ctx2D, CanvasGradientLike, DrawableImage } from './context.js';
@@ -36,9 +36,11 @@ interface Matrix {
   f: number;
 }
 
+type SVGPaint = string | SVGGradient | SVGRadialGradient;
+
 interface StyleState {
-  fillStyle: string | SVGGradient;
-  strokeStyle: string | SVGGradient;
+  fillStyle: SVGPaint;
+  strokeStyle: SVGPaint;
   lineWidth: number;
   lineCap: string;
   lineJoin: string;
@@ -153,12 +155,29 @@ class SVGGradient implements CanvasGradientLike {
   }
 }
 
+/** Records a radial gradient's geometry + stops; serialized to a `<radialGradient>` def by SVGContext. */
+class SVGRadialGradient implements CanvasGradientLike {
+  readonly stops: { offset: number; color: string }[] = [];
+  constructor(
+    readonly x0: number,
+    readonly y0: number,
+    readonly r0: number,
+    readonly x1: number,
+    readonly y1: number,
+    readonly r1: number,
+  ) {}
+  addColorStop(offset: number, color: string): void {
+    this.stops.push({ offset, color });
+  }
+}
+
 export class SVGContext implements Ctx2D {
   private body: string[] = [];
   private ctm: Matrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
   private stack: { ctm: Matrix; style: StyleState }[] = [];
   private defs: string[] = [];
   private gradSeq = 0;
+  private radGradSeq = 0;
 
   // path accumulation (in the current user space; the transform is applied via the wrapping <g>)
   private path: string[] = [];
@@ -556,13 +575,34 @@ export class SVGContext implements Ctx2D {
     return new SVGGradient(x0, y0, x1, y1);
   }
 
-  /** Resolve a fill/stroke style to an SVG paint value; registers a `<linearGradient>` def for gradients. */
-  private paintValue(style: string | SVGGradient): string {
+  createRadialGradient(
+    x0: number,
+    y0: number,
+    r0: number,
+    x1: number,
+    y1: number,
+    r1: number,
+  ): SVGRadialGradient {
+    return new SVGRadialGradient(x0, y0, r0, x1, y1, r1);
+  }
+
+  /** Resolve a fill/stroke style to an SVG paint value; registers a `<linearGradient>`/`<radialGradient>`
+   *  def for gradients, in draw order (each gradient kind has its own id sequence). */
+  private paintValue(style: SVGPaint): string {
     if (typeof style === 'string') return escapeAttr(style);
-    const id = `nd-grad-${this.gradSeq++}`;
     const stops = style.stops
       .map((s) => `<stop offset="${fmt(s.offset)}" stop-color="${escapeAttr(s.color)}"/>`)
       .join('');
+    if (style instanceof SVGRadialGradient) {
+      const id = `nd-rgrad-${this.radGradSeq++}`;
+      this.defs.push(
+        `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" ` +
+          `cx="${fmt(style.x1)}" cy="${fmt(style.y1)}" r="${fmt(style.r1)}" ` +
+          `fx="${fmt(style.x0)}" fy="${fmt(style.y0)}">${stops}</radialGradient>`,
+      );
+      return `url(#${id})`;
+    }
+    const id = `nd-grad-${this.gradSeq++}`;
     this.defs.push(
       `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" ` +
         `x1="${fmt(style.x0)}" y1="${fmt(style.y0)}" x2="${fmt(style.x1)}" y2="${fmt(style.y1)}">${stops}</linearGradient>`,
@@ -572,16 +612,16 @@ export class SVGContext implements Ctx2D {
 
   // ---- style properties (backed by the current style state) ----
 
-  get fillStyle(): string | SVGGradient {
+  get fillStyle(): SVGPaint {
     return this.style.fillStyle;
   }
-  set fillStyle(v: string | SVGGradient) {
+  set fillStyle(v: SVGPaint) {
     this.style.fillStyle = v;
   }
-  get strokeStyle(): string | SVGGradient {
+  get strokeStyle(): SVGPaint {
     return this.style.strokeStyle;
   }
-  set strokeStyle(v: string | SVGGradient) {
+  set strokeStyle(v: SVGPaint) {
     this.style.strokeStyle = v;
   }
   get lineWidth(): number {
