@@ -40,7 +40,19 @@ export const darkInfraTheme: Theme = {
     lineHeight: 1.3,
   },
   radii: { node: 7 },
-  canvas: { fill: '#070a09', grid: { color: 'rgba(255,255,255,0.03)', size: 24 } },
+  canvas: {
+    fill: '#070a09',
+    grid: { color: 'rgba(255,255,255,0.03)', size: 24 },
+    // S1 T5 — the "separate follow-up" noted above: a soft accent-green + cool-blue wash plus an inner
+    // vignette. Editor chrome only (drawAmbient is never called from paintRegion), so exports stay clean.
+    ambient: {
+      washes: [
+        { color: 'rgba(16,185,129,0.10)', cx: 0.25, cy: 0.2, r: 0.6 },
+        { color: 'rgba(59,130,246,0.10)', cx: 0.8, cy: 0.85, r: 0.6 },
+      ],
+      vignette: 0.12,
+    },
+  },
   states: {
     // accent: fill + width only; stroke/text/glow come from the type's byType slice (layered before
     // the state), so per-type accent colors win. Non-infra types fall back to BASE stroke/text.

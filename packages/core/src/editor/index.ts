@@ -57,7 +57,7 @@ import {
   type ToolNode,
 } from '../tools/index.js';
 import { rectNodeUtil, lineEdgeUtil, groupNodeUtil } from '../builtins/index.js';
-import { drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
+import { drawAmbient, drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
 import { StaticLayerCache, type CreateOffscreen, type LayerCacheStats } from '../renderer/layer-cache.js';
 import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveFlow } from '../flow.js';
@@ -1550,6 +1550,7 @@ export class Editor implements EngineHost {
     const theme = this.themeAtom.peek();
     const cam = this.camera;
     fillBackground(ctx, theme, cssW * dpr, cssH * dpr);
+    drawAmbient(ctx, theme, cam, cssW * dpr, cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);

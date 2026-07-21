@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultTheme, type Ctx2D, type NodeRecord, type NodeRegistry, type NodeUtil, type RenderItem } from '../index.js';
-import { paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
+import { defaultTheme, type Camera, type Ctx2D, type NodeRecord, type NodeRegistry, type NodeUtil, type RenderItem } from '../index.js';
+import { drawAmbient, paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
 import { clearTokenCache } from './token-cache.js';
 
 /** A stub Ctx2D that counts key ops and maintains a real save/restore stack for `globalAlpha`, so we
@@ -160,5 +160,81 @@ describe('paintItem presentation modifier', () => {
 
     const transformOps = log.filter((l) => l.startsWith('translate(') || l.startsWith('scale('));
     expect(transformOps).toEqual(['translate(25,17)', 'scale(2,2)', 'translate(-20,-10)']);
+  });
+});
+
+/** A stub Ctx2D that counts `createRadialGradient`/`fillRect` calls and hands back a fake gradient with
+ *  a no-op `addColorStop`, so `drawAmbient` can be exercised without a real canvas. */
+function ambientRecordingCtx(): { ctx: Ctx2D; radialGradients: number; fills: number } {
+  const counts = { radialGradients: 0, fills: 0 };
+  const gradient = { addColorStop() {} };
+  const obj: Record<string, unknown> = {
+    globalAlpha: 1,
+    save() {}, restore() {},
+    scale() {}, translate() {}, rotate() {}, setTransform() {}, transform() {},
+    clearRect() {}, fillRect() { counts.fills++; }, strokeRect() {},
+    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, arcTo() {}, ellipse() {},
+    quadraticCurveTo() {}, bezierCurveTo() {}, rect() {},
+    fill() {}, stroke() {}, clip() {},
+    fillText() {}, strokeText() {}, measureText: (t: string) => ({ width: t.length * 6 }),
+    setLineDash() {}, drawImage() {},
+    createLinearGradient() { return gradient; },
+    createRadialGradient() { counts.radialGradients++; return gradient; },
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '', lineDashOffset: 0,
+    font: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
+  };
+  return {
+    ctx: obj as unknown as Ctx2D,
+    get radialGradients() { return counts.radialGradients; },
+    get fills() { return counts.fills; },
+  };
+}
+
+describe('drawAmbient', () => {
+  const cam: Camera = { x: 0, y: 0, z: 1 };
+
+  it('no-ops when theme.canvas.ambient is undefined — zero gradients, zero fills', () => {
+    // read the counters AFTER the call (they are live getters) — a destructure up front would freeze
+    // them at their pre-call value of 0 and pass vacuously.
+    const probe = ambientRecordingCtx();
+
+    drawAmbient(probe.ctx, defaultTheme, cam, 800, 600);
+
+    expect(probe.radialGradients).toBe(0);
+    expect(probe.fills).toBe(0);
+  });
+
+  it('paints one radial gradient per wash plus a vignette gradient when ambient is set', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        ambient: {
+          washes: [{ color: 'rgba(16,185,129,0.10)', cx: 0.25, cy: 0.2, r: 0.6 }],
+          vignette: 0.12,
+        },
+      },
+    };
+    const probe = ambientRecordingCtx();
+
+    drawAmbient(probe.ctx, theme, cam, 800, 600);
+
+    // one wash + one vignette = at least 2 radial gradients, each backed by a fill.
+    expect(probe.radialGradients).toBeGreaterThanOrEqual(2);
+    expect(probe.fills).toBeGreaterThanOrEqual(2);
+  });
+
+  it('guards a non-finite camera like drawGrid does — no gradients, no throw', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        ambient: { washes: [{ color: 'rgba(16,185,129,0.10)', cx: 0.5, cy: 0.5, r: 0.5 }] },
+      },
+    };
+    const probe = ambientRecordingCtx();
+
+    expect(() => drawAmbient(probe.ctx, theme, { x: NaN, y: 0, z: 1 }, 800, 600)).not.toThrow();
+    expect(probe.radialGradients).toBe(0);
   });
 });

@@ -56,6 +56,54 @@ export function fillBackground(ctx: Ctx2D, theme: Theme, deviceW: number, device
   ctx.fillRect(0, 0, deviceW, deviceH);
 }
 
+/** Subtle parallax factor for ambient wash centers relative to camera pan — small enough that the
+ *  wash reads as fixed background depth, not a tracking spotlight. */
+const AMBIENT_PARALLAX_K = 0.04;
+
+/**
+ * Ambient background wash: soft radial color glows plus an inner vignette, drawn in device-px space
+ * (identity transform, like `fillBackground` — caller sets it up first). Editor chrome only — never
+ * called from `paintRegion`, so exported PNGs/SVGs stay clean. No-op when `theme.canvas.ambient` is
+ * undefined. Wash centers drift opposite the camera pan by a small `AMBIENT_PARALLAX_K` factor, giving
+ * a subtle parallax as the user pans — the wash feels like it sits behind the diagram, not glued to it.
+ */
+export function drawAmbient(ctx: Ctx2D, theme: Theme, cam: Camera, deviceW: number, deviceH: number): void {
+  const ambient = theme.canvas.ambient;
+  if (!ambient) return;
+  // guard a non-finite camera (NaN/Infinity pan or zoom) the same way `drawGrid` does — a bad parallax
+  // offset must not corrupt the gradient centers or throw mid-frame.
+  if (!Number.isFinite(cam.x + cam.y + cam.z)) return;
+  if (!Number.isFinite(deviceW) || !Number.isFinite(deviceH) || deviceW <= 0 || deviceH <= 0) return;
+
+  const diagonal = Math.hypot(deviceW, deviceH);
+  const parallaxX = -cam.x * AMBIENT_PARALLAX_K;
+  const parallaxY = -cam.y * AMBIENT_PARALLAX_K;
+
+  ctx.save();
+  for (const wash of ambient.washes) {
+    const cx = wash.cx * deviceW + parallaxX;
+    const cy = wash.cy * deviceH + parallaxY;
+    const r = wash.r * diagonal;
+    if (r <= 0) continue;
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    gradient.addColorStop(0, wash.color);
+    gradient.addColorStop(1, 'rgba(0,0,0,0)'); // fades to fully transparent — an additive glow, not a tint
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, deviceW, deviceH);
+  }
+  if (ambient.vignette) {
+    const cx = deviceW / 2;
+    const cy = deviceH / 2;
+    const r = diagonal / 2;
+    const vignette = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, `rgba(0,0,0,${ambient.vignette})`);
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, deviceW, deviceH);
+  }
+  ctx.restore();
+}
+
 /** Dot grid, drawn in CSS-pixel space (caller sets transform to `[dpr,0,0,dpr,0,0]`). */
 export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cssH: number): void {
   const grid = theme.canvas.grid;
