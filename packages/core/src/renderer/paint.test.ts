@@ -59,6 +59,31 @@ function registryOf(...utils: NodeUtil[]): NodeRegistry {
 
 const noEdges = { get: () => undefined } as unknown as Parameters<typeof paintItem>[3];
 
+/** A Ctx2D that logs every `translate`/`scale` call (with args) to an ordered array, mirroring the
+ *  `recordingCtx()` pattern in `sketchy.test.ts` — lets us assert the exact presentation transform
+ *  sequence `paintItem` applies about the item's aabb center. Every other member is a harmless no-op
+ *  stub so `paintItem`'s save/restore/globalAlpha/draw plumbing doesn't throw. */
+function transformRecordingCtx(): { ctx: Ctx2D; log: string[] } {
+  const log: string[] = [];
+  const fmt = (v: unknown): string => (typeof v === 'number' ? v.toString() : String(v));
+  const obj: Record<string, unknown> = {
+    globalAlpha: 1,
+    save() {}, restore() {},
+    translate(x: number, y: number) { log.push(`translate(${fmt(x)},${fmt(y)})`); },
+    scale(x: number, y: number) { log.push(`scale(${fmt(x)},${fmt(y)})`); },
+    rotate() {}, setTransform() {}, transform() {},
+    clearRect() {}, fillRect() {}, strokeRect() {},
+    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, arcTo() {}, ellipse() {},
+    quadraticCurveTo() {}, bezierCurveTo() {}, rect() {},
+    fill() {}, stroke() {}, clip() {},
+    fillText() {}, strokeText() {}, measureText: (t: string) => ({ width: t.length * 6 }),
+    setLineDash() {}, drawImage() {},
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '', lineDashOffset: 0,
+    font: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
+  };
+  return { ctx: obj as unknown as Ctx2D, log };
+}
+
 afterEach(() => {
   setPaintErrorHandler(null);
   clearTokenCache();
@@ -123,5 +148,17 @@ describe('paintItem presentation modifier', () => {
     paintItem(ctx, nodeItem('n1', 'n'), nodes, noEdges, defaultTheme);
 
     expect(drawn[0]).toBe(1);
+  });
+
+  it('applies scale/offset about the aabb center: translate(cx+dx,cy+dy) → scale → translate(-cx,-cy)', () => {
+    const nodes = registryOf(util('n', () => {}));
+    const { ctx, log } = transformRecordingCtx();
+    const item = nodeItem('n1', 'n'); // aabb: { x: 0, y: 0, w: 40, h: 20 } → center (20, 10)
+    const present: ItemPresentation = { alpha: 1, scale: 2, dx: 5, dy: 7 };
+
+    paintItem(ctx, item, nodes, noEdges, defaultTheme, present);
+
+    const transformOps = log.filter((l) => l.startsWith('translate(') || l.startsWith('scale('));
+    expect(transformOps).toEqual(['translate(25,17)', 'scale(2,2)', 'translate(-20,-10)']);
   });
 });

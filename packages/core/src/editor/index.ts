@@ -1853,6 +1853,10 @@ export class Editor implements EngineHost {
   readonly flowConfigAtom: Atom<FlowRuntimeConfig> = atom<FlowRuntimeConfig>({ ...FLOW_DEFAULTS });
   /** Current OS reduced-motion state — the headless core can't detect it, so the host feeds it in. */
   readonly reducedMotionAtom: Atom<boolean> = atom(false);
+  /** Bumped on every `animate()` call. Plain-field tween state (`animClock`/`presentation`) isn't
+   *  itself reactive, so a host repaint `effect` that reads this atom wakes an idle rAF loop when a
+   *  standalone animation starts on an otherwise-quiet canvas. Not serialized; value is inert. */
+  readonly animationEpochAtom: Atom<number> = atom(0);
   /** Integrated flow time (ms), advanced by paintFlow only while animating. */
   private flowClock = 0;
   private flowPrevTime: number | null = null;
@@ -1879,9 +1883,12 @@ export class Editor implements EngineHost {
   /** Host feeds the OS prefers-reduced-motion state; headless default is false. */
   setReducedMotion(active: boolean): void { this.reducedMotionAtom.set(active); }
 
-  /** Register a tween on the shared animation clock. Returns a cancel fn. Ephemeral — no undo entry. */
+  /** Register a tween on the shared animation clock. Returns a cancel fn. Ephemeral — no undo entry.
+   *  Bumps `animationEpochAtom` so a signal-subscribed host repaint reaction wakes an idle rAF loop. */
   animate(spec: TweenSpec): () => void {
-    return this.animClock.add(spec);
+    const cancel = this.animClock.add(spec);
+    this.animationEpochAtom.set(this.animationEpochAtom.peek() + 1);
+    return cancel;
   }
   /** True while any tween is unfinished — the second rAF gate (OR-ed with `isFlowAnimating()`). */
   isAnimating(): boolean {

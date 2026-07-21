@@ -114,8 +114,12 @@ export class DrawApi {
     ctx.closePath();
   }
 
-  /** Build a linear gradient spanning `b` along `spec.angle` (deg; 90 = top→bottom). */
-  private gradientFor(b: Box, spec: GradientSpec): CanvasGradientLike {
+  /** Build a linear gradient spanning `b` along `spec.angle` (deg; 90 = top→bottom). When the box has
+   *  ~zero extent along that direction (e.g. a horizontal `strokePolyline` — bbox height 0 — at the
+   *  default 90° vertical angle), `createLinearGradient` would need identical start/end points: Canvas
+   *  paints nothing there, while SVG paints the last stop's color — a DOM/Skia↔SVG divergence. Return
+   *  the last stop's color as a plain string in that case so both backends agree. */
+  private gradientFor(b: Box, spec: GradientSpec): CanvasGradientLike | string {
     const rad = ((spec.angle ?? 90) * Math.PI) / 180;
     // Snap near-zero trig noise (e.g. Math.cos(Math.PI/2) === 6.12e-17, not exactly 0) so cardinal
     // angles (0/90/180/270) yield exact axis-aligned endpoints instead of a sub-ULP diagonal drift.
@@ -125,6 +129,7 @@ export class DrawApi {
     const cy = b.y + b.h / 2;
     // half-extent of the axis-aligned box projected onto the direction (box support function)
     const proj = Math.abs(dx) * (b.w / 2) + Math.abs(dy) * (b.h / 2);
+    if (proj < 1e-6) return spec.stops[spec.stops.length - 1]?.color ?? '#000000';
     const g = this.ctx.createLinearGradient(cx - dx * proj, cy - dy * proj, cx + dx * proj, cy + dy * proj);
     for (const s of spec.stops) g.addColorStop(s.at, s.color);
     return g;

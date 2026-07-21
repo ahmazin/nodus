@@ -64,4 +64,39 @@ describe('AnimationClock', () => {
     expect(easeOutCubic(1)).toBeCloseTo(1);
     expect(easeOutCubic(0.5)).toBeGreaterThan(0.5); // decelerating → past halfway at t=0.5
   });
+
+  it('isolates a throwing onTick — a second, well-behaved tween in the same step() still ticks', () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const clock = new AnimationClock();
+    clock.add({
+      from: 0, to: 1, durationMs: 10, easing: linear,
+      onTick: () => { throw new Error('boom'); },
+    });
+    const seen: number[] = [];
+    clock.add({ from: 0, to: 1, durationMs: 10, easing: linear, onTick: (v) => seen.push(v) });
+
+    clock.step(0, false);
+    clock.step(20, false); // both tweens reach/exceed their duration
+
+    expect(seen.length).toBeGreaterThan(0); // the good tween kept ticking despite the bad one
+    expect(seen[seen.length - 1]).toBeCloseTo(1);
+    expect(clock.isActive()).toBe(false); // the throwing tween was swept, not left dangling
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('a tween that cancels itself inside its final-frame onTick does not fire onDone', () => {
+    const clock = new AnimationClock();
+    const done = vi.fn();
+    let cancel: () => void = () => {};
+    cancel = clock.add({
+      from: 0, to: 1, durationMs: 10, easing: linear,
+      onTick: (v) => { if (v >= 1) cancel(); },
+      onDone: done,
+    });
+    clock.step(0, false);
+    clock.step(10, false); // final frame: onTick self-cancels before onDone would fire
+    expect(done).not.toHaveBeenCalled();
+    expect(clock.isActive()).toBe(false);
+  });
 });

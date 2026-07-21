@@ -120,6 +120,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       editor.snapGuidesAtom.get();
       editor.flowConfigAtom.get();
       editor.reducedMotionAtom.get();
+      editor.animationEpochAtom.get(); // wake an idle rAF loop when animate() starts a standalone tween
       schedule();
     });
 

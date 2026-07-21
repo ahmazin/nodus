@@ -41,29 +41,52 @@ export class AnimationClock {
     };
   }
 
+  /** Invoke `onTick` inside a try/catch — a bad tween's callback must never abort `step()` for the
+   *  rest of the frame's tweens (mirrors the renderer's per-item paint isolation). Returns `false` (and
+   *  marks the tween done, so the sweep removes it) if the callback threw. */
+  private safeTick(tw: Tween, value: number): boolean {
+    try {
+      tw.onTick(value);
+      return true;
+    } catch (err) {
+      console.error('[nodus] animation callback threw:', err);
+      tw.done = true;
+      return false;
+    }
+  }
+
+  /** Invoke `onDone` inside a try/catch, but only if the tween is still registered — a tween whose own
+   *  final-frame `onTick` cancels itself (via the `add()` cancel fn) must NOT then fire `onDone`, since
+   *  cancel's contract is "remove without firing onDone". */
+  private safeDone(tw: Tween): void {
+    if (!this.tweens.has(tw)) return; // self-cancelled during onTick
+    try {
+      tw.onDone?.();
+    } catch (err) {
+      console.error('[nodus] animation callback threw:', err);
+    }
+    tw.done = true;
+  }
+
   /** Advance every active tween to `now`. Under `reducedMotion`, snap all to their final value. */
   step(now: number, reducedMotion: boolean): void {
     for (const tw of this.tweens) {
       if (tw.done) continue;
       if (reducedMotion) {
-        tw.onTick(tw.to);
-        tw.onDone?.();
-        tw.done = true;
+        if (!this.safeTick(tw, tw.to)) continue;
+        this.safeDone(tw);
         continue;
       }
       if (tw.start == null) tw.start = now + (tw.delayMs ?? 0);
       const elapsed = now - tw.start;
       if (elapsed < 0) {
-        tw.onTick(tw.from); // still within delay
+        this.safeTick(tw, tw.from); // still within delay
         continue;
       }
       const raw = tw.durationMs <= 0 ? 1 : clamp01(elapsed / tw.durationMs);
       const eased = (tw.easing ?? easeOutCubic)(raw);
-      tw.onTick(tw.from + (tw.to - tw.from) * eased);
-      if (raw >= 1) {
-        tw.onDone?.();
-        tw.done = true;
-      }
+      if (!this.safeTick(tw, tw.from + (tw.to - tw.from) * eased)) continue;
+      if (raw >= 1) this.safeDone(tw);
     }
     for (const tw of this.tweens) if (tw.done) this.tweens.delete(tw);
   }

@@ -6,10 +6,17 @@ import type { ResolvedTokens } from '../theme/index.js';
 
 const tokens = { roughness: 0, fontSize: 12, fontScale: 1, fontFamily: 'sans', text: '#fff' } as unknown as ResolvedTokens;
 
-/** A Ctx2D that records createLinearGradient calls, addColorStop calls, and shadow property writes. */
-function recordingCtx(): { ctx: Ctx2D; grads: { coords: number[]; stops: [number, string][] }[]; shadow: Record<string, unknown> } {
+/** A Ctx2D that records createLinearGradient calls, addColorStop calls, shadow property writes, and
+ *  the last-written `fillStyle`/`strokeStyle` (which may be a plain color string, not a gradient). */
+function recordingCtx(): {
+  ctx: Ctx2D;
+  grads: { coords: number[]; stops: [number, string][] }[];
+  shadow: Record<string, unknown>;
+  style: Record<string, unknown>;
+} {
   const grads: { coords: number[]; stops: [number, string][] }[] = [];
   const shadow: Record<string, unknown> = {};
+  const style: Record<string, unknown> = {};
   const ctx = new Proxy(
     {
       createLinearGradient(x0: number, y0: number, x1: number, y1: number) {
@@ -25,11 +32,12 @@ function recordingCtx(): { ctx: Ctx2D; grads: { coords: number[]; stops: [number
       },
       set(_t, p, v) {
         if (typeof p === 'string' && p.startsWith('shadow')) shadow[p] = v;
+        if (p === 'fillStyle' || p === 'strokeStyle') style[p] = v;
         return true;
       },
     },
   ) as unknown as Ctx2D;
-  return { ctx, grads, shadow };
+  return { ctx, grads, shadow, style };
 }
 
 describe('DrawApi materials', () => {
@@ -94,5 +102,28 @@ describe('DrawApi materials — strokes & polygons', () => {
     api.fillEllipse({ x: 0, y: 0, w: 40, h: 40 }, '#000', { gradient: { stops: [{ at: 0, color: '#fff' }, { at: 1, color: '#000' }] } });
     api.fillPolygon([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 10 }], '#000', { gradient: { stops: [{ at: 0, color: '#fff' }, { at: 1, color: '#000' }] } });
     expect(grads).toHaveLength(2);
+  });
+});
+
+describe('DrawApi materials — zero-extent gradient parity (DOM↔SVG)', () => {
+  it('a horizontal polyline stroked with the default vertical gradient paints the last stop color, not a degenerate gradient', () => {
+    const { ctx, grads, style } = recordingCtx();
+    // bbox height is 0; default angle (90°, top→bottom) projects to zero extent along that axis.
+    new DrawApi(ctx, tokens).strokePolyline(
+      [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+      '#000',
+      { gradient: { stops: [{ at: 0, color: '#f00' }, { at: 1, color: '#00f' }] } },
+    );
+    expect(grads).toHaveLength(0); // no degenerate createLinearGradient(cx,cy,cx,cy) call
+    expect(style.strokeStyle).toBe('#00f'); // last stop — matches SVG's behavior on a zero-length gradient
+  });
+
+  it('a zero-height box filled with the default vertical gradient paints the last stop color, not a degenerate gradient', () => {
+    const { ctx, grads, style } = recordingCtx();
+    new DrawApi(ctx, tokens).fillRoundRect({ x: 10, y: 20, w: 40, h: 0 }, 0, '#000', {
+      gradient: { stops: [{ at: 0, color: '#aaa' }, { at: 1, color: '#333' }] },
+    });
+    expect(grads).toHaveLength(0);
+    expect(style.fillStyle).toBe('#333');
   });
 });

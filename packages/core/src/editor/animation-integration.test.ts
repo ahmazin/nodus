@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, linear } from '../index.js';
 
-// NOTE: adjust the import for `linear` if the barrel doesn't re-export it; else import from '../editor/animation.js'.
-
 function editor(): Editor {
   return new Editor();
 }
@@ -34,5 +32,14 @@ describe('editor animation integration', () => {
     ed.animClockStep(0);
     expect(ed.presentationFor('n1')?.alpha).toBe(1);
     expect(ed.isAnimating()).toBe(false);
+  });
+
+  it('animate() bumps animationEpochAtom so a signal-subscribed host repaint wakes an idle rAF loop', () => {
+    const ed = editor();
+    const before = ed.animationEpochAtom.peek();
+    ed.animate({ from: 0, to: 1, durationMs: 100, onTick: () => {} });
+    expect(ed.animationEpochAtom.peek()).toBe(before + 1);
+    ed.animate({ from: 0, to: 1, durationMs: 100, onTick: () => {} });
+    expect(ed.animationEpochAtom.peek()).toBe(before + 2);
   });
 });
