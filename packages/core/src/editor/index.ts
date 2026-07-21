@@ -211,6 +211,11 @@ const PAN_MOMENTUM_DECAY_MS = 320;
 /** Momentum-pan velocity floor (screen px/ms) — release velocities below this produce no momentum. */
 const PAN_MOMENTUM_MIN_V = 0.05;
 
+/** Depth-of-field LOD threshold for the animated flow-rate pill (mirrors `stencil.ts`'s glyph LOD):
+ *  below this camera zoom the numeric readout is unreadable clutter, so `drawFlowRatePill` skips it.
+ *  The glow/markers still draw below this zoom — only the pill text is gated. */
+const RATE_PILL_MIN_ZOOM = 0.55;
+
 /** Snapshot the visible set as id → `RenderItem` for the next frame's dirty-region diff. Cheap: it
  *  stores object references (the scene index mints a fresh `RenderItem` on any change, so reference
  *  identity is the change signal), never a copy of geometry. */
@@ -1789,12 +1794,22 @@ export class Editor implements EngineHost {
       if (item.kind === 'node') {
         const locked = (item.record as NodeRecord).locked === true;
         const box = padBox(item.aabb, px(3));
-        // glowing accent halo, drawn UNDER the crisp selection stroke below. Device-space constant
-        // (unaffected by the CTM) — see dirty-region.ts. Gently pulses unless reduced-motion is on.
+        // glowing halo, drawn UNDER the crisp selection stroke below. Tracks the selected node's OWN
+        // type/category color (falling back to the global accent if resolution fails or yields
+        // nothing) — a selected database glows its own hue, not a one-size-fits-all accent. The crisp
+        // stroke below stays accent so selection itself always reads unambiguously. Device-space
+        // constant (unaffected by the CTM) — see dirty-region.ts. Gently pulses unless reduced-motion.
+        let haloColor = accent;
+        try {
+          const t = resolveTokensCached(theme, item.record);
+          haloColor = t.glow ?? t.stroke ?? accent;
+        } catch {
+          haloColor = accent; // corrupt record: fall back rather than break the frame
+        }
         ctx.save();
-        ctx.shadowColor = accent;
+        ctx.shadowColor = haloColor;
         ctx.shadowBlur = reducedMotion ? 12 : 12 + 4 * Math.sin(time / 500);
-        strokeWorldBox(ctx, box, accent, px(2));
+        strokeWorldBox(ctx, box, haloColor, px(2));
         ctx.restore();
         // locked nodes get a dashed outline (marching ants, unless reduced-motion) + a padlock badge;
         // canResizeNode already returns false for them, so the resize-handle loop is skipped without
@@ -1935,9 +1950,10 @@ export class Editor implements EngineHost {
     const guides = this.snapGuidesAtom.peek();
     if (guides.length) {
       ctx.save();
-      ctx.strokeStyle = '#f472b6';
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.75;
       ctx.lineWidth = px(1);
-      ctx.setLineDash([px(4), px(3)]);
+      ctx.setLineDash([px(3), px(4)]);
       for (const g of guides) {
         ctx.beginPath();
         ctx.moveTo(g.x1, g.y1);
@@ -2224,7 +2240,7 @@ export class Editor implements EngineHost {
     if (!frozen) this.flowClock += dt * c.speedScale;
     const theme = this.themeAtom.peek();
     this.setWorldTransform(ctx, dpr);
-    this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock, this.focusSet());
+    this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock, this.focusSet(), this.camera.z);
   }
 
   /** Shared per-edge flow draw: resolve each edge's spec against its live metric, paint the neon glow
@@ -2233,13 +2249,19 @@ export class Editor implements EngineHost {
    *
    *  `focus`, when passed (non-null), collapses flow to the active subgraph: an edge outside it gets no
    *  glow/markers/rate-pill. Defaults to `null` (no filtering) so callers that must never spotlight —
-   *  `paintRegion`'s export snapshot — stay untouched simply by not passing it. */
+   *  `paintRegion`'s export snapshot — stay untouched simply by not passing it.
+   *
+   *  `zoom`, when passed, LOD-gates the rate pill below `RATE_PILL_MIN_ZOOM` (glow/markers are
+   *  unaffected). Defaults to `null` (no gating) for the same reason `focus` defaults to `null`:
+   *  `paintRegion`'s export snapshot has its own fixed pixelRatio/region scale, unrelated to the live
+   *  camera zoom, so it must not be threaded in there — only the live `paintFlow` path passes it. */
   private drawFlowEdges(
     ctx: Ctx2D,
     items: Iterable<RenderItem>,
     theme: Theme,
     time: number,
     focus: ReadonlySet<Id> | null = null,
+    zoom: number | null = null,
   ): void {
     for (const item of items) {
       if (item.kind !== 'edge') continue;
@@ -2249,14 +2271,26 @@ export class Editor implements EngineHost {
       const resolved = resolveFlow(flow, this.flowMetrics.get(item.id));
       this.drawFlowGlow(ctx, item, theme, resolved);
       paintFlowMarkers(ctx, item, theme, time, resolved);
-      this.drawFlowRatePill(ctx, item, theme, resolved);
+      this.drawFlowRatePill(ctx, item, theme, resolved, zoom);
     }
   }
 
   /** Live flow-rate readout: a small numeric pill at a flowing edge's midpoint, drawn on top of the
    *  markers. Only appears when there's an actual metric — `flowMetrics` (live) or the spec's static
-   *  `data` — so an edge with flow visuals but no numeric value gets no pill (never draws 'NaN'). */
-  private drawFlowRatePill(ctx: Ctx2D, item: RenderItem, theme: Theme, resolved: FlowSpec): void {
+   *  `data` — so an edge with flow visuals but no numeric value gets no pill (never draws 'NaN').
+   *
+   *  `zoom`, when supplied (the live camera zoom — `null` from `paintRegion`'s export, which has no
+   *  camera), hides the pill below `RATE_PILL_MIN_ZOOM`: a numeric readout is unreadable clutter once
+   *  zoomed out, matching the node-glyph LOD in `stencil.ts`. The glow/markers still draw at any zoom —
+   *  only this pill is gated. */
+  private drawFlowRatePill(
+    ctx: Ctx2D,
+    item: RenderItem,
+    theme: Theme,
+    resolved: FlowSpec,
+    zoom: number | null = null,
+  ): void {
+    if (zoom != null && zoom < RATE_PILL_MIN_ZOOM) return;
     const route = item.route;
     if (!route || route.length < 2) return;
     const value = this.flowMetrics.get(item.id) ?? (item.record as EdgeRecord).flow?.data;

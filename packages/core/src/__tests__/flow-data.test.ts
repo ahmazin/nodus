@@ -109,6 +109,19 @@ describe('live metrics drive edge flow', () => {
   });
 });
 
+// paintFlowMarkers / drawFlowGlow never call fillText (they draw arcs/strokes) — the rate pill's
+// `DrawApi.label()` is the ONLY path to ctx.fillText in the flow-paint pipeline. So counting fillText
+// calls is an exact proxy for "was a pill drawn". Shared by both describe blocks below.
+const withFillTextSpy = (ctx: ReturnType<typeof mockCtx>): { calls: number } => {
+  const spy = { calls: 0 };
+  const orig = ctx.fillText.bind(ctx);
+  ctx.fillText = ((...args: Parameters<Ctx2D['fillText']>) => {
+    spy.calls++;
+    return orig(...args);
+  }) as Ctx2D['fillText'];
+  return spy;
+};
+
 describe('flow rate pill — no-value gate', () => {
   const build = () => {
     const ed = new Editor();
@@ -119,19 +132,6 @@ describe('flow rate pill — no-value gate', () => {
     // is undefined and there is nothing for the pill to display.
     ed.setFlow([e], { style: 'dots' });
     return { ed, e };
-  };
-
-  // paintFlowMarkers / drawFlowGlow never call fillText (they draw arcs/strokes) — the rate pill's
-  // `DrawApi.label()` is the ONLY path to ctx.fillText in the flow-paint pipeline. So counting fillText
-  // calls is an exact proxy for "was a pill drawn".
-  const withFillTextSpy = (ctx: ReturnType<typeof mockCtx>): { calls: number } => {
-    const spy = { calls: 0 };
-    const orig = ctx.fillText.bind(ctx);
-    ctx.fillText = ((...args: Parameters<Ctx2D['fillText']>) => {
-      spy.calls++;
-      return orig(...args);
-    }) as Ctx2D['fillText'];
-    return spy;
   };
 
   it('draws NO pill for a flowing edge with no metric and no static data (never "undefined"/"NaN")', () => {
@@ -145,6 +145,48 @@ describe('flow rate pill — no-value gate', () => {
   it('draws a pill once a live metric is set on the same edge — proving the gate discriminates', () => {
     const { ed, e } = build();
     ed.setFlowMetric(e, 42);
+    const ctx = mockCtx();
+    const spy = withFillTextSpy(ctx);
+    ed.paintFlow(ctx, 1, 0);
+    expect(spy.calls).toBeGreaterThan(0);
+  });
+});
+
+describe('flow rate pill — zoom LOD gate', () => {
+  // A numeric readout is unreadable clutter once zoomed way out, so the pill hides below zoom 0.55
+  // (matching the node-glyph LOD in stencil.ts). The glow/marker layers are NOT gated — only the pill.
+  const build = () => {
+    const ed = new Editor();
+    const a = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100 });
+    const b = ed.createNode({ type: 'rect', x: 500, y: 0, w: 100, h: 100 });
+    const e = ed.connect({ kind: 'outline', nodeId: a }, { kind: 'outline', nodeId: b })!;
+    ed.setFlow([e], { style: 'dots' });
+    ed.setFlowMetric(e, 42); // gives the pill an actual value to render
+    return { ed, e };
+  };
+
+  it('hides the pill below zoom 0.55, but still draws the packet markers', () => {
+    const { ed } = build();
+    ed.setCamera({ ...ed.camera, z: 0.3 });
+    const ctx = mockCtx();
+    const spy = withFillTextSpy(ctx);
+    ed.paintFlow(ctx, 1, 0);
+    expect(spy.calls).toBe(0);
+    expect(ctx.arcs.length).toBeGreaterThan(0);
+  });
+
+  it('shows the pill at zoom exactly 0.55 (boundary is inclusive)', () => {
+    const { ed } = build();
+    ed.setCamera({ ...ed.camera, z: 0.55 });
+    const ctx = mockCtx();
+    const spy = withFillTextSpy(ctx);
+    ed.paintFlow(ctx, 1, 0);
+    expect(spy.calls).toBeGreaterThan(0);
+  });
+
+  it('shows the pill zoomed in above the threshold', () => {
+    const { ed } = build();
+    ed.setCamera({ ...ed.camera, z: 1 });
     const ctx = mockCtx();
     const spy = withFillTextSpy(ctx);
     ed.paintFlow(ctx, 1, 0);
