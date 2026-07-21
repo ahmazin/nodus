@@ -56,6 +56,8 @@ export interface UiTokens {
     danger: string;
     /** Selection wash (translucent accent, layered over surface). */
     selection: string;
+    /** Translucent surface for frosted glass effect. */
+    glass: string;
   };
   radius: { sm: number; md: number; lg: number };
   /** 4px spacing scale: `space(n)` -> px number. `space(2)` === 8. */
@@ -63,6 +65,8 @@ export interface UiTokens {
   shadow: { panel: string; popover: string };
   /** CSS color for the `:focus-visible` ring (>= 3:1 on surface/panel/canvas). */
   focusRing: string;
+  /** CSS blur length for frosted glass effect. */
+  blur: string;
   font: {
     family: string;
     /** Monospace stack for code, canonical JSON, numeric fields, and keycaps. */
@@ -102,6 +106,7 @@ const dark: UiTokens = {
     accentText: '#0a0b0e', // 15.1:1 on the lime fill
     danger: '#f0655c',
     selection: 'rgba(196,242,78,0.16)',
+    glass: 'rgba(16,19,25,0.72)',
   },
   radius: { ...RADIUS },
   space,
@@ -110,6 +115,7 @@ const dark: UiTokens = {
     popover: '0 20px 50px -18px rgba(0,0,0,0.6)',
   },
   focusRing: '#c4f24e', // 15.1:1 on canvas — far above the 3:1 non-text minimum
+  blur: '12px',
   font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 
@@ -145,6 +151,7 @@ const light: UiTokens = {
     accentText: '#ffffff', // 7.08:1 on the darkened lime; dark-on-accent would be only 2.78:1
     danger: '#cf222e',
     selection: 'rgba(63,98,18,0.14)', // translucent light accent (#3f6212 @ 0.14)
+    glass: 'rgba(255,255,255,0.72)',
   },
   radius: { ...RADIUS },
   space,
@@ -153,6 +160,7 @@ const light: UiTokens = {
     popover: '0 20px 50px -18px rgba(15,23,42,0.22)',
   },
   focusRing: '#3f6212', // same darkened lime — 7.08:1 on surface/panel, 6.59:1 on canvas
+  blur: '12px',
   font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 
