@@ -9,6 +9,7 @@
  */
 
 import type { VisualState } from '../model.js';
+import type { GradientSpec, ShadowSpec } from '../renderer/draw-api.js';
 
 export interface StateTokens {
   fill: string;
@@ -31,6 +32,19 @@ export interface StateTokens {
    * `DrawApi` for how the seed drives the jitter.
    */
   roughness?: number;
+  /** Glass/rim-light intensity in [0,1]; `undefined`/`0` renders the flat (non-glassy) fill. */
+  glass?: number;
+  /** Offset drop shadow cast by the node tile. */
+  shadow?: ShadowSpec;
+  /** Source→target gradient applied to the stroke (primarily for edges). */
+  strokeGradient?: GradientSpec;
+}
+
+export interface AmbientSpec {
+  /** Soft radial color washes. `cx`/`cy` are 0..1 fractions of the viewport; `r` is a 0..1 fraction of the diagonal. */
+  washes: { color: string; cx: number; cy: number; r: number }[];
+  /** 0..1 vignette darkness at the viewport edges. */
+  vignette?: number;
 }
 
 export interface Theme {
@@ -50,7 +64,8 @@ export interface Theme {
   radii: Record<string, number>;
   canvas: {
     fill: string;
-    grid?: { color: string; size: number };
+    grid?: { color: string; size: number; major?: string; majorEvery?: number };
+    ambient?: AmbientSpec;
   };
   /** Must include the four built-in states; presets may add more. */
   states: Record<string, StateTokens>;
@@ -73,6 +88,12 @@ export interface ResolvedTokens {
   labelOverride?: string;
   /** Resolved hand-drawn roughness; `undefined`/`0` renders the clean outline. See `StateTokens.roughness`. */
   roughness?: number;
+  /** Resolved glass/rim-light intensity. See `StateTokens.glass`. */
+  glass?: number;
+  /** Resolved offset drop shadow. See `StateTokens.shadow`. */
+  shadow?: ShadowSpec;
+  /** Resolved stroke gradient. See `StateTokens.strokeGradient`. */
+  strokeGradient?: GradientSpec;
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
@@ -126,6 +147,9 @@ export function resolveTokens(
     radius,
     labelOverride: merged.labelOverride,
     roughness: merged.roughness,
+    glass: merged.glass,
+    shadow: merged.shadow,
+    strokeGradient: merged.strokeGradient,
     fontFamily: theme.typography.fontFamily,
     fontSize: theme.typography.size,
     lineHeight: theme.typography.lineHeight,
