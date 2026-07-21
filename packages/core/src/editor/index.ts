@@ -64,6 +64,7 @@ import { resolveTokensCached } from '../renderer/token-cache.js';
 import { DrawApi, hashId } from '../renderer/draw-api.js';
 import { resolveFlow } from '../flow.js';
 import { formatRate } from '../flow-format.js';
+import { parseHex } from '../renderer/color.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
 import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
@@ -118,6 +119,19 @@ function drawLockBadge(ctx: Ctx2D, bx: number, by: number, s: number, accent: st
   ctx.arc(cx, bodyY + bh * 0.5, s * 0.1, 0, 2 * Math.PI);
   ctx.fill();
   ctx.restore();
+}
+
+/**
+ * Readable text color for text drawn on top of `bg`: dark ink on light backgrounds, white on dark
+ * ones, by perceptual luminance (`0.299r + 0.587g + 0.114b`). Falls back to white when `bg` isn't a
+ * parseable `#rrggbb`/`#rgb` hex (e.g. an `rgba(...)` string) — that was the prior hardcoded behavior.
+ */
+function readableTextColor(bg: string): string {
+  const rgb = parseHex(bg);
+  if (!rgb) return '#ffffff';
+  const [r, g, b] = rgb;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  return lum > 140 ? '#0a0b0e' : '#ffffff';
 }
 
 export interface EditorOptions {
@@ -2156,13 +2170,14 @@ export class Editor implements EngineHost {
     const api = new DrawApi(ctx, tokens, hashId(item.id));
     const w = api.measureLabel(txt, 10) + 12;
     const h = 17;
+    const bg = resolved.color ?? tokens.stroke;
     api.fillRoundRect(
       { x: mid.x - w / 2, y: mid.y - h / 2, w, h },
       h / 2,
-      resolved.color ?? tokens.stroke,
+      bg,
       { opacity: 0.92 },
     );
-    api.label(txt, mid, { fontSize: 10, color: '#ffffff', weight: '600' });
+    api.label(txt, mid, { fontSize: 10, color: readableTextColor(bg), weight: '600' });
   }
 
   /** Neon bloom underlay for a flowing edge: a wide, translucent, glowing stroke along the edge's

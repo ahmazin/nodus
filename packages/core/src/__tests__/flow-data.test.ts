@@ -108,3 +108,46 @@ describe('live metrics drive edge flow', () => {
     expect(displacement(1)).toBeGreaterThan(displacement(0.05));
   });
 });
+
+describe('flow rate pill — no-value gate', () => {
+  const build = () => {
+    const ed = new Editor();
+    const a = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100 });
+    const b = ed.createNode({ type: 'rect', x: 500, y: 0, w: 100, h: 100 });
+    const e = ed.connect({ kind: 'outline', nodeId: a }, { kind: 'outline', nodeId: b })!;
+    // Flow visuals enabled (dots), but NO scale and NO static `data` — so `flowMetrics.get(id) ?? flow.data`
+    // is undefined and there is nothing for the pill to display.
+    ed.setFlow([e], { style: 'dots' });
+    return { ed, e };
+  };
+
+  // paintFlowMarkers / drawFlowGlow never call fillText (they draw arcs/strokes) — the rate pill's
+  // `DrawApi.label()` is the ONLY path to ctx.fillText in the flow-paint pipeline. So counting fillText
+  // calls is an exact proxy for "was a pill drawn".
+  const withFillTextSpy = (ctx: ReturnType<typeof mockCtx>): { calls: number } => {
+    const spy = { calls: 0 };
+    const orig = ctx.fillText.bind(ctx);
+    ctx.fillText = ((...args: Parameters<Ctx2D['fillText']>) => {
+      spy.calls++;
+      return orig(...args);
+    }) as Ctx2D['fillText'];
+    return spy;
+  };
+
+  it('draws NO pill for a flowing edge with no metric and no static data (never "undefined"/"NaN")', () => {
+    const { ed } = build();
+    const ctx = mockCtx();
+    const spy = withFillTextSpy(ctx);
+    ed.paintFlow(ctx, 1, 0);
+    expect(spy.calls).toBe(0);
+  });
+
+  it('draws a pill once a live metric is set on the same edge — proving the gate discriminates', () => {
+    const { ed, e } = build();
+    ed.setFlowMetric(e, 42);
+    const ctx = mockCtx();
+    const spy = withFillTextSpy(ctx);
+    ed.paintFlow(ctx, 1, 0);
+    expect(spy.calls).toBeGreaterThan(0);
+  });
+});
