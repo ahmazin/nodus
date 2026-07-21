@@ -66,9 +66,9 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
       // canvas Theme, to match the DOM chrome.
       const tk = uiTokensFor(modeOfTheme(editor.themeAtom.peek()));
       const selected = editor.selectedAtom.peek();
+      // Transparent background so the frosted wrapper div (glass + backdrop-blur) shows through;
+      // the node dots + viewport rect below still paint on top.
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = tk.color.panel;
-      ctx.fillRect(0, 0, width, height);
       const f = fit();
       if (!f) return;
       ctx.globalAlpha = 0.85;

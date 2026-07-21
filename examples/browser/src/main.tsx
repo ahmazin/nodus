@@ -847,7 +847,9 @@ function App(): ReactElement {
             gap: 12,
             padding: '0 12px',
             borderBottom: `1px solid ${t.color.border}`,
-            background: t.color.surface,
+            background: t.color.glass,
+            backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+            WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
             position: 'relative',
             zIndex: 40,
           }}
@@ -985,7 +987,9 @@ function App(): ReactElement {
               width: 50,
               flexShrink: 0,
               borderRight: `1px solid ${t.color.border}`,
-              background: t.color.surface,
+              background: t.color.glass,
+              backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+              WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
               zIndex: 30,
             }}
           >
@@ -999,7 +1003,14 @@ function App(): ReactElement {
             <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
 
             <div style={{ position: 'absolute', left: 14, bottom: 14, zIndex: 15 }}>
-              <ZoomControls editor={editor} />
+              <ZoomControls
+                editor={editor}
+                style={{
+                  background: t.color.glass,
+                  backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+                  WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
+                }}
+              />
             </div>
 
             <div
@@ -1012,7 +1023,9 @@ function App(): ReactElement {
                 border: `1px solid ${t.color.border}`,
                 borderRadius: t.radius.lg,
                 overflow: 'hidden',
-                background: t.color.panel,
+                background: t.color.glass,
+                backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+                WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
                 boxShadow: t.shadow.panel,
               }}
             >
@@ -1026,7 +1039,9 @@ function App(): ReactElement {
               width: 266,
               flexShrink: 0,
               borderLeft: `1px solid ${t.color.border}`,
-              background: t.color.surface,
+              background: t.color.glass,
+              backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+              WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
