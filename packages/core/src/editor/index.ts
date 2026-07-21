@@ -64,7 +64,7 @@ import { resolveTokensCached } from '../renderer/token-cache.js';
 import { DrawApi, hashId } from '../renderer/draw-api.js';
 import { resolveFlow } from '../flow.js';
 import { formatRate } from '../flow-format.js';
-import { parseHex } from '../renderer/color.js';
+import { mix, parseHex } from '../renderer/color.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
 import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
@@ -1588,11 +1588,20 @@ export class Editor implements EngineHost {
    *  without the epoch here two animating frames would share an identical prefix+version and the cache
    *  would blit the same stale bitmap for the whole tween (see `presentationEpoch`'s doc comment for the
    *  full failure mode). Including it also means the epoch's post-tween bump (on `clearPresentation`)
-   *  forces one final miss so the resting frame is a true repaint, not a leftover mid-tween blit. */
+   *  forces one final miss so the resting frame is a true repaint, not a leftover mid-tween blit.
+   *
+   *  Same class of bug for spotlight/focus: `paintStaticInto` reads `focusSet()` to decide the muted
+   *  override for out-of-focus items, but the selection that drives it lives in `selectedAtom`, which
+   *  the static pass never otherwise consults — so without folding a focus signature in here, selecting
+   *  a different node would schedule a repaint that blits the SAME stale (wrong-selection) muted bitmap.
+   *  When spotlight is inactive (`focusSet()` null — off, or nothing selected) nothing is appended, so
+   *  the key — and therefore caching behavior — is byte-identical to before this feature existed. */
   private staticPrefix(cssW: number, cssH: number, dpr: number): string {
     const cam = this.camera;
     const themeId = this.layerCache?.idOf(this.themeAtom.peek()) ?? 0;
-    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}|p${this.presentationEpoch}`;
+    const focus = this.focusSet();
+    const focusSig = focus ? `|sl:${[...this.selectedAtom.peek()].sort().join('~')}` : '';
+    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}|p${this.presentationEpoch}${focusSig}`;
   }
 
   paintStatic(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
@@ -1627,10 +1636,57 @@ export class Editor implements EngineHost {
     this.lastStatic = { prefix, items: snapshotVisible(items) };
   }
 
+  /** Spotlight/focus set: the ids that stay full-bright when spotlight is active — `null` (meaning "no
+   *  filtering, paint/flow everything normally") when spotlight is off (`spotlightAtom`) or nothing is
+   *  selected. Otherwise: every selected id; for each selected NODE, its incident edges
+   *  (`sceneIndex.edgesForNode`) plus the far-end node of each (`endpointNodeId`); for a selected EDGE,
+   *  its own two endpoints. Built fresh on every call — the result is only ever a node's immediate
+   *  neighborhood, so this is cheap enough to not cache. Consumed by `paintStaticInto` (muted override),
+   *  `staticPrefix` (cache-key focus signature), and `drawFlowEdges` (flow collapse to the subgraph). */
+  focusSet(): ReadonlySet<Id> | null {
+    if (!this.spotlightAtom.peek()) return null;
+    const selected = this.selectedAtom.peek();
+    if (selected.size === 0) return null;
+    const focus = new Set<Id>(selected);
+    for (const id of selected) {
+      const item = this.sceneIndex.getItem(id);
+      if (!item) continue;
+      if (item.kind === 'node') {
+        for (const edgeId of this.sceneIndex.edgesForNode(id)) {
+          focus.add(edgeId);
+          const rec = this.sceneIndex.getItem(edgeId)?.record as EdgeRecord | undefined;
+          if (!rec) continue;
+          const srcId = endpointNodeId(rec.from);
+          const tgtId = endpointNodeId(rec.to);
+          if (srcId) focus.add(srcId);
+          if (tgtId) focus.add(tgtId);
+        }
+      } else {
+        const rec = item.record as EdgeRecord;
+        const srcId = endpointNodeId(rec.from);
+        const tgtId = endpointNodeId(rec.to);
+        if (srcId) focus.add(srcId);
+        if (tgtId) focus.add(tgtId);
+      }
+    }
+    return focus;
+  }
+
+  /** Desaturate a hex color 70% of the way toward mid-gray — the spotlight's "muted" look for items
+   *  outside the focus set. Non-hex input passes through unchanged (see `mix`). */
+  private mixGray(c: string): string {
+    return mix(c, '#808080', 0.7);
+  }
+
   /** The actual static paint (background + grid + `items` in paint order; defaults to the full visible
    *  set). Rendered straight to the frame, into the whole offscreen layer, or — for the drag fast path,
    *  with `items` pared to the dirty set — into the cache's scratch buffer, from which the changed rects
-   *  are copied back. Identical draw calls either way. */
+   *  are copied back. Identical draw calls either way.
+   *
+   *  When spotlight is active (`focusSet()` non-null), an item OUTSIDE the focus set gets a muted
+   *  override instead of its normal one — dimmed + desaturated fill/stroke/text, glow suppressed, and
+   *  (for edges) the S1 endpoint gradient dropped so it doesn't stay bright under the mute. Focused items
+   *  (or every item, when spotlight is off/no selection) keep today's override untouched. */
   private paintStaticInto(
     ctx: Ctx2D,
     cssW: number,
@@ -1645,8 +1701,30 @@ export class Editor implements EngineHost {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);
+    const focus = this.focusSet();
     for (const item of items) {
-      const override = item.kind === 'edge' ? this.edgeGradientOverride(item, theme) : undefined;
+      let override: Partial<ResolvedTokens> | undefined;
+      if (focus && !focus.has(item.id)) {
+        // A corrupt record must fall back to no override (not break the frame) — `paintItem` below has
+        // its own try/catch around token resolution and will surface the error there, same as today.
+        try {
+          const t = resolveTokensCached(theme, item.record);
+          override =
+            item.kind === 'edge'
+              ? { opacity: 0.22, glow: null, strokeGradient: undefined, stroke: this.mixGray(t.stroke) }
+              : {
+                  opacity: 0.28,
+                  glow: null,
+                  fill: this.mixGray(t.fill),
+                  stroke: this.mixGray(t.stroke),
+                  text: this.mixGray(t.text),
+                };
+        } catch {
+          override = undefined;
+        }
+      } else {
+        override = item.kind === 'edge' ? this.edgeGradientOverride(item, theme) : undefined;
+      }
       paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override, cam.z);
     }
   }
@@ -2000,6 +2078,12 @@ export class Editor implements EngineHost {
    *  impose an always-on animation loop by itself; a host/preset/app opts in explicitly. Readonly from
    *  outside `Editor`: mutate only via `setIdleShimmer`. */
   readonly idleShimmerAtom: Atom<boolean> = atom(false);
+  /** Spotlight/focus: when ON (the default) and something is selected, `focusSet()` returns the
+   *  selected subgraph and the static/flow passes dim+desaturate everything outside it. OFF, or no
+   *  selection, means `focusSet()` is `null` — no muted override, no focus signature in the static
+   *  cache key, no flow filtering: byte-identical to before this feature existed. Readonly from
+   *  outside `Editor`: mutate only via `setSpotlight`. */
+  readonly spotlightAtom: Atom<boolean> = atom(true);
   /** Bumped on every `animate()` call. Plain-field tween state (`animClock`/`presentation`) isn't
    *  itself reactive, so a host repaint `effect` that reads this atom wakes an idle rAF loop when a
    *  standalone animation starts on an otherwise-quiet canvas. Not serialized; value is inert. */
@@ -2049,6 +2133,9 @@ export class Editor implements EngineHost {
   /** Opt in/out of the idle shimmer (`render`'s subtle time-driven overlay — see `isShimmering`).
    *  Core default is off; a preset or app enables it explicitly (e.g. the demo, dark theme only). */
   setIdleShimmer(on: boolean): void { this.idleShimmerAtom.set(on); }
+  /** Turn the spotlight/focus effect on or off (see `spotlightAtom`/`focusSet`). Ephemeral — no undo
+   *  entry, not serialized. */
+  setSpotlight(on: boolean): void { this.spotlightAtom.set(on); }
 
   /** Register a tween on the shared animation clock. Returns a cancel fn. Ephemeral — no undo entry.
    *  Bumps `animationEpochAtom` so a signal-subscribed host repaint reaction wakes an idle rAF loop. */
@@ -2137,15 +2224,26 @@ export class Editor implements EngineHost {
     if (!frozen) this.flowClock += dt * c.speedScale;
     const theme = this.themeAtom.peek();
     this.setWorldTransform(ctx, dpr);
-    this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock);
+    this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock, this.focusSet());
   }
 
   /** Shared per-edge flow draw: resolve each edge's spec against its live metric, paint the neon glow
    *  underlay, then paint markers at `time`. Caller has already set the world transform and computed
-   *  the effective (scaled) time. */
-  private drawFlowEdges(ctx: Ctx2D, items: Iterable<RenderItem>, theme: Theme, time: number): void {
+   *  the effective (scaled) time.
+   *
+   *  `focus`, when passed (non-null), collapses flow to the active subgraph: an edge outside it gets no
+   *  glow/markers/rate-pill. Defaults to `null` (no filtering) so callers that must never spotlight —
+   *  `paintRegion`'s export snapshot — stay untouched simply by not passing it. */
+  private drawFlowEdges(
+    ctx: Ctx2D,
+    items: Iterable<RenderItem>,
+    theme: Theme,
+    time: number,
+    focus: ReadonlySet<Id> | null = null,
+  ): void {
     for (const item of items) {
       if (item.kind !== 'edge') continue;
+      if (focus && !focus.has(item.id)) continue;
       const flow = (item.record as EdgeRecord).flow;
       if (!flow) continue;
       const resolved = resolveFlow(flow, this.flowMetrics.get(item.id));
