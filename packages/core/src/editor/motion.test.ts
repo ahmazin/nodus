@@ -346,6 +346,81 @@ describe('animateEntrance', () => {
   });
 });
 
+/** Tracks how many times each `Ctx2D` method is invoked, without maintaining any drawing state — used
+ *  to prove the idle-shimmer draw is a strict no-op (zero extra calls) when `isShimmering()` is false,
+ *  and adds exactly one save/setTransform/fillRect/restore quartet when it's true. `measureText` and
+ *  the gradient factories get real-shaped stub returns (mirroring the label/glow code that dereferences
+ *  their results) so an ordinary render doesn't throw; every other property is a counted no-op function,
+ *  and assignments (style properties) are accepted and discarded. */
+function countingCtx(): { ctx: Ctx2D; calls: Record<string, number> } {
+  const calls: Record<string, number> = {};
+  const ctx = new Proxy(
+    {},
+    {
+      get: (_t, prop: string) => {
+        if (prop === 'measureText') return () => ({ width: 0 });
+        if (prop === 'createLinearGradient' || prop === 'createRadialGradient') {
+          return () => ({ addColorStop: () => {} });
+        }
+        return (..._args: unknown[]) => {
+          calls[prop] = (calls[prop] ?? 0) + 1;
+        };
+      },
+      set: () => true,
+    },
+  );
+  return { ctx: ctx as unknown as Ctx2D, calls };
+}
+
+describe('idle shimmer', () => {
+  it('is off by default, on after setIdleShimmer(true), off again under reduced motion', () => {
+    const { ed } = edWithNode();
+    expect(ed.isShimmering()).toBe(false);
+
+    ed.setIdleShimmer(true);
+    expect(ed.isShimmering()).toBe(true);
+
+    ed.setReducedMotion(true);
+    expect(ed.isShimmering()).toBe(false);
+  });
+
+  it('draws zero extra ctx calls when off, and exactly one save/setTransform/fillRect/restore quartet when on', () => {
+    const { ed } = edWithNode();
+
+    const off1 = countingCtx();
+    ed.render(off1.ctx, 800, 600, 1, false, 0);
+
+    const off2 = countingCtx();
+    ed.render(off2.ctx, 800, 600, 1, false, 0);
+    // Same idleShimmer=false render twice: byte-identical call counts (a real no-op, not just "fewer").
+    expect(off2.calls).toEqual(off1.calls);
+
+    ed.setIdleShimmer(true);
+    const on = countingCtx();
+    ed.render(on.ctx, 800, 600, 1, false, 0);
+
+    expect((on.calls.save ?? 0) - (off1.calls.save ?? 0)).toBe(1);
+    expect((on.calls.restore ?? 0) - (off1.calls.restore ?? 0)).toBe(1);
+    expect((on.calls.fillRect ?? 0) - (off1.calls.fillRect ?? 0)).toBe(1);
+    expect((on.calls.setTransform ?? 0) - (off1.calls.setTransform ?? 0)).toBe(1);
+  });
+
+  it('is a strict no-op under a non-finite time even when enabled (no NaN leaking into ctx calls)', () => {
+    const { ed } = edWithNode();
+
+    const off = countingCtx();
+    ed.render(off.ctx, 800, 600, 1, false, 0); // idleShimmer default off, finite time
+
+    ed.setIdleShimmer(true);
+    const nanTime = countingCtx();
+    ed.render(nanTime.ctx, 800, 600, 1, false, NaN); // enabled, but a non-finite time must still no-op
+
+    expect(nanTime.calls.save ?? 0).toBe(off.calls.save ?? 0);
+    expect(nanTime.calls.fillRect ?? 0).toBe(off.calls.fillRect ?? 0);
+    expect(nanTime.calls.restore ?? 0).toBe(off.calls.restore ?? 0);
+  });
+});
+
 describe('layout() tween', () => {
   /** Moves every node to (i * 200, 0) — same shape as the fake engine in core.test.ts. */
   const gridEngine: LayoutEngine = {

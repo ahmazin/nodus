@@ -81,7 +81,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       const now = performance.now();
       editor.render(ctx, rect.width, rect.height, dpr(), true, now);
       lastFlowPaint = now;
-      if (editor.isFlowAnimating() || editor.isAnimating() || editor.hasAnimatedSelection()) armFlow(); // keep ticking while flow, a tween, or the selection halo/marching-ants is live
+      if (editor.isFlowAnimating() || editor.isAnimating() || editor.hasAnimatedSelection() || editor.isShimmering()) armFlow(); // keep ticking while flow, a tween, the selection halo/marching-ants, or the idle shimmer is live
     };
     const armFlow = (): void => {
       clearTimeout(flowTimer);
@@ -120,6 +120,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       editor.snapGuidesAtom.get();
       editor.flowConfigAtom.get();
       editor.reducedMotionAtom.get();
+      editor.idleShimmerAtom.get(); // wake an idle rAF loop when setIdleShimmer(true) flips on/off post-mount
       editor.animationEpochAtom.get(); // wake an idle rAF loop when animate() starts a standalone tween
       schedule();
     });

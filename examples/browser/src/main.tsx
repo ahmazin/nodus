@@ -166,6 +166,7 @@ function buildEditor(): Editor {
   });
   editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
   editor.setTheme(playgroundDark); // apply the prominent-grid variant on top of the preset's dark theme
+  editor.setIdleShimmer(true); // demo-only opt-in: a barely-perceptible idle shimmer (core default stays off)
   // expose for e2e verification
   (window as unknown as { __editor: Editor }).__editor = editor;
   return editor;

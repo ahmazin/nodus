@@ -1972,6 +1972,10 @@ export class Editor implements EngineHost {
   readonly flowConfigAtom: Atom<FlowRuntimeConfig> = atom<FlowRuntimeConfig>({ ...FLOW_DEFAULTS });
   /** Current OS reduced-motion state — the headless core can't detect it, so the host feeds it in. */
   readonly reducedMotionAtom: Atom<boolean> = atom(false);
+  /** Opt-in idle shimmer (see `isShimmering`/`setIdleShimmer`). Defaults OFF — the engine must never
+   *  impose an always-on animation loop by itself; a host/preset/app opts in explicitly. Readonly from
+   *  outside `Editor`: mutate only via `setIdleShimmer`. */
+  readonly idleShimmerAtom: Atom<boolean> = atom(false);
   /** Bumped on every `animate()` call. Plain-field tween state (`animClock`/`presentation`) isn't
    *  itself reactive, so a host repaint `effect` that reads this atom wakes an idle rAF loop when a
    *  standalone animation starts on an otherwise-quiet canvas. Not serialized; value is inert. */
@@ -2006,6 +2010,9 @@ export class Editor implements EngineHost {
   setFlowSpeedScale(speedScale: number): void { this.setFlowConfig({ speedScale }); }
   /** Host feeds the OS prefers-reduced-motion state; headless default is false. */
   setReducedMotion(active: boolean): void { this.reducedMotionAtom.set(active); }
+  /** Opt in/out of the idle shimmer (`render`'s subtle time-driven overlay — see `isShimmering`).
+   *  Core default is off; a preset or app enables it explicitly (e.g. the demo, dark theme only). */
+  setIdleShimmer(on: boolean): void { this.idleShimmerAtom.set(on); }
 
   /** Register a tween on the shared animation clock. Returns a cancel fn. Ephemeral — no undo entry.
    *  Bumps `animationEpochAtom` so a signal-subscribed host repaint reaction wakes an idle rAF loop. */
@@ -2023,6 +2030,12 @@ export class Editor implements EngineHost {
    *  reduced motion (where the halo/outline render as today's static, non-animated appearance). */
   hasAnimatedSelection(): boolean {
     return this.selectedAtom.peek().size > 0 && !this.reducedMotionAtom.peek();
+  }
+  /** True while the idle shimmer overlay should keep ticking — the fourth (and last) rAF gate
+   *  (OR-ed with `isFlowAnimating()` / `isAnimating()` / `hasAnimatedSelection()`). Opt-in
+   *  (`idleShimmerAtom`, default false) AND not under reduced motion. */
+  isShimmering(): boolean {
+    return this.idleShimmerAtom.peek() && !this.reducedMotionAtom.peek();
   }
   /** Ephemeral per-item paint modifier (alpha/scale/offset). `undefined` = identity. Never serialized. */
   presentationFor(id: string): Presentation | undefined {
@@ -2126,14 +2139,40 @@ export class Editor implements EngineHost {
     ctx.restore();
   }
 
-  /** Convenience: paint the full frame (static + flow + overlays + optional interactive) onto one ctx.
-   *  Pass `time` (ms) to animate flow; the host keeps calling frames while `isFlowAnimating()` is true. */
+  /**
+   * Idle shimmer — a barely-perceptible, full-canvas breathing overlay drawn ONLY while
+   * `isShimmering()` (opt-in via `setIdleShimmer`; always off under reduced motion). A strict no-op
+   * otherwise: returns before touching `ctx` at all, so a non-shimmering render stays byte-identical
+   * to before this feature existed. Device-px space (identity transform), same convention as
+   * `fillBackground`/`drawAmbient` — a fixed screen-space wash, not a world-space effect, so it is
+   * unaffected by camera pan/zoom. Amplitude is tiny (alpha in `[0, 0.03]`) and guarded against a
+   * non-finite `time`/`cssW`/`cssH`/`dpr` (any of which would otherwise poison the sine/alpha math).
+   */
+  private paintIdleShimmer(ctx: Ctx2D, cssW: number, cssH: number, dpr: number, time: number): void {
+    if (!this.isShimmering()) return;
+    if (!Number.isFinite(time) || !Number.isFinite(cssW) || !Number.isFinite(cssH) || !Number.isFinite(dpr)) return;
+    const deviceW = cssW * dpr;
+    const deviceH = cssH * dpr;
+    if (deviceW <= 0 || deviceH <= 0) return;
+    const alpha = 0.03 * (0.5 + 0.5 * Math.sin(time / 2200));
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, deviceW, deviceH);
+    ctx.restore();
+  }
+
+  /** Convenience: paint the full frame (static + flow + overlays + idle shimmer + optional interactive)
+   *  onto one ctx. Pass `time` (ms) to animate flow/shimmer; the host keeps calling frames while
+   *  `isFlowAnimating()` / `isAnimating()` / `hasAnimatedSelection()` / `isShimmering()` is true. */
   render(ctx: Ctx2D, cssW: number, cssH: number, dpr = 1, interactive = false, time = 0): void {
     this.setViewport(cssW, cssH);
     this.animClock.step(time, this.reducedMotionAtom.peek());
     this.paintStatic(ctx, cssW, cssH, dpr);
     this.paintFlow(ctx, dpr, time);
     this.paintOverlays(ctx, cssW, cssH, dpr);
+    this.paintIdleShimmer(ctx, cssW, cssH, dpr, time);
     if (interactive) this.paintInteractive(ctx, cssW, cssH, dpr, time);
   }
 
