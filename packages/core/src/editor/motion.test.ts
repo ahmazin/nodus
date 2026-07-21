@@ -100,7 +100,19 @@ describe('SelectTool — grab-lift + spring-back', () => {
     expect(ed.presentationFor(id)).toBeUndefined();
   });
 
-  it('cancels the pending spring-back on a re-grab (fresh grab tween wins)', () => {
+  it('cancels the pending spring-back on a re-grab (no stale spring corrupts the still-held drag)', () => {
+    // Regression test for: releaseLift() used to discard the spring-back's cancel fn, so a re-grab's
+    // `this.liftCancels.get(id)?.()` could never find (and cancel) a still-running spring-back — only
+    // settled grab tweens. The stale spring kept ticking on its own schedule and, once it reached its
+    // own onDone, called clearPresentation() out from under the new grab — even though the drag was
+    // still held (no pointerUp yet). This test re-grabs mid-spring, lets the NEW grab tween fully
+    // settle (and get swept off the animation clock) *before* the OLD spring's own completion time,
+    // in a separate `animClockStep` call — the only arrangement that actually surfaces the bug: if the
+    // new grab tween were still ticking in the same step() call as the stale spring's onDone, its
+    // onTick (which always calls setPresentation) would immediately paper over the clear within that
+    // same synchronous call, masking the corruption. Hence re-grabbing at 30ms into the 180ms spring
+    // (not e.g. 90ms/half) — the new 120ms grab tween needs to finish strictly before the spring's
+    // fixed completion at now=300 (120 start + 180 duration).
     const { ed, id } = edWithNode();
 
     ed.pointerDown({ x: 140, y: 120 });
@@ -109,17 +121,31 @@ describe('SelectTool — grab-lift + spring-back', () => {
     ed.animClockStep(120); // grab tween fully settled at LIFT (1.03)
     expect(ed.presentationFor(id)?.scale).toBeCloseTo(1.03, 5);
 
-    ed.pointerUp({ x: 150, y: 120 }); // spring-back tween registered (from 1.03 to 1)
+    ed.pointerUp({ x: 150, y: 120 }); // spring-back tween registered (from 1.03 to 1, dur 180, start=120)
     ed.animClockStep(120); // seed the spring-back tween's baseline
 
-    // re-grab before the spring-back completes: the pending spring is superseded by a new grab tween.
+    // advance the clock partway into the spring — clearly mid-decay (between 1 and LIFT), not yet settled.
+    ed.animClockStep(150);
+    const midDecay = ed.presentationFor(id)?.scale;
+    expect(midDecay).toBeDefined();
+    expect(midDecay!).toBeGreaterThan(1);
+    expect(midDecay!).toBeLessThan(1.03);
+
+    // re-grab before the spring-back completes: the pending spring should be cancelled outright, not
+    // merely "raced" by a fresh grab tween.
     ed.pointerDown({ x: 150, y: 120 });
     ed.pointerMove({ x: 160, y: 120 });
-    ed.animClockStep(120);
-    ed.animClockStep(180);
-    const midRegrab = ed.presentationFor(id)?.scale;
-    expect(midRegrab).toBeDefined();
-    expect(midRegrab!).toBeGreaterThan(1);
+    ed.animClockStep(150); // seed the new grab tween's baseline (same "now" as the re-grab)
+    ed.animClockStep(270); // new grab tween settles at LIFT and is swept off the clock — 120ms later
+
+    // the drag is STILL HELD (no pointerUp) when the stale spring's own schedule would complete
+    // (120 + 180 = 300). With the spring properly cancelled at re-grab, this is a no-op. With the bug
+    // (discarded cancel), the stale spring fires onDone here — with nothing left to override it — and
+    // wipes the presentation entirely.
+    ed.animClockStep(300);
+    const stillHeld = ed.presentationFor(id);
+    expect(stillHeld).toBeDefined();
+    expect(stillHeld!.scale).toBeGreaterThan(1.02); // did NOT crater back to ~1 mid-drag
   });
 });
 

@@ -243,9 +243,11 @@ export class SelectTool extends ToolNode {
     }
     if (this.origPos.size === 0) return false;
     this.dragIds = ids;
-    // grab-lift: each dragged node scales up to LIFT over 120ms, presentation-only (committed
-    // position is untouched — see setPositionsAbsolute in onPointerMove below).
-    for (const id of ids) {
+    // grab-lift: each dragged NODE scales up to LIFT over 120ms, presentation-only (committed
+    // position is untouched — see setPositionsAbsolute in onPointerMove below). Scoped to node ids
+    // (this.origPos.keys()) rather than `ids`, which can include a co-selected edge that never moves
+    // and shouldn't get a scale pulse.
+    for (const id of this.origPos.keys()) {
       this.liftCancels.get(id)?.();
       this.liftCancels.set(
         id,
@@ -263,23 +265,32 @@ export class SelectTool extends ToolNode {
     return true;
   }
 
-  /** Spring each currently-dragged node's grab-lift back to scale 1 (~180ms), clearing the
+  /** Spring each currently-lifted node's grab-lift back to scale 1 (~180ms), clearing the
    *  presentation once the tween settles. Called on release (`onPointerUp`) and on an aborted drag
-   *  (`onExit`) — the committed position is never touched, only the presentation. */
+   *  (`onExit`) — the committed position is never touched, only the presentation.
+   *
+   *  The spring-back's own cancel fn is stored back into `liftCancels` (keyed by id), so a re-grab
+   *  before the spring settles (`beginTranslate`'s `this.liftCancels.get(id)?.()`) cancels the still-
+   *  running spring instead of finding nothing — otherwise the stale spring keeps ticking mid-drag and
+   *  craters the scale back to 1 / clears the presentation out from under the new grab. `onDone` both
+   *  clears the presentation AND removes the (by-then-settled) entry, so a spring that runs to
+   *  completion leaves no stale cancel behind. */
   private releaseLift(): void {
-    for (const id of this.dragIds) {
-      this.liftCancels.get(id)?.();
-      this.liftCancels.delete(id);
-      this.editor.animate({
+    for (const id of [...this.liftCancels.keys()]) {
+      this.liftCancels.get(id)?.(); // cancel the running grab tween
+      const cancel = this.editor.animate({
         from: this.editor.presentationFor(id)?.scale ?? LIFT,
         to: 1,
         durationMs: 180,
         easing: easeOutCubic,
         onTick: (v) => this.editor.setPresentation(id, { scale: v }),
-        onDone: () => this.editor.clearPresentation(id),
+        onDone: () => {
+          this.editor.clearPresentation(id);
+          this.liftCancels.delete(id);
+        },
       });
+      this.liftCancels.set(id, cancel); // so a re-grab can cancel THIS spring
     }
-    this.liftCancels.clear();
   }
 
   override onPointerMove(p: PointerInfo): void {
