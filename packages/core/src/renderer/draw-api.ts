@@ -43,6 +43,8 @@ export interface StrokeOpts {
   opacity?: number;
   cap?: 'butt' | 'round' | 'square';
   join?: 'round' | 'bevel' | 'miter';
+  gradient?: GradientSpec;
+  shadow?: ShadowSpec;
 }
 export interface LabelOpts {
   color?: string;
@@ -126,6 +128,19 @@ export class DrawApi {
     const g = this.ctx.createLinearGradient(cx - dx * proj, cy - dy * proj, cx + dx * proj, cy + dy * proj);
     for (const s of spec.stops) g.addColorStop(s.at, s.color);
     return g;
+  }
+
+  /** Axis-aligned bounding box of `points`; `{x:0,y:0,w:0,h:0}` for an empty list. */
+  private bboxOf(points: Vec2[]): Box {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    if (!Number.isFinite(minX)) return { x: 0, y: 0, w: 0, h: 0 };
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
   /** Offset drop shadow (distinct from the symmetric `glow`). */
@@ -255,15 +270,18 @@ export class DrawApi {
 
   strokeRoundRect(b: Box, radius: number, color: string, opts: StrokeOpts = {}): this {
     const rough = this.tokens.roughness ?? 0;
-    if (rough > 0) return this.sketchStroke(this.rectCorners(b), true, color, opts, rough);
+    if (rough > 0) {
+      return this.sketchStroke(this.rectCorners(b), true, opts.gradient?.stops[0]?.color ?? color, opts, rough);
+    }
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = opts.gradient ? this.gradientFor(b, opts.gradient) : color;
     ctx.lineWidth = opts.width ?? 1;
     if (opts.dash) ctx.setLineDash(opts.dash);
     this.roundRectPath(b, radius);
@@ -276,11 +294,12 @@ export class DrawApi {
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.fillStyle = color;
+    ctx.fillStyle = opts.gradient ? this.gradientFor(b, opts.gradient) : color;
     ctx.beginPath();
     ctx.ellipse(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, b.h / 2, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -290,15 +309,18 @@ export class DrawApi {
 
   strokeEllipse(b: Box, color: string, opts: StrokeOpts = {}): this {
     const rough = this.tokens.roughness ?? 0;
-    if (rough > 0) return this.sketchStroke(this.ellipseSamples(b), true, color, opts, rough);
+    if (rough > 0) {
+      return this.sketchStroke(this.ellipseSamples(b), true, opts.gradient?.stops[0]?.color ?? color, opts, rough);
+    }
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = opts.gradient ? this.gradientFor(b, opts.gradient) : color;
     ctx.lineWidth = opts.width ?? 1;
     if (opts.dash) ctx.setLineDash(opts.dash);
     ctx.beginPath();
@@ -312,11 +334,12 @@ export class DrawApi {
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.fillStyle = color;
+    ctx.fillStyle = opts.gradient ? this.gradientFor(this.bboxOf(points), opts.gradient) : color;
     this.polyPath(points, true);
     ctx.fill();
     ctx.restore();
@@ -325,15 +348,18 @@ export class DrawApi {
 
   strokePolyline(points: Vec2[], color: string, opts: StrokeOpts = {}): this {
     const rough = this.tokens.roughness ?? 0;
-    if (rough > 0) return this.sketchStroke(points, false, color, opts, rough);
+    if (rough > 0) {
+      return this.sketchStroke(points, false, opts.gradient?.stops[0]?.color ?? color, opts, rough);
+    }
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = opts.gradient ? this.gradientFor(this.bboxOf(points), opts.gradient) : color;
     ctx.lineWidth = opts.width ?? 1;
     ctx.lineCap = opts.cap ?? 'round';
     ctx.lineJoin = opts.join ?? 'round';

@@ -63,3 +63,36 @@ describe('DrawApi materials', () => {
     expect(ctx.toSVG(10, 10)).toContain('<linearGradient');
   });
 });
+
+describe('DrawApi materials — strokes & polygons', () => {
+  it('gradient-strokes a clean polyline across its bounding box', () => {
+    const { ctx, grads } = recordingCtx();
+    new DrawApi(ctx, tokens).strokePolyline(
+      [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+      '#000',
+      { gradient: { stops: [{ at: 0, color: '#f00' }, { at: 1, color: '#00f' }], angle: 0 } },
+    );
+    expect(grads).toHaveLength(1);
+    // angle 0° (L→R) across bbox width 100, height 0 → (0,0)→(100,0)
+    expect(grads[0]!.coords).toEqual([0, 0, 100, 0]);
+  });
+
+  it('falls back to the first stop color for a sketchy stroke', () => {
+    const rough = { ...tokens, roughness: 2 } as unknown as ResolvedTokens;
+    const ctx = new SVGContext();
+    new DrawApi(ctx as unknown as Ctx2D, rough).strokeRoundRect({ x: 0, y: 0, w: 20, h: 20 }, 4, '#000', {
+      gradient: { stops: [{ at: 0, color: '#abcdef' }, { at: 1, color: '#000000' }] },
+    });
+    const out = ctx.toSVG(20, 20);
+    expect(out).toContain('stroke="#abcdef"');
+    expect(out).not.toContain('<linearGradient');
+  });
+
+  it('gradient-fills an ellipse and a polygon', () => {
+    const { ctx, grads } = recordingCtx();
+    const api = new DrawApi(ctx, tokens);
+    api.fillEllipse({ x: 0, y: 0, w: 40, h: 40 }, '#000', { gradient: { stops: [{ at: 0, color: '#fff' }, { at: 1, color: '#000' }] } });
+    api.fillPolygon([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 10 }], '#000', { gradient: { stops: [{ at: 0, color: '#fff' }, { at: 1, color: '#000' }] } });
+    expect(grads).toHaveLength(2);
+  });
+});
