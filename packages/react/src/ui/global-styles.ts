@@ -28,6 +28,14 @@ const CSS = `
   color: inherit;
   margin: 0;
 }
+[data-nodus-ui] button,
+button[data-nodus-ui] {
+  transition: transform 80ms ease;
+}
+[data-nodus-ui] button:active,
+button[data-nodus-ui]:active {
+  transform: scale(0.97);
+}
 [data-nodus-ui]:focus,
 [data-nodus-ui] :focus {
   outline: none;
@@ -45,6 +53,7 @@ const CSS = `
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+    transform: none !important;
   }
 }
 `;
