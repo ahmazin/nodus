@@ -307,3 +307,40 @@ describe('startPanMomentum', () => {
     expect(after.x - atRestart.x).toBeCloseTo(-320, 5);
   });
 });
+
+describe('animateEntrance', () => {
+  it('starts a node at alpha 0/scale 0.92 and fades/clears after ~260ms', () => {
+    const { ed, id } = edWithNode();
+
+    ed.animateEntrance([id]);
+    expect(ed.presentationFor(id)?.alpha).toBe(0);
+    expect(ed.presentationFor(id)?.scale).toBeCloseTo(0.92, 5);
+
+    ed.animClockStep(0); // seed the tween's clock baseline
+    ed.animClockStep(260); // fully elapsed (durationMs)
+    expect(ed.presentationFor(id)).toBeUndefined();
+  });
+
+  it('staggers a second id — just after start it is still held at alpha 0 (delayMs not yet elapsed)', () => {
+    const { ed, id } = edWithNode();
+    const id2 = ed.createNode({ type: 'rect', x: 300, y: 100, w: 80, h: 40 });
+
+    ed.animateEntrance([id, id2], { stagger: 100 });
+    ed.animClockStep(0); // seed both tweens' clock baseline (delayMs applies from here)
+
+    ed.animClockStep(30); // well within id2's 100ms delay, but past id's start
+    expect(ed.presentationFor(id)?.alpha).toBeGreaterThan(0); // first id has started easing in
+    expect(ed.presentationFor(id2)?.alpha).toBe(0); // second id still held at its pre-delay value
+  });
+
+  it('under reduced motion, snaps to fully in (and clears) on the first step', () => {
+    const { ed, id } = edWithNode();
+    ed.setReducedMotion(true);
+
+    ed.animateEntrance([id]);
+    expect(ed.presentationFor(id)?.alpha).toBe(0); // set synchronously before any tick runs
+
+    ed.animClockStep(0); // reduced-motion step snaps every tween straight to onDone
+    expect(ed.presentationFor(id)).toBeUndefined();
+  });
+});

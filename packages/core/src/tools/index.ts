@@ -628,6 +628,7 @@ export class CreateNodeTool extends ToolNode {
     this.editor.setCreatePreview(null);
     this.start = null;
     this.editor.select(id ? [id] : []);
+    if (id) this.editor.animateEntrance([id]); // single node, no stagger
     this.editor.setTool('select');
   }
   override onExit(): void {

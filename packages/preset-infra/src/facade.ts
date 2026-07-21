@@ -129,6 +129,10 @@ export function InfraCanvas(opts: InfraCanvasOptions): InfraCanvasHandle {
   installInfraPreset(editor);
   const records = modelToRecords(opts.model, opts.overlays);
   editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
+  // Staggered entrance cascade for the freshly loaded diagram. Presentation alpha starts at 0 and
+  // holds there until the host mounts + first paints (and, under reduced motion, snaps visible
+  // immediately) — acceptable, since there's nothing on screen to flash before that first paint.
+  editor.animateEntrance(editor.store.nodes().map((n) => n.id), { stagger: 40 });
 
   let reveal: RevealController | undefined;
   let stages: StagesController | undefined;

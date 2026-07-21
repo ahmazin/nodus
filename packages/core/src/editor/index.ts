@@ -2013,6 +2013,27 @@ export class Editor implements EngineHost {
   clearPresentation(id: string): void {
     this.presentation.delete(id);
   }
+  /** Entrance animation (fade + scale-in) for freshly created/loaded/imported nodes — a staggered
+   *  cascade when `opts.stagger` is set. Each id starts at alpha 0 / scale 0.92, tweens to alpha 1 /
+   *  scale 1 over 260ms, and clears its presentation on completion. Under reduced motion `animate`
+   *  snaps every tween straight to its done value on the first `step()` — nodes just appear, no
+   *  special-casing needed here. NOT called from paste/duplicate/undo/redo (only fresh content should
+   *  cascade in); callers must pass NODE ids only (this scales/fades a node tile). */
+  animateEntrance(ids: readonly Id[], opts?: { stagger?: number }): void {
+    const stagger = opts?.stagger ?? 0;
+    ids.forEach((id, i) => {
+      this.setPresentation(id, { alpha: 0, scale: 0.92 });
+      this.animate({
+        from: 0,
+        to: 1,
+        durationMs: 260,
+        delayMs: i * stagger,
+        easing: easeOutCubic,
+        onTick: (v) => this.setPresentation(id, { alpha: v, scale: 0.92 + 0.08 * v }),
+        onDone: () => this.clearPresentation(id),
+      });
+    });
+  }
   /** Test-only: advance the animation clock with the current reduced-motion state, without a full
    *  `render()` call (which needs a real Ctx2D). Lets unit tests drive tween ticks deterministically. */
   animClockStep(now: number): void {

@@ -399,6 +399,12 @@ export async function importMermaid(editor: Editor, src: string, opts: ImportMer
   const engine = opts.layout ?? 'elk';
   if (engine) await editor.layout(engine, { direction: opts.direction ?? parsed.direction });
   if (opts.fit !== false) editor.zoomToFit(48);
+  // Entrance cascade after positions are final (layout + zoomToFit) — node records only, so edges
+  // (which have no scale-in geometry of their own) aren't handed to the presentation tween.
+  editor.animateEntrance(
+    parsed.records.filter((r) => r.typeName === 'node').map((r) => r.id),
+    { stagger: 30 },
+  );
   return parsed;
 }
 
