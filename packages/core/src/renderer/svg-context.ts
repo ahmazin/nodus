@@ -23,6 +23,9 @@
  *    guarantees `width`/`height`, so the href is read best-effort.
  *  - Linear and radial gradients render as `<linearGradient>`/`<radialGradient>` defs (see
  *    `paintValue`); other paint types (patterns) are not supported.
+ *  - `createRadialGradient`'s `r0` (inner/start radius) is not serialized — SVG's `<radialGradient>`
+ *    emits `fx`/`fy` (focal point) but has no `fr`-equivalent for a nonzero start radius pre-SVG2, so a
+ *    nonzero `r0` is approximated (effectively treated as 0) rather than reproduced exactly.
  */
 
 import type { Ctx2D, CanvasGradientLike, DrawableImage } from './context.js';

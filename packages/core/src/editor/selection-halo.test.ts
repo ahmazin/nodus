@@ -76,4 +76,28 @@ describe('selection halo', () => {
     // The halo must be drawn UNDER the crisp stroke — i.e. emitted first.
     expect(strokes.indexOf(halo!)).toBeLessThan(strokes.indexOf(crisp!));
   });
+
+  it('keeps the halo shadowBlur a device-space constant (12), unaffected by camera zoom', () => {
+    // shadowBlur is DEVICE-space (unaffected by the CTM) — see dirty-region.ts. Every other glow in
+    // this codebase uses a raw constant (flow glow: 14, draw-api glows: 14/8), so the halo must too:
+    // NOT `px(12)`, which would scale the bloom radius with zoom (balloon when zoomed out, shrink in).
+    const ed = new Editor();
+    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 60 });
+    ed.select([id]);
+
+    const zoomedOut = recordingCtx();
+    ed.setCamera({ ...ed.camera, z: 0.5 });
+    ed.render(zoomedOut.ctx, 800, 600, 1, true, 0);
+    const haloOut = zoomedOut.strokes.find((s) => s.shadowBlur > 0);
+
+    const zoomedIn = recordingCtx();
+    ed.setCamera({ ...ed.camera, z: 2 });
+    ed.render(zoomedIn.ctx, 800, 600, 1, true, 0);
+    const haloIn = zoomedIn.strokes.find((s) => s.shadowBlur > 0);
+
+    expect(haloOut).toBeDefined();
+    expect(haloIn).toBeDefined();
+    expect(haloOut!.shadowBlur).toBe(12);
+    expect(haloIn!.shadowBlur).toBe(12);
+  });
 });

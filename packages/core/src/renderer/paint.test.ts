@@ -389,6 +389,57 @@ describe('drawGrid — depth-faded dots + accent major lines', () => {
     expect(probe.strokes.length).toBe(0);
   });
 
+  it('treats majorEvery: 0 as "majors disabled" — draws zero major lines', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        grid: { color: 'rgba(255,255,255,0.03)', size: 24, major: 'rgba(16,185,129,0.06)', majorEvery: 0 },
+      },
+    };
+    const probe = gridRecordingCtx();
+
+    drawGrid(probe.ctx, theme, cam, 240, 240);
+
+    expect(probe.fillRects.length).toBeGreaterThan(0); // dot pass still runs
+    expect(probe.strokes.length).toBe(0); // majors disabled — no major lines at all
+  });
+
+  it('treats a negative majorEvery as "majors disabled" too, instead of the old NaN-modulo sign quirk', () => {
+    // The real regression case: with the unguarded `grid.majorEvery ?? 5` fallback, a NEGATIVE value
+    // does NOT silently draw nothing — JS's `%` keeps the dividend's sign, so
+    // `((ix % -1) + -1) % -1 === 0` is true for every integer ix, meaning the old code would draw a
+    // major line at every single gridline (worse than the "never draws" case majorEvery: 0 happens to
+    // produce via NaN). The guard must skip the whole pass for any majorEvery <= 0.
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        grid: { color: 'rgba(255,255,255,0.03)', size: 24, major: 'rgba(16,185,129,0.06)', majorEvery: -1 },
+      },
+    };
+    const probe = gridRecordingCtx();
+
+    drawGrid(probe.ctx, theme, cam, 240, 240);
+
+    expect(probe.strokes.length).toBe(0);
+  });
+
+  it('still draws majors normally when majorEvery: 5 (the normal case is unchanged)', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        grid: { color: 'rgba(255,255,255,0.03)', size: 24, major: 'rgba(16,185,129,0.06)', majorEvery: 5 },
+      },
+    };
+    const probe = gridRecordingCtx();
+
+    drawGrid(probe.ctx, theme, cam, 240, 240);
+
+    expect(probe.strokes.length).toBeGreaterThan(0);
+  });
+
   it('fades dot alpha by distance from the viewport center — a center dot is brighter than an edge dot', () => {
     const theme = {
       ...defaultTheme,

@@ -141,7 +141,10 @@ export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cs
     }
   }
 
-  if (grid.major) {
+  // an explicit `majorEvery <= 0` (or non-finite) means the author disabled majors — skip the pass
+  // rather than let `ix % majorEvery` produce NaN, which would silently never match and (worse) mask
+  // the misconfiguration as "majors just aren't showing".
+  if (grid.major && (grid.majorEvery ?? 5) > 0 && Number.isFinite(grid.majorEvery ?? 5)) {
     const majorEvery = grid.majorEvery ?? 5;
     ctx.strokeStyle = grid.major;
     ctx.lineWidth = 1;

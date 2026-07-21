@@ -1626,7 +1626,7 @@ export class Editor implements EngineHost {
         // animated pulse is a later (S2) task.
         ctx.save();
         ctx.shadowColor = accent;
-        ctx.shadowBlur = px(12);
+        ctx.shadowBlur = 12; // device-space constant (unaffected by the CTM) — see dirty-region.ts
         strokeWorldBox(ctx, box, accent, px(2));
         ctx.restore();
         // locked nodes get a dashed outline + a padlock badge; canResizeNode already returns false
