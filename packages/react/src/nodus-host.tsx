@@ -81,7 +81,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       const now = performance.now();
       editor.render(ctx, rect.width, rect.height, dpr(), true, now);
       lastFlowPaint = now;
-      if (editor.isFlowAnimating()) armFlow(); // keep ticking while flowing (throttled to maxFps)
+      if (editor.isFlowAnimating() || editor.isAnimating()) armFlow(); // keep ticking while flow OR a tween is live
     };
     const armFlow = (): void => {
       clearTimeout(flowTimer);
