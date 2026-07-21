@@ -55,9 +55,11 @@ function mockCtx(): Ctx2D & { arcs: { x: number; color: string }[] } {
   const ctx = {
     arcs,
     save: noop, restore: noop, setTransform: noop, beginPath: noop, fill: noop, stroke: noop,
-    moveTo: noop, lineTo: noop, setLineDash: noop, closePath: noop,
+    moveTo: noop, lineTo: noop, setLineDash: noop, closePath: noop, arcTo: noop, fillText: noop,
+    measureText: () => ({ width: 0 }),
     arc: (x: number) => arcs.push({ x, color: (ctx as { fillStyle: string }).fillStyle }),
     fillStyle: '', strokeStyle: '', lineWidth: 0, lineDashOffset: 0, shadowColor: '', shadowBlur: 0,
+    globalAlpha: 1, font: '', textAlign: 'center', textBaseline: 'middle',
   };
   return ctx as unknown as Ctx2D & { arcs: { x: number; color: string }[] };
 }

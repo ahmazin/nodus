@@ -61,7 +61,9 @@ import { drawAmbient, drawGrid, fillBackground, fillHandle, paintFlowMarkers, pa
 import { StaticLayerCache, type CreateOffscreen, type LayerCacheStats } from '../renderer/layer-cache.js';
 import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveTokensCached } from '../renderer/token-cache.js';
+import { DrawApi, hashId } from '../renderer/draw-api.js';
 import { resolveFlow } from '../flow.js';
+import { formatRate } from '../flow-format.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
 import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
@@ -2135,7 +2137,32 @@ export class Editor implements EngineHost {
       const resolved = resolveFlow(flow, this.flowMetrics.get(item.id));
       this.drawFlowGlow(ctx, item, theme, resolved);
       paintFlowMarkers(ctx, item, theme, time, resolved);
+      this.drawFlowRatePill(ctx, item, theme, resolved);
     }
+  }
+
+  /** Live flow-rate readout: a small numeric pill at a flowing edge's midpoint, drawn on top of the
+   *  markers. Only appears when there's an actual metric — `flowMetrics` (live) or the spec's static
+   *  `data` — so an edge with flow visuals but no numeric value gets no pill (never draws 'NaN'). */
+  private drawFlowRatePill(ctx: Ctx2D, item: RenderItem, theme: Theme, resolved: FlowSpec): void {
+    const route = item.route;
+    if (!route || route.length < 2) return;
+    const value = this.flowMetrics.get(item.id) ?? (item.record as EdgeRecord).flow?.data;
+    if (value == null || !Number.isFinite(value)) return;
+    const txt = formatRate(value);
+    if (!txt) return;
+    const mid = route[Math.floor(route.length / 2)] ?? route[0]!;
+    const tokens = resolveTokensCached(theme, item.record as EdgeRecord);
+    const api = new DrawApi(ctx, tokens, hashId(item.id));
+    const w = api.measureLabel(txt, 10) + 12;
+    const h = 17;
+    api.fillRoundRect(
+      { x: mid.x - w / 2, y: mid.y - h / 2, w, h },
+      h / 2,
+      resolved.color ?? tokens.stroke,
+      { opacity: 0.92 },
+    );
+    api.label(txt, mid, { fontSize: 10, color: '#ffffff', weight: '600' });
   }
 
   /** Neon bloom underlay for a flowing edge: a wide, translucent, glowing stroke along the edge's
