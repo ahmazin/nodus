@@ -203,4 +203,14 @@ export {
   type ExportCanvas,
   type AlignEdge,
   type DistributeAxis,
+  type Presentation,
 } from './editor/index.js';
+
+// animation
+export {
+  linear,
+  easeOutCubic,
+  easeInOutCubic,
+  type Easing,
+  type TweenSpec,
+} from './editor/animation.js';

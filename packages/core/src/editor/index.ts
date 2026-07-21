@@ -63,11 +63,21 @@ import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
+import { AnimationClock, type TweenSpec } from './animation.js';
 
 /** Edge/center a multi-selection aligns to (see `Editor.align`). */
 export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
 /** Axis a multi-selection distributes along (see `Editor.distribute`). */
 export type DistributeAxis = 'h' | 'v';
+
+/** Ephemeral per-item paint modifier driven by tweens (`Editor.animate`). Never serialized; identity
+ *  (alpha 1, scale 1, dx/dy 0) when absent from the presentation map. */
+export interface Presentation {
+  alpha: number;
+  scale: number;
+  dx: number;
+  dy: number;
+}
 
 const FLOW_DEFAULTS: FlowRuntimeConfig = {
   enabled: true,
@@ -1846,6 +1856,12 @@ export class Editor implements EngineHost {
   /** Integrated flow time (ms), advanced by paintFlow only while animating. */
   private flowClock = 0;
   private flowPrevTime: number | null = null;
+  /** Shared tween engine for one-shot presentation animations (distinct from the flow clock). */
+  private animClock = new AnimationClock();
+  /** Ephemeral per-item paint modifiers written by tween `onTick` callbacks. Never serialized.
+   *  Keyed by plain string id (not the branded `Id` type) — presentation targets need not be
+   *  live record ids (e.g. transient overlay elements), so this stays deliberately loose. */
+  private presentation = new Map<string, Presentation>();
 
   flowConfig(): Readonly<FlowRuntimeConfig> {
     return this.flowConfigAtom.peek();
@@ -1862,6 +1878,32 @@ export class Editor implements EngineHost {
   setFlowSpeedScale(speedScale: number): void { this.setFlowConfig({ speedScale }); }
   /** Host feeds the OS prefers-reduced-motion state; headless default is false. */
   setReducedMotion(active: boolean): void { this.reducedMotionAtom.set(active); }
+
+  /** Register a tween on the shared animation clock. Returns a cancel fn. Ephemeral — no undo entry. */
+  animate(spec: TweenSpec): () => void {
+    return this.animClock.add(spec);
+  }
+  /** True while any tween is unfinished — the second rAF gate (OR-ed with `isFlowAnimating()`). */
+  isAnimating(): boolean {
+    return this.animClock.isActive();
+  }
+  /** Ephemeral per-item paint modifier (alpha/scale/offset). `undefined` = identity. Never serialized. */
+  presentationFor(id: string): Presentation | undefined {
+    return this.presentation.get(id);
+  }
+  /** Merge a presentation patch for `id` (defaults: alpha 1, scale 1, dx/dy 0). Ephemeral. */
+  setPresentation(id: string, patch: Partial<Presentation>): void {
+    const cur = this.presentation.get(id) ?? { alpha: 1, scale: 1, dx: 0, dy: 0 };
+    this.presentation.set(id, { ...cur, ...patch });
+  }
+  clearPresentation(id: string): void {
+    this.presentation.delete(id);
+  }
+  /** Test-only: advance the animation clock with the current reduced-motion state, without a full
+   *  `render()` call (which needs a real Ctx2D). Lets unit tests drive tween ticks deterministically. */
+  animClockStep(now: number): void {
+    this.animClock.step(now, this.reducedMotionAtom.peek());
+  }
 
   /** True if flow should be actively animating right now — the rAF gate. Respects enabled/paused/
    *  reduced-motion. (`hasFlow()` stays doc-truth: "any edge has a flow spec".) */
@@ -1903,6 +1945,7 @@ export class Editor implements EngineHost {
    *  Pass `time` (ms) to animate flow; the host keeps calling frames while `isFlowAnimating()` is true. */
   render(ctx: Ctx2D, cssW: number, cssH: number, dpr = 1, interactive = false, time = 0): void {
     this.setViewport(cssW, cssH);
+    this.animClock.step(time, this.reducedMotionAtom.peek());
     this.paintStatic(ctx, cssW, cssH, dpr);
     this.paintFlow(ctx, dpr, time);
     this.paintOverlays(ctx, cssW, cssH, dpr);
