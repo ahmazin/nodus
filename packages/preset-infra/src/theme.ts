@@ -42,7 +42,7 @@ export const darkInfraTheme: Theme = {
   radii: { node: 7 },
   canvas: {
     fill: '#070a09',
-    grid: { color: 'rgba(255,255,255,0.03)', size: 24 },
+    grid: { color: 'rgba(255,255,255,0.03)', size: 24, major: 'rgba(16,185,129,0.06)', majorEvery: 5 },
     // S1 T5 — the "separate follow-up" noted above: a soft accent-green + cool-blue wash plus an inner
     // vignette. Editor chrome only (drawAmbient is never called from paintRegion), so exports stay clean.
     ambient: {
@@ -117,7 +117,10 @@ export const infraLightTheme: Theme = {
     lineHeight: 1.3,
   },
   radii: { node: 7 },
-  canvas: { fill: '#f7f9f8', grid: { color: 'rgba(7,10,9,0.05)', size: 24 } },
+  canvas: {
+    fill: '#f7f9f8',
+    grid: { color: 'rgba(7,10,9,0.05)', size: 24, major: 'rgba(7,10,9,0.05)', majorEvery: 5 },
+  },
   states: {
     // accent: light card fill only; stroke/text/glow come from the type's byType slice.
     // Calmer glass than dark — depth without a heavy wash (bloom/washes are a later pass).

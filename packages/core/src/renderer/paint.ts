@@ -10,6 +10,7 @@ import type { RenderItem } from '../scene-index/index.js';
 import { DrawApi, hashId } from './draw-api.js';
 import type { Ctx2D } from './context.js';
 import { resolveTokensCached } from './token-cache.js';
+import { clamp } from '../camera/index.js';
 
 // ---- per-item paint fault tolerance ----
 
@@ -104,7 +105,10 @@ export function drawAmbient(ctx: Ctx2D, theme: Theme, cam: Camera, deviceW: numb
   ctx.restore();
 }
 
-/** Dot grid, drawn in CSS-pixel space (caller sets transform to `[dpr,0,0,dpr,0,0]`). */
+/** Depth-faded dot grid, drawn in CSS-pixel space (caller sets transform to `[dpr,0,0,dpr,0,0]`).
+ *  Every dot (and, when `grid.major` is set, every major gridline) has its alpha faded by normalized
+ *  screen distance from the viewport center — full strength at the center, fading toward ~0 at the
+ *  corners — so the grid reads as ambient depth rather than a flat, mechanical overlay. */
 export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cssH: number): void {
   const grid = theme.canvas.grid;
   if (!grid) return;
@@ -113,6 +117,15 @@ export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cs
   if (!Number.isFinite(cam.x + cam.y + cam.z)) return;
   const step = grid.size * cam.z;
   if (step < 6) return; // too dense to be useful — skip
+
+  const cx = cssW / 2;
+  const cy = cssH / 2;
+  const maxDist = Math.hypot(cssW, cssH) / 2;
+  // normalized fade: 1 at the viewport center, clamped to 0 by the corners. `maxDist <= 0` (a
+  // degenerate zero-size viewport) falls back to full strength rather than dividing by zero.
+  const fadeAt = (sx: number, sy: number): number =>
+    maxDist > 0 ? clamp(1 - Math.hypot(sx - cx, sy - cy) / maxDist, 0, 1) : 1;
+
   ctx.save();
   ctx.fillStyle = grid.color;
   const startX = Math.floor(cam.x / grid.size) * grid.size;
@@ -123,10 +136,44 @@ export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cs
     for (let wy = startY; ; wy += grid.size) {
       const sy = (wy - cam.y) * cam.z;
       if (sy > cssH) break;
+      ctx.globalAlpha = fadeAt(sx, sy);
       ctx.fillRect(sx - 0.6, sy - 0.6, 1.2, 1.2);
     }
   }
-  ctx.restore();
+
+  if (grid.major) {
+    const majorEvery = grid.majorEvery ?? 5;
+    ctx.strokeStyle = grid.major;
+    ctx.lineWidth = 1;
+    const startIdxX = Math.floor(cam.x / grid.size);
+    const startIdxY = Math.floor(cam.y / grid.size);
+    let ix = startIdxX;
+    for (let wx = startX; ; wx += grid.size, ix++) {
+      const sx = (wx - cam.x) * cam.z;
+      if (sx > cssW) break;
+      if (((ix % majorEvery) + majorEvery) % majorEvery === 0) {
+        ctx.globalAlpha = fadeAt(sx, cy); // faded by the line's distance to center along its own axis
+        ctx.beginPath();
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, cssH);
+        ctx.stroke();
+      }
+    }
+    let iy = startIdxY;
+    for (let wy = startY; ; wy += grid.size, iy++) {
+      const sy = (wy - cam.y) * cam.z;
+      if (sy > cssH) break;
+      if (((iy % majorEvery) + majorEvery) % majorEvery === 0) {
+        ctx.globalAlpha = fadeAt(cx, sy);
+        ctx.beginPath();
+        ctx.moveTo(0, sy);
+        ctx.lineTo(cssW, sy);
+        ctx.stroke();
+      }
+    }
+  }
+
+  ctx.restore(); // also restores globalAlpha for the caller's next draw
 }
 
 /**

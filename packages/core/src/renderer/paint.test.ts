@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultTheme, type Camera, type Ctx2D, type NodeRecord, type NodeRegistry, type NodeUtil, type RenderItem } from '../index.js';
-import { drawAmbient, paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
+import { drawAmbient, drawGrid, paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
 import { clearTokenCache } from './token-cache.js';
 
 /** A stub Ctx2D that counts key ops and maintains a real save/restore stack for `globalAlpha`, so we
@@ -236,5 +236,114 @@ describe('drawAmbient', () => {
 
     expect(() => drawAmbient(probe.ctx, theme, { x: NaN, y: 0, z: 1 }, 800, 600)).not.toThrow();
     expect(probe.radialGradients).toBe(0);
+  });
+});
+
+/** A Ctx2D that records every dot `fillRect` (with the `globalAlpha` in effect at call time) and every
+ *  stroked path (`moveTo`/`lineTo` points, `strokeStyle`, and `globalAlpha`) — lets `drawGrid` tests
+ *  assert the major-gridline pass is distinct from the dot pass, and that alpha fades by distance. */
+function gridRecordingCtx(): {
+  ctx: Ctx2D;
+  fillRects: { x: number; y: number; alpha: number }[];
+  strokes: { points: [number, number][]; strokeStyle: string; alpha: number }[];
+} {
+  const fillRects: { x: number; y: number; alpha: number }[] = [];
+  const strokes: { points: [number, number][]; strokeStyle: string; alpha: number }[] = [];
+  let path: [number, number][] = [];
+  const obj: Record<string, unknown> = {
+    globalAlpha: 1,
+    save() {}, restore() {},
+    scale() {}, translate() {}, rotate() {}, setTransform() {}, transform() {},
+    clearRect() {},
+    fillRect(x: number, y: number) {
+      fillRects.push({ x, y, alpha: obj.globalAlpha as number });
+    },
+    strokeRect() {},
+    beginPath() { path = []; },
+    closePath() {},
+    moveTo(x: number, y: number) { path.push([x, y]); },
+    lineTo(x: number, y: number) { path.push([x, y]); },
+    arc() {}, arcTo() {}, ellipse() {}, quadraticCurveTo() {}, bezierCurveTo() {}, rect() {},
+    fill() {},
+    stroke() {
+      strokes.push({ points: [...path], strokeStyle: obj.strokeStyle as string, alpha: obj.globalAlpha as number });
+    },
+    clip() {},
+    fillText() {}, strokeText() {}, measureText: (t: string) => ({ width: t.length * 6 }),
+    setLineDash() {}, drawImage() {},
+    fillStyle: '', strokeStyle: '', lineWidth: 0, lineCap: '', lineJoin: '', lineDashOffset: 0,
+    font: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
+  };
+  return { ctx: obj as unknown as Ctx2D, fillRects, strokes };
+}
+
+describe('drawGrid — depth-faded dots + accent major lines', () => {
+  const cam: Camera = { x: 0, y: 0, z: 1 };
+
+  it('strokes at least one major gridline, distinct from the dot fillRects, when grid.major is set', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: {
+        ...defaultTheme.canvas,
+        grid: { color: 'rgba(255,255,255,0.03)', size: 24, major: 'rgba(16,185,129,0.06)', majorEvery: 5 },
+      },
+    };
+    const probe = gridRecordingCtx();
+
+    drawGrid(probe.ctx, theme, cam, 240, 240);
+
+    expect(probe.fillRects.length).toBeGreaterThan(0); // dot pass still runs
+    expect(probe.strokes.length).toBeGreaterThan(0); // major-line pass ran too
+    for (const s of probe.strokes) {
+      expect(s.strokeStyle).toBe('rgba(16,185,129,0.06)'); // majors use grid.major, not grid.color
+    }
+  });
+
+  it('does not stroke any lines when grid.major is unset (existing dot-only behavior)', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: { ...defaultTheme.canvas, grid: { color: 'rgba(255,255,255,0.03)', size: 24 } },
+    };
+    const probe = gridRecordingCtx();
+
+    drawGrid(probe.ctx, theme, cam, 240, 240);
+
+    expect(probe.fillRects.length).toBeGreaterThan(0);
+    expect(probe.strokes.length).toBe(0);
+  });
+
+  it('fades dot alpha by distance from the viewport center — a center dot is brighter than an edge dot', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: { ...defaultTheme.canvas, grid: { color: 'rgba(255,255,255,0.03)', size: 24 } },
+    };
+    const probe = gridRecordingCtx();
+    const cssW = 240;
+    const cssH = 240;
+
+    drawGrid(probe.ctx, theme, cam, cssW, cssH);
+
+    const cx = cssW / 2;
+    const cy = cssH / 2;
+    const withDist = probe.fillRects.map((r) => ({ ...r, dist: Math.hypot(r.x - cx, r.y - cy) }));
+    const nearest = withDist.reduce((a, b) => (b.dist < a.dist ? b : a));
+    const farthest = withDist.reduce((a, b) => (b.dist > a.dist ? b : a));
+
+    expect(nearest.alpha).toBeGreaterThan(farthest.alpha); // center ~full, edge ~0
+    expect(farthest.alpha).toBeLessThan(0.3);
+  });
+
+  it('preserves the step < 6 skip and the non-finite-camera guard', () => {
+    const theme = {
+      ...defaultTheme,
+      canvas: { ...defaultTheme.canvas, grid: { color: 'rgba(255,255,255,0.03)', size: 24 } },
+    };
+    const dense = gridRecordingCtx();
+    drawGrid(dense.ctx, theme, { x: 0, y: 0, z: 0.2 }, 240, 240); // step = 24*0.2 = 4.8 < 6
+    expect(dense.fillRects.length).toBe(0);
+
+    const bad = gridRecordingCtx();
+    expect(() => drawGrid(bad.ctx, theme, { x: NaN, y: 0, z: 1 }, 240, 240)).not.toThrow();
+    expect(bad.fillRects.length).toBe(0);
   });
 });
