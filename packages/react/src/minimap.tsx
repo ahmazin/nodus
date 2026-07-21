@@ -148,7 +148,7 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
         border: `1px solid ${t.color.border}`,
         borderRadius: t.radius.md,
         boxShadow: t.shadow.panel,
-        background: t.color.panel,
+        background: 'transparent',
         ...style,
       }}
     />
