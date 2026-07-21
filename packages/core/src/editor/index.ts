@@ -1327,10 +1327,12 @@ export class Editor implements EngineHost {
   startPanMomentum(vx: number, vy: number): void {
     if (this.reducedMotionAtom.peek()) return;
     if (Math.hypot(vx, vy) < PAN_MOMENTUM_MIN_V) return;
+    this.panMomentumCancel?.();
+    this.panMomentumCancel = null;
     const Dx = vx * PAN_MOMENTUM_DECAY_MS;
     const Dy = vy * PAN_MOMENTUM_DECAY_MS;
     let last = 0;
-    this.animate({
+    this.panMomentumCancel = this.animate({
       from: 0,
       to: 1,
       durationMs: PAN_MOMENTUM_DECAY_MS,
@@ -1339,7 +1341,16 @@ export class Editor implements EngineHost {
         this.panByScreen(Dx * (p - last), Dy * (p - last));
         last = p;
       },
+      onDone: () => {
+        this.panMomentumCancel = null;
+      },
     });
+  }
+  /** Cancel a still-gliding momentum-pan tween outright (no-op if none is running). Called by the host
+   *  on any new pointer-down so a fresh gesture never races a stale glide's residual deltas. */
+  cancelPanMomentum(): void {
+    this.panMomentumCancel?.();
+    this.panMomentumCancel = null;
   }
   zoomBy(factor: number, screenCenter?: Vec2): void {
     const vp = this.viewportAtom.peek();
@@ -1951,6 +1962,11 @@ export class Editor implements EngineHost {
    *  Keyed by plain string id (not the branded `Id` type) — presentation targets need not be
    *  live record ids (e.g. transient overlay elements), so this stays deliberately loose. */
   private presentation = new Map<string, Presentation>();
+  /** Cancel fn for an in-flight momentum-pan tween (see `startPanMomentum`), or `null` when none is
+   *  running. A new gesture (fresh pan grab, or any other pointer-down) must cancel a still-gliding
+   *  glide — otherwise its residual `panByScreen` deltas keep stacking on top of the live drag and the
+   *  camera outruns the cursor. Same bug class as `SelectTool`'s `liftCancels`. */
+  private panMomentumCancel: (() => void) | null = null;
 
   flowConfig(): Readonly<FlowRuntimeConfig> {
     return this.flowConfigAtom.peek();

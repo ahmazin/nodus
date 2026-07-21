@@ -203,6 +203,30 @@ describe('startPanMomentum', () => {
     expect(after.y).toBeCloseTo(before.y, 5);
   });
 
+  it('sums residual per-tick deltas (Dx*(p-last)) to exactly D across INTERMEDIATE ticks', () => {
+    // Regression test for a plausible drift bug: swapping the residual `Dx*(p-last)` formula for the
+    // absolute `Dx*p` would still pass a test that only samples progress 0 and 1 (both endpoints give
+    // the same total either way — the bug only shows up once you sum more than one non-trivial tick).
+    // Stepping through several intermediate progress points forces the sum to actually telescope.
+    const { ed } = edWithNode();
+    const before = ed.camera;
+
+    ed.startPanMomentum(1, 0); // 1 px/ms rightward fling; D = 1 * 320 = 320 screen px
+    ed.animClockStep(0); // seed the tween's clock baseline (start = 0)
+    ed.animClockStep(107); // p1 = easeOutCubic(107/320)
+    ed.animClockStep(213); // p2 = easeOutCubic(213/320)
+    ed.animClockStep(320); // p3 = 1 (fully elapsed)
+
+    const after = ed.camera;
+    // Under the correct residual formula, sum_i Dx*(p_i - p_{i-1}) telescopes to Dx*(1-0) = Dx = 320
+    // regardless of how many intermediate steps land in between. Under the buggy absolute-delta
+    // formula (`Dx*p` per tick, i.e. NOT subtracting the previous progress), the same four ticks would
+    // instead sum to Dx*(p1 + p2 + p3) ≈ 320 * (p1 + p2 + 1), which overshoots to roughly ~550-600+
+    // screen px — comfortably outside this tolerance.
+    expect(after.x - before.x).toBeCloseTo(-320, 5);
+    expect(after.y).toBeCloseTo(before.y, 5);
+  });
+
   it('decelerates — the midpoint has covered some but not all of the fling distance', () => {
     const { ed } = edWithNode();
     const before = ed.camera;
@@ -237,5 +261,49 @@ describe('startPanMomentum', () => {
     ed.animClockStep(320);
 
     expect(ed.camera).toEqual(before);
+  });
+
+  it('cancelPanMomentum stops a still-gliding tween outright — no further residual deltas after it', () => {
+    const { ed } = edWithNode();
+    const before = ed.camera;
+
+    ed.startPanMomentum(1, 0);
+    ed.animClockStep(0);
+    ed.animClockStep(160); // halfway through the glide — still moving
+    const mid = ed.camera;
+    expect(mid.x).toBeLessThan(before.x);
+    expect(mid.x).toBeGreaterThan(before.x - 320);
+
+    ed.cancelPanMomentum();
+    ed.animClockStep(320); // would have been the glide's natural completion tick
+
+    // Camera stayed exactly where the cancel caught it — the tween never resumes ticking.
+    expect(ed.camera).toEqual(mid);
+  });
+
+  it('a new fling cancels a still-gliding one instead of stacking residual deltas on top of it', () => {
+    // Regression test for: startPanMomentum used to discard the previous tween's cancel fn, so two
+    // quick flings (or a fling followed by a fresh drag) would run BOTH tweens concurrently — the
+    // stale one's leftover "tail" (its remaining not-yet-applied residual, still ticking toward its
+    // own D) kept landing on top of the new gesture's glide, so the camera outran the cursor.
+    const { ed } = edWithNode();
+
+    ed.startPanMomentum(1, 0); // first fling: D = 320
+    ed.animClockStep(0);
+    ed.animClockStep(160); // halfway through the first glide — leaves a real leftover tail
+
+    ed.startPanMomentum(1, 0); // second fling starts fresh — must cancel the first outright
+    const atRestart = ed.camera; // snapshot right when the second glide takes over
+
+    ed.animClockStep(160); // seed the second tween's baseline (same "now" as the restart)
+    ed.animClockStep(480); // fully elapsed for the second tween alone (160 + 320)
+
+    const after = ed.camera;
+    // Isolate what happened AFTER the restart: with the first tween properly cancelled, only the
+    // second tween's own deltas can land here, telescoping to exactly its D = 320. If the first
+    // tween's cancel fn were discarded (the bug), its leftover tail (~172 screen px, the remainder of
+    // its own D=320 after the 160ms partial tick) would ALSO fire within this same window, overshooting
+    // to roughly -492 instead of -320 — comfortably outside this tolerance.
+    expect(after.x - atRestart.x).toBeCloseTo(-320, 5);
   });
 });

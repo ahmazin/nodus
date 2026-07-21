@@ -168,10 +168,15 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     const onPointerDown = (e: PointerEvent): void => {
       host.focus({ preventScroll: true }); // route keyboard (Tab traversal, shortcuts) to the canvas
       canvas.setPointerCapture(e.pointerId);
+      // Any new gesture (pan or otherwise, e.g. a node grab) must cancel a still-gliding momentum-pan
+      // tween — otherwise its residual panByScreen deltas keep stacking on top of the live drag and
+      // the camera outruns the cursor. Cancel unconditionally, before branching on gesture kind.
+      editor.cancelPanMomentum();
       if (e.button === 1 || (e.button === 0 && spaceDown)) {
         panning = true;
         lastPan = { x: e.clientX, y: e.clientY };
         panVel = { x: 0, y: 0 }; // fresh pan shouldn't inherit a stale velocity from a prior gesture
+        lastPanT = performance.now(); // fresh gesture's first onPointerMove computes dt against this
         canvas.style.cursor = 'grabbing';
         return;
       }
