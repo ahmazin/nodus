@@ -23,6 +23,7 @@ import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
+import { EmptyState } from './empty-state';
 import { SyncInfra } from './sync-infra';
 import { ImportEditor } from './import-editor';
 import { StatusBar } from './status-bar';
@@ -536,6 +537,23 @@ function App(): ReactElement {
   const [syncOpen, setSyncOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importInitial, setImportInitial] = useState<ImportFormat | undefined>(undefined);
+  // Empty-state onboarding card: shown once on a zero-node doc, dismissible, and the dismissal
+  // persists across reloads (private-mode localStorage failures just mean it reappears next time).
+  const [onboardDismissed, setOnboardDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('nodus.onboarding.dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const dismissOnboarding = useCallback((): void => {
+    try {
+      localStorage.setItem('nodus.onboarding.dismissed', '1');
+    } catch {
+      // best-effort: private mode / quota — the card just reappears next visit
+    }
+    setOnboardDismissed(true);
+  }, []);
 
   // Status-bar cursor readout: world-space coords of the pointer over the canvas, throttled so a
   // fast mouse move doesn't re-render every event. `null` while the pointer is off the canvas.
@@ -1029,6 +1047,10 @@ function App(): ReactElement {
             {/* The dotted background is the renderer's own camera-synced `theme.canvas.grid` (painted
                 behind every node), so no DOM overlay is needed here. */}
             <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
+
+            {nodeCount === 0 && !onboardDismissed && (
+              <EmptyState editor={editor} onDismiss={dismissOnboarding} onCommandPalette={openPalette} />
+            )}
 
             <div style={{ position: 'absolute', left: 14, bottom: 14, zIndex: 15 }}>
               <ZoomControls
