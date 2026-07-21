@@ -81,7 +81,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       const now = performance.now();
       editor.render(ctx, rect.width, rect.height, dpr(), true, now);
       lastFlowPaint = now;
-      if (editor.isFlowAnimating() || editor.isAnimating()) armFlow(); // keep ticking while flow OR a tween is live
+      if (editor.isFlowAnimating() || editor.isAnimating() || editor.hasAnimatedSelection()) armFlow(); // keep ticking while flow, a tween, or the selection halo/marching-ants is live
     };
     const armFlow = (): void => {
       clearTimeout(flowTimer);

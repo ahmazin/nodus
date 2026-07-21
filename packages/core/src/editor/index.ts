@@ -1608,12 +1608,17 @@ export class Editor implements EngineHost {
     }
   }
 
-  paintInteractive(ctx: Ctx2D, _cssW: number, _cssH: number, dpr: number): void {
+  paintInteractive(ctx: Ctx2D, _cssW: number, _cssH: number, dpr: number, time = 0): void {
     const cam = this.camera;
     const px = (n: number) => n / cam.z;
     const theme = this.themeAtom.peek();
     const accent = theme.palette.accent ?? '#3b82f6';
     this.setWorldTransform(ctx, dpr);
+
+    // S2 motion: under reduced motion, everything below renders exactly as the static S1 appearance
+    // (fixed shadowBlur, no dash animation). Otherwise the halo breathes and dashed outlines march.
+    const reducedMotion = this.reducedMotionAtom.peek();
+    const antOffset = -(time / 50);
 
     const single = this.selectedAtom.peek().size === 1;
     for (const id of this.selectedAtom.peek()) {
@@ -1622,16 +1627,19 @@ export class Editor implements EngineHost {
       if (item.kind === 'node') {
         const locked = (item.record as NodeRecord).locked === true;
         const box = padBox(item.aabb, px(3));
-        // glowing accent halo, drawn UNDER the crisp selection stroke below. Static for now — the
-        // animated pulse is a later (S2) task.
+        // glowing accent halo, drawn UNDER the crisp selection stroke below. Device-space constant
+        // (unaffected by the CTM) — see dirty-region.ts. Gently pulses unless reduced-motion is on.
         ctx.save();
         ctx.shadowColor = accent;
-        ctx.shadowBlur = 12; // device-space constant (unaffected by the CTM) — see dirty-region.ts
+        ctx.shadowBlur = reducedMotion ? 12 : 12 + 4 * Math.sin(time / 500);
         strokeWorldBox(ctx, box, accent, px(2));
         ctx.restore();
-        // locked nodes get a dashed outline + a padlock badge; canResizeNode already returns false
-        // for them, so the resize-handle loop is skipped without an extra guard.
+        // locked nodes get a dashed outline (marching ants, unless reduced-motion) + a padlock badge;
+        // canResizeNode already returns false for them, so the resize-handle loop is skipped without
+        // an extra guard.
+        if (locked && !reducedMotion) ctx.lineDashOffset = antOffset;
         strokeWorldBox(ctx, box, accent, px(1.5), locked ? [px(5), px(4)] : undefined);
+        if (locked && !reducedMotion) ctx.lineDashOffset = 0;
         if (single && this.canResizeNode(id)) {
           // handles drawn on the RAW aabb so they coincide with the hit-test box (hitResizeHandle)
           const hs = px(6);
@@ -1697,7 +1705,9 @@ export class Editor implements EngineHost {
       if (gb) {
         ctx.save();
         ctx.globalAlpha = 0.7;
+        if (!reducedMotion) ctx.lineDashOffset = antOffset;
         strokeWorldBox(ctx, padBox(gb, px(6)), accent, px(1), [px(6), px(4)]);
+        if (!reducedMotion) ctx.lineDashOffset = 0;
         ctx.restore();
       }
     }
@@ -1709,7 +1719,9 @@ export class Editor implements EngineHost {
       ctx.fillStyle = accent;
       ctx.fillRect(mq.x, mq.y, mq.w, mq.h);
       ctx.restore();
+      if (!reducedMotion) ctx.lineDashOffset = antOffset;
       strokeWorldBox(ctx, mq, accent, px(1), [px(4), px(4)]);
+      if (!reducedMotion) ctx.lineDashOffset = 0;
     }
 
     const cd = this.connectDraftAtom.peek();
@@ -1941,6 +1953,12 @@ export class Editor implements EngineHost {
   isAnimating(): boolean {
     return this.animClock.isActive();
   }
+  /** True while the animated selection halo/marching-ants should keep ticking — the third rAF gate
+   *  (OR-ed with `isFlowAnimating()` / `isAnimating()`). False with nothing selected, or under
+   *  reduced motion (where the halo/outline render as today's static, non-animated appearance). */
+  hasAnimatedSelection(): boolean {
+    return this.selectedAtom.peek().size > 0 && !this.reducedMotionAtom.peek();
+  }
   /** Ephemeral per-item paint modifier (alpha/scale/offset). `undefined` = identity. Never serialized. */
   presentationFor(id: string): Presentation | undefined {
     return this.presentation.get(id);
@@ -2030,7 +2048,7 @@ export class Editor implements EngineHost {
     this.paintStatic(ctx, cssW, cssH, dpr);
     this.paintFlow(ctx, dpr, time);
     this.paintOverlays(ctx, cssW, cssH, dpr);
-    if (interactive) this.paintInteractive(ctx, cssW, cssH, dpr);
+    if (interactive) this.paintInteractive(ctx, cssW, cssH, dpr, time);
   }
 
   /** Paint a specific world region into a context at `pixelRatio` (used by `toPNG`). */
