@@ -1622,6 +1622,13 @@ export class Editor implements EngineHost {
       if (item.kind === 'node') {
         const locked = (item.record as NodeRecord).locked === true;
         const box = padBox(item.aabb, px(3));
+        // glowing accent halo, drawn UNDER the crisp selection stroke below. Static for now — the
+        // animated pulse is a later (S2) task.
+        ctx.save();
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = px(12);
+        strokeWorldBox(ctx, box, accent, px(2));
+        ctx.restore();
         // locked nodes get a dashed outline + a padlock badge; canResizeNode already returns false
         // for them, so the resize-handle loop is skipped without an extra guard.
         strokeWorldBox(ctx, box, accent, px(1.5), locked ? [px(5), px(4)] : undefined);
