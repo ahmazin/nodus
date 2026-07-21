@@ -1554,7 +1554,7 @@ export class Editor implements EngineHost {
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);
     for (const item of items) {
-      paintItem(ctx, item, this.nodes, this.edges, theme);
+      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id));
     }
   }
 

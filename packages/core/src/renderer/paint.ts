@@ -117,13 +117,25 @@ function paintNode(
   }
 }
 
-/** Paint one scene item (caller sets the world transform). */
+/** Optional per-item ephemeral paint modifier (see `Editor.presentationFor`). Kept structural — a
+ *  local twin of the editor's `Presentation` — to avoid a renderer → editor import cycle. */
+export interface ItemPresentation {
+  alpha: number;
+  scale: number;
+  dx: number;
+  dy: number;
+}
+
+/** Paint one scene item (caller sets the world transform). `present`, when non-identity, multiplies
+ *  `globalAlpha` and applies a scale/offset about the item's `aabb` center before drawing; identity or
+ *  omitted is the exact prior behavior (fast path) — layer-cache output is unchanged. */
 export function paintItem(
   ctx: Ctx2D,
   item: RenderItem,
   nodes: NodeRegistry,
   edges: EdgeRegistry,
   theme: Theme,
+  present?: ItemPresentation,
 ): void {
   const rec = item.record;
   let tokens: ResolvedTokens;
@@ -141,6 +153,14 @@ export function paintItem(
   ctx.save();
   try {
     ctx.globalAlpha *= tokens.opacity;
+    if (present && (present.alpha !== 1 || present.scale !== 1 || present.dx !== 0 || present.dy !== 0)) {
+      ctx.globalAlpha *= present.alpha;
+      const cx = item.aabb.x + item.aabb.w / 2;
+      const cy = item.aabb.y + item.aabb.h / 2;
+      ctx.translate(cx + present.dx, cy + present.dy);
+      ctx.scale(present.scale, present.scale);
+      ctx.translate(-cx, -cy);
+    }
     if (item.kind === 'node') {
       paintNode(ctx, api, rec as NodeRecord, nodes.get(rec.type), tokens);
     } else if (item.route) {

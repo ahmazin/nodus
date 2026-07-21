@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultTheme, type Ctx2D, type NodeRecord, type NodeRegistry, type NodeUtil, type RenderItem } from '../index.js';
-import { paintItem, setPaintErrorHandler } from './paint.js';
+import { paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
 import { clearTokenCache } from './token-cache.js';
 
 /** A stub Ctx2D that counts key ops and maintains a real save/restore stack for `globalAlpha`, so we
@@ -100,5 +100,28 @@ describe('paintItem fault tolerance', () => {
     setPaintErrorHandler(() => {});
     const { ctx } = stubCtx();
     expect(() => paintItem(ctx, nodeItem('x', 'nope'), registryOf(), noEdges, defaultTheme)).not.toThrow();
+  });
+});
+
+describe('paintItem presentation modifier', () => {
+  it('multiplies globalAlpha by the presentation alpha', () => {
+    const drawn: number[] = [];
+    const nodes = registryOf(util('n', (api) => { drawn.push(api.ctx.globalAlpha); }));
+    const { ctx } = stubCtx();
+    const present: ItemPresentation = { alpha: 0.5, scale: 1, dx: 0, dy: 0 };
+
+    paintItem(ctx, nodeItem('n1', 'n'), nodes, noEdges, defaultTheme, present);
+
+    expect(drawn[0]).toBeCloseTo(0.5);
+  });
+
+  it('defaults to alpha 1 when no presentation is supplied', () => {
+    const drawn: number[] = [];
+    const nodes = registryOf(util('n', (api) => { drawn.push(api.ctx.globalAlpha); }));
+    const { ctx } = stubCtx();
+
+    paintItem(ctx, nodeItem('n1', 'n'), nodes, noEdges, defaultTheme);
+
+    expect(drawn[0]).toBe(1);
   });
 });
