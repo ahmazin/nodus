@@ -64,7 +64,7 @@ import { resolveTokensCached } from '../renderer/token-cache.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
-import { AnimationClock, type TweenSpec } from './animation.js';
+import { AnimationClock, easeOutCubic, type TweenSpec } from './animation.js';
 
 /** Edge/center a multi-selection aligns to (see `Editor.align`). */
 export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
@@ -189,6 +189,11 @@ export interface ToPNGOptions {
  *  clip/region bookkeeping costs about a full repaint anyway — so `paintStatic` falls back to a full
  *  repaint. Purely a performance guard; either branch is pixel-identical. */
 const STATIC_INCREMENTAL_MAX_AREA = 0.6;
+
+/** Momentum-pan decay window (ms) — how long a released pan's fling takes to decelerate to a stop. */
+const PAN_MOMENTUM_DECAY_MS = 320;
+/** Momentum-pan velocity floor (screen px/ms) — release velocities below this produce no momentum. */
+const PAN_MOMENTUM_MIN_V = 0.05;
 
 /** Snapshot the visible set as id → `RenderItem` for the next frame's dirty-region diff. Cheap: it
  *  stores object references (the scene index mints a fresh `RenderItem` on any change, so reference
@@ -1314,6 +1319,27 @@ export class Editor implements EngineHost {
   }
   panByScreen(dx: number, dy: number): void {
     this.setCamera(camPanByScreen(this.camera, dx, dy));
+  }
+  /** Momentum/inertia pan: given a release velocity in screen px/ms, glide the camera the total fling
+   *  distance `D = v * DECAY_MS` with an easeOut deceleration, applied as incremental residual deltas
+   *  each tick (so the sum over the whole tween telescopes to exactly `D`). No-ops (no momentum, no
+   *  teleport) under reduced motion or when the release velocity is below `MIN_V`. */
+  startPanMomentum(vx: number, vy: number): void {
+    if (this.reducedMotionAtom.peek()) return;
+    if (Math.hypot(vx, vy) < PAN_MOMENTUM_MIN_V) return;
+    const Dx = vx * PAN_MOMENTUM_DECAY_MS;
+    const Dy = vy * PAN_MOMENTUM_DECAY_MS;
+    let last = 0;
+    this.animate({
+      from: 0,
+      to: 1,
+      durationMs: PAN_MOMENTUM_DECAY_MS,
+      easing: easeOutCubic,
+      onTick: (p) => {
+        this.panByScreen(Dx * (p - last), Dy * (p - last));
+        last = p;
+      },
+    });
   }
   zoomBy(factor: number, screenCenter?: Vec2): void {
     const vp = this.viewportAtom.peek();

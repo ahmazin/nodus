@@ -186,3 +186,56 @@ describe('selection halo pulse', () => {
     expect(haloB!.shadowBlur).toBe(12);
   });
 });
+
+describe('startPanMomentum', () => {
+  it('glides the camera by the total fling distance (vx*DECAY_MS) then stops', () => {
+    const { ed } = edWithNode();
+    const before = ed.camera;
+
+    ed.startPanMomentum(1, 0); // 1 px/ms rightward fling
+    ed.animClockStep(0); // seed the tween's clock baseline
+    ed.animClockStep(320); // fully elapsed (DECAY_MS)
+
+    const after = ed.camera;
+    // panByScreen(dx, dy) shifts camera by (-dx/z, -dy/z); summed over the whole decay the residual
+    // deltas telescope to exactly D = v * DECAY_MS screen px of total fling.
+    expect(after.x - before.x).toBeCloseTo(-320, 5);
+    expect(after.y).toBeCloseTo(before.y, 5);
+  });
+
+  it('decelerates — the midpoint has covered some but not all of the fling distance', () => {
+    const { ed } = edWithNode();
+    const before = ed.camera;
+
+    ed.startPanMomentum(1, 0);
+    ed.animClockStep(0);
+    ed.animClockStep(160); // halfway through DECAY_MS
+
+    const mid = ed.camera;
+    expect(mid.x).toBeLessThan(before.x); // already moving
+    expect(mid.x).toBeGreaterThan(before.x - 320); // not yet at the full fling distance
+  });
+
+  it('under reduced motion, leaves the camera unchanged (no momentum, no teleport-by-D snap)', () => {
+    const { ed } = edWithNode();
+    ed.setReducedMotion(true);
+    const before = ed.camera;
+
+    ed.startPanMomentum(1, 0);
+    ed.animClockStep(0);
+    ed.animClockStep(320);
+
+    expect(ed.camera).toEqual(before);
+  });
+
+  it('no-ops when the release velocity is below MIN_V', () => {
+    const { ed } = edWithNode();
+    const before = ed.camera;
+
+    ed.startPanMomentum(0.01, 0.01); // hypot ≈ 0.014 < MIN_V (0.05)
+    ed.animClockStep(0);
+    ed.animClockStep(320);
+
+    expect(ed.camera).toEqual(before);
+  });
+});

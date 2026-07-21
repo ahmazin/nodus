@@ -138,6 +138,9 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     let panning = false;
     let spaceDown = false;
     let lastPan = { x: 0, y: 0 };
+    // Release-velocity sample (screen px/ms) for momentum panning — see `editor.startPanMomentum`.
+    let panVel = { x: 0, y: 0 };
+    let lastPanT = 0;
 
     // Cursor derives from the active tool (crosshair while placing/connecting/erasing); pan and the
     // space-pan override it. Kept in sync when the tool changes via the editor's `tool` event.
@@ -168,6 +171,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       if (e.button === 1 || (e.button === 0 && spaceDown)) {
         panning = true;
         lastPan = { x: e.clientX, y: e.clientY };
+        panVel = { x: 0, y: 0 }; // fresh pan shouldn't inherit a stale velocity from a prior gesture
         canvas.style.cursor = 'grabbing';
         return;
       }
@@ -175,6 +179,10 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     };
     const onPointerMove = (e: PointerEvent): void => {
       if (panning) {
+        const now = performance.now();
+        const dt = Math.max(1, now - lastPanT);
+        panVel = { x: (e.clientX - lastPan.x) / dt, y: (e.clientY - lastPan.y) / dt };
+        lastPanT = now;
         editor.panByScreen(e.clientX - lastPan.x, e.clientY - lastPan.y);
         lastPan = { x: e.clientX, y: e.clientY };
         return;
@@ -184,6 +192,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     const onPointerUp = (e: PointerEvent): void => {
       if (panning) {
         panning = false;
+        editor.startPanMomentum(panVel.x, panVel.y);
         restoreCursor();
         return;
       }
