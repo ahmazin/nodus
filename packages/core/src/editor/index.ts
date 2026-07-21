@@ -1978,14 +1978,41 @@ export class Editor implements EngineHost {
     this.drawFlowEdges(ctx, this.visibleItems(), theme, this.flowClock);
   }
 
-  /** Shared per-edge flow draw: resolve each edge's spec against its live metric and paint markers at
-   *  `time`. Caller has already set the world transform and computed the effective (scaled) time. */
+  /** Shared per-edge flow draw: resolve each edge's spec against its live metric, paint the neon glow
+   *  underlay, then paint markers at `time`. Caller has already set the world transform and computed
+   *  the effective (scaled) time. */
   private drawFlowEdges(ctx: Ctx2D, items: Iterable<RenderItem>, theme: Theme, time: number): void {
     for (const item of items) {
       if (item.kind !== 'edge') continue;
       const flow = (item.record as EdgeRecord).flow;
-      if (flow) paintFlowMarkers(ctx, item, theme, time, resolveFlow(flow, this.flowMetrics.get(item.id)));
+      if (!flow) continue;
+      const resolved = resolveFlow(flow, this.flowMetrics.get(item.id));
+      this.drawFlowGlow(ctx, item, theme, resolved);
+      paintFlowMarkers(ctx, item, theme, time, resolved);
     }
+  }
+
+  /** Neon bloom underlay for a flowing edge: a wide, translucent, glowing stroke along the edge's
+   *  route, drawn under the packet markers. Purely a styling pass — gated on flow being *enabled*
+   *  (not on motion), so it stays visible while paused / under reduced-motion. */
+  private drawFlowGlow(ctx: Ctx2D, item: RenderItem, theme: Theme, flow: FlowSpec): void {
+    const route = item.route;
+    if (!route || route.length < 2) return;
+    const tokens = resolveTokensCached(theme, item.record as EdgeRecord);
+    const color = flow.color ?? tokens.stroke;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = tokens.strokeWidth * 1.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(route[0]!.x, route[0]!.y);
+    for (let i = 1; i < route.length; i++) ctx.lineTo(route[i]!.x, route[i]!.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Convenience: paint the full frame (static + flow + overlays + optional interactive) onto one ctx.

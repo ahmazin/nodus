@@ -1,17 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type Ctx2D, type EdgeRecord } from '../index.js';
+import { resolveTokensCached } from '../renderer/token-cache.js';
 
-/** A recording Ctx2D that captures the packet-dot arc() calls paintFlow makes. */
-function mockCtx(): Ctx2D & { arcs: { x: number; y: number; r: number }[] } {
+/** A recording Ctx2D that captures the packet-dot arc() calls and stroke() calls (with the line
+ *  state at the moment of the call) that paintFlow makes. */
+function mockCtx(): Ctx2D & {
+  arcs: { x: number; y: number; r: number }[];
+  strokes: { lineWidth: number; shadowBlur: number; globalAlpha: number }[];
+} {
   const arcs: { x: number; y: number; r: number }[] = [];
+  const strokes: { lineWidth: number; shadowBlur: number; globalAlpha: number }[] = [];
   const noop = (): void => {};
-  return {
+  const ctx = {
     arcs,
-    save: noop, restore: noop, setTransform: noop, beginPath: noop, fill: noop, stroke: noop,
+    strokes,
+    save: noop, restore: noop, setTransform: noop, beginPath: noop, fill: noop,
     moveTo: noop, lineTo: noop, setLineDash: noop, closePath: noop,
     arc: (x: number, y: number, r: number) => arcs.push({ x, y, r }),
     fillStyle: '', strokeStyle: '', lineWidth: 0, lineDashOffset: 0, shadowColor: '', shadowBlur: 0,
-  } as unknown as Ctx2D & { arcs: { x: number; y: number; r: number }[] };
+    globalAlpha: 1,
+  } as unknown as Ctx2D & {
+    arcs: { x: number; y: number; r: number }[];
+    strokes: { lineWidth: number; shadowBlur: number; globalAlpha: number }[];
+  };
+  ctx.stroke = () =>
+    strokes.push({ lineWidth: ctx.lineWidth, shadowBlur: ctx.shadowBlur, globalAlpha: ctx.globalAlpha });
+  return ctx;
 }
 
 describe('edge flow animation', () => {
@@ -67,5 +81,29 @@ describe('edge flow animation', () => {
     const c = mockCtx();
     ed.paintFlow(c, 1, 0);
     expect(c.arcs).toHaveLength(0);
+  });
+
+  it('paints a wide neon glow underlay along the route before the packet markers, gated on flow being enabled', () => {
+    const { ed, e } = build();
+    ed.setFlow([e], { style: 'dots', count: 3, speed: 70 });
+    const rec = ed.store.peek(e) as EdgeRecord;
+    const baseWidth = resolveTokensCached(ed.themeAtom.peek(), rec).strokeWidth;
+
+    const c = mockCtx();
+    ed.paintFlow(c, 1, 0);
+    // 'dots' packets are drawn via arc()+fill(), so the only stroke() call is the glow underlay.
+    expect(c.strokes).toHaveLength(1);
+    const glow = c.strokes[0]!;
+    expect(glow.shadowBlur).toBeGreaterThan(0); // the neon bloom
+    expect(glow.lineWidth).toBeGreaterThan(baseWidth); // wider than the base edge stroke
+    expect(glow.globalAlpha).toBeLessThan(1); // translucent
+    expect(c.arcs).toHaveLength(3); // packets still drawn, under the glow
+
+    // Flow disabled -> no glow and no packets.
+    ed.setFlowEnabled(false);
+    const c2 = mockCtx();
+    ed.paintFlow(c2, 1, 0);
+    expect(c2.strokes).toHaveLength(0);
+    expect(c2.arcs).toHaveLength(0);
   });
 });
