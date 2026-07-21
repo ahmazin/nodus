@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type Ctx2D } from '../index.js';
+import { Editor, defaultTheme, type Ctx2D, type Theme } from '../index.js';
 
 /** Tracks just the four ctx properties the selection halo cares about (shadowBlur, shadowColor,
  *  strokeStyle, lineWidth), with a real save/restore stack so nested `ctx.save()/restore()` pairs
@@ -99,5 +99,54 @@ describe('selection halo', () => {
     expect(haloIn).toBeDefined();
     expect(haloOut!.shadowBlur).toBe(12);
     expect(haloIn!.shadowBlur).toBe(12);
+  });
+
+  it("colors the halo with the selected node's OWN type color from theme.byType, not the global accent", () => {
+    // A theme with a `byType` slice for the built-in 'rect' type whose glow (cyan) differs from the
+    // global palette.accent (blue) — mirrors the byType-construction pattern in core.test.ts's "theme
+    // token resolution" describe block, and the real `darkInfraTheme` in @nodus/preset-infra
+    // (states.accent there deliberately omits stroke/glow so byType wins for infra node colors; see
+    // packages/preset-infra/src/theme.ts). Keying byType by 'rect' lets the node use the already-
+    // registered built-in `rectNodeUtil` (packages/core/src/builtins/index.ts) — an unregistered type
+    // never gets indexed by the scene index (`buildNode` returns null when `this.deps.nodes.get(type)`
+    // misses), so the halo would never draw at all. The `accent` state slice below is cast the same
+    // way (`as Theme['states'][string]`) to omit `stroke`/`glow`/`text` from `Object.keys`, so
+    // `mergeTokens` never lets the state slice clobber the byType color — otherwise this test would
+    // pass for the wrong reason (state's own glow, not the node's type color).
+    const dbGlow = '#06b6d4'; // cyan — deliberately different from palette.accent below
+    const globalAccent = '#3b82f6'; // blue
+    const theme: Theme = {
+      ...defaultTheme,
+      name: 'byType-halo-test',
+      palette: { ...defaultTheme.palette, accent: globalAccent },
+      states: {
+        ...defaultTheme.states,
+        accent: { fill: '#12161c', strokeWidth: 1 } as Theme['states'][string],
+      },
+      byType: { rect: { stroke: dbGlow, text: dbGlow, glow: dbGlow } },
+    };
+
+    const ed = new Editor({ theme });
+    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 60 });
+    ed.select([id]);
+
+    const { ctx, strokes } = recordingCtx();
+    ed.render(ctx, 800, 600, 1, true, 0);
+
+    const halo = strokes.find((s) => s.shadowBlur > 0);
+    expect(halo).toBeDefined();
+    // The halo tracks the node's OWN type color...
+    expect(halo!.shadowColor).toBe(dbGlow);
+    expect(halo!.strokeStyle).toBe(dbGlow);
+    // ...and must NOT fall back to the global accent (this is the discriminating assertion: it
+    // passes under both old and new code only if the halo color happens to equal the accent, which
+    // it deliberately does not here).
+    expect(halo!.shadowColor).not.toBe(globalAccent);
+
+    // The crisp selection stroke drawn on top stays the global accent — selection itself must always
+    // read unambiguously, regardless of the selected node's type color.
+    const crisp = strokes.find((s) => s.shadowBlur === 0 && s.strokeStyle === globalAccent);
+    expect(crisp).toBeDefined();
+    expect(crisp!.lineWidth).toBeCloseTo(1.5);
   });
 });
