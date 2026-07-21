@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type Ctx2D } from '../index.js';
+import type { NodeRecord } from '../model.js';
 
 function edWithNode() {
   const ed = new Editor({ viewport: { w: 800, h: 600 } });
@@ -62,6 +63,63 @@ describe('hasAnimatedSelection', () => {
     expect(ed.hasAnimatedSelection()).toBe(true);
     ed.setReducedMotion(true);
     expect(ed.hasAnimatedSelection()).toBe(false);
+  });
+});
+
+describe('SelectTool — grab-lift + spring-back', () => {
+  it('lifts scale above 1 mid-drag, then springs back to 1 and clears presentation after release', () => {
+    const { ed, id } = edWithNode(); // rect at (100,100,80,40) -> center (140,120)
+    const rec = ed.store.peek(id) as NodeRecord;
+    const [origX, origY] = [rec.x, rec.y];
+
+    expect(ed.presentationFor(id)).toBeUndefined();
+
+    // grab: pointer down on the node body, then move past the drag threshold to start translating.
+    ed.pointerDown({ x: 140, y: 120 });
+    ed.pointerMove({ x: 150, y: 120 });
+
+    // seed the grab tween's clock baseline, then advance halfway through its 120ms duration.
+    ed.animClockStep(0);
+    ed.animClockStep(60);
+    const lifted = ed.presentationFor(id)?.scale;
+    expect(lifted).toBeDefined();
+    expect(lifted!).toBeGreaterThan(1);
+    expect(lifted!).toBeLessThanOrEqual(1.03);
+
+    // release: the spring-back tween starts (from the current lifted scale, back to 1 over 180ms).
+    ed.pointerUp({ x: 150, y: 120 });
+
+    // committed position moved exactly by the drag delta — the lift is presentation-only.
+    const after = ed.store.peek(id) as NodeRecord;
+    expect(after.x).toBeCloseTo(origX + 10, 5);
+    expect(after.y).toBeCloseTo(origY, 5);
+
+    // seed the spring-back tween's clock baseline, then advance past its 180ms duration.
+    ed.animClockStep(60);
+    ed.animClockStep(260);
+    expect(ed.presentationFor(id)).toBeUndefined();
+  });
+
+  it('cancels the pending spring-back on a re-grab (fresh grab tween wins)', () => {
+    const { ed, id } = edWithNode();
+
+    ed.pointerDown({ x: 140, y: 120 });
+    ed.pointerMove({ x: 150, y: 120 });
+    ed.animClockStep(0);
+    ed.animClockStep(120); // grab tween fully settled at LIFT (1.03)
+    expect(ed.presentationFor(id)?.scale).toBeCloseTo(1.03, 5);
+
+    ed.pointerUp({ x: 150, y: 120 }); // spring-back tween registered (from 1.03 to 1)
+    ed.animClockStep(120); // seed the spring-back tween's baseline
+
+    // re-grab before the spring-back completes: the pending spring is superseded by a new grab tween.
+    ed.pointerDown({ x: 150, y: 120 });
+    ed.pointerMove({ x: 160, y: 120 });
+    ed.animClockStep(120);
+    ed.animClockStep(180);
+    const midRegrab = ed.presentationFor(id)?.scale;
+    expect(midRegrab).toBeDefined();
+    expect(midRegrab!).toBeGreaterThan(1);
   });
 });
 

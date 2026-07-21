@@ -9,6 +9,7 @@ import { isEdge, isNode } from '../model.js';
 import type { Box, Endpoint, Id, NodeRecord, Vec2 } from '../model.js';
 import type { RenderItem } from '../scene-index/index.js';
 import type { Editor, ResizeHandle } from '../editor/index.js';
+import { easeOutCubic } from '../editor/animation.js';
 
 export interface PointerInfo {
   world: Vec2;
@@ -48,6 +49,10 @@ export abstract class ToolNode {
 }
 
 const DRAG_THRESHOLD = 3; // screen px
+
+/** Grab-lift scale applied to a dragged node while it's held (presentation-only; springs back to 1
+ *  on release — the committed position is never touched). */
+const LIFT = 1.03;
 
 /** Grab radius (screen px) for the rotate / waypoint handles, matching the endpoint-handle tolerance. */
 const HANDLE_TOL = 8;
@@ -108,6 +113,9 @@ export class SelectTool extends ToolNode {
   private additive = false;
   private origPos = new Map<Id, Vec2>();
   private dragIds: Id[] = [];
+  // grab-lift: cancel fns for the in-flight "scale up" tween per dragged id, so a re-grab (or the
+  // release spring-back) can cancel a still-running lift before starting the next tween.
+  private liftCancels = new Map<Id, () => void>();
   private dragBox: { x: number; y: number; w: number; h: number } | null = null;
   private resizeId: Id | null = null;
   private resizeHandle: ResizeHandle = 'se';
@@ -235,9 +243,43 @@ export class SelectTool extends ToolNode {
     }
     if (this.origPos.size === 0) return false;
     this.dragIds = ids;
+    // grab-lift: each dragged node scales up to LIFT over 120ms, presentation-only (committed
+    // position is untouched — see setPositionsAbsolute in onPointerMove below).
+    for (const id of ids) {
+      this.liftCancels.get(id)?.();
+      this.liftCancels.set(
+        id,
+        this.editor.animate({
+          from: this.editor.presentationFor(id)?.scale ?? 1,
+          to: LIFT,
+          durationMs: 120,
+          easing: easeOutCubic,
+          onTick: (v) => this.editor.setPresentation(id, { scale: v }),
+        }),
+      );
+    }
     this.dragBox = this.editor.selectionBounds();
     this.state = 'translating';
     return true;
+  }
+
+  /** Spring each currently-dragged node's grab-lift back to scale 1 (~180ms), clearing the
+   *  presentation once the tween settles. Called on release (`onPointerUp`) and on an aborted drag
+   *  (`onExit`) — the committed position is never touched, only the presentation. */
+  private releaseLift(): void {
+    for (const id of this.dragIds) {
+      this.liftCancels.get(id)?.();
+      this.liftCancels.delete(id);
+      this.editor.animate({
+        from: this.editor.presentationFor(id)?.scale ?? LIFT,
+        to: 1,
+        durationMs: 180,
+        easing: easeOutCubic,
+        onTick: (v) => this.editor.setPresentation(id, { scale: v }),
+        onDone: () => this.editor.clearPresentation(id),
+      });
+    }
+    this.liftCancels.clear();
   }
 
   override onPointerMove(p: PointerInfo): void {
@@ -358,6 +400,7 @@ export class SelectTool extends ToolNode {
     }
     if (this.state === 'translating') {
       this.editor.mark();
+      this.releaseLift();
       this.editor.snapGuidesAtom.set([]);
     } else if (this.state === 'marquee') {
       const box = boxFrom(this.marqueeStart, p.world);
@@ -429,6 +472,7 @@ export class SelectTool extends ToolNode {
       this.state === 'waypoint'
     ) {
       this.editor.mark();
+      if (this.state === 'translating') this.releaseLift();
     }
     this.editor.snapGuidesAtom.set([]);
     this.editor.setConnectDraft(null);
