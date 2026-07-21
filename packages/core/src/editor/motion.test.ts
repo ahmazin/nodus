@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type Ctx2D } from '../index.js';
 import type { NodeRecord } from '../model.js';
+import type { LayoutEngine } from '../layout/index.js';
 
 function edWithNode() {
   const ed = new Editor({ viewport: { w: 800, h: 600 } });
@@ -342,5 +343,59 @@ describe('animateEntrance', () => {
 
     ed.animClockStep(0); // reduced-motion step snaps every tween straight to onDone
     expect(ed.presentationFor(id)).toBeUndefined();
+  });
+});
+
+describe('layout() tween', () => {
+  /** Moves every node to (i * 200, 0) — same shape as the fake engine in core.test.ts. */
+  const gridEngine: LayoutEngine = {
+    id: 'grid',
+    async layout(graph) {
+      const positions: Record<string, { x: number; y: number }> = {};
+      graph.nodes.forEach((n, i) => (positions[n.id] = { x: i * 200, y: 0 }));
+      return { positions };
+    },
+  };
+
+  it('commits the final position to the store immediately, and glides the visual offset to 0 over 400ms', async () => {
+    const ed = new Editor();
+    const a = ed.createNode({ type: 'rect', x: 0, y: 0 });
+    const b = ed.createNode({ type: 'rect', x: 50, y: 50 });
+    ed.registerLayout(gridEngine);
+
+    await ed.layout('grid');
+
+    // Store is truthful at the final position immediately — no teleport-then-settle in the model.
+    expect((ed.store.peek(a) as NodeRecord).x).toBe(0);
+    expect((ed.store.peek(b) as NodeRecord).x).toBe(200);
+    expect((ed.store.peek(b) as NodeRecord).y).toBe(0);
+
+    // `b` moved (50,50) -> (200,0): seeded presentation offset is old - new = (-150, 50).
+    expect(ed.presentationFor(b)?.dx).toBeCloseTo(-150, 5);
+    expect(ed.presentationFor(b)?.dy).toBeCloseTo(50, 5);
+    // `a` did not move: no presentation touched.
+    expect(ed.presentationFor(a)).toBeUndefined();
+
+    ed.animClockStep(0); // seed the tween's clock baseline
+    ed.animClockStep(400); // fully elapsed (durationMs)
+    expect(ed.presentationFor(b)).toBeUndefined(); // glided to final — presentation cleared
+    // Store position is unchanged by the glide finishing — it was already truthful.
+    expect((ed.store.peek(b) as NodeRecord).x).toBe(200);
+    expect((ed.store.peek(b) as NodeRecord).y).toBe(0);
+  });
+
+  it('under reduced motion, the presentation clears on the first step (no glide, still committed)', async () => {
+    const ed = new Editor();
+    ed.setReducedMotion(true);
+    ed.createNode({ type: 'rect', x: 0, y: 0 });
+    const b = ed.createNode({ type: 'rect', x: 50, y: 50 });
+    ed.registerLayout(gridEngine);
+
+    await ed.layout('grid'); // b is the second node -> target (200, 0)
+    expect(ed.presentationFor(b)?.dx).toBeCloseTo(-150, 5); // seeded synchronously before any tick
+
+    ed.animClockStep(0); // reduced-motion step snaps every tween straight to onDone
+    expect(ed.presentationFor(b)).toBeUndefined();
+    expect((ed.store.peek(b) as NodeRecord).x).toBe(200); // store was truthful the whole time
   });
 });

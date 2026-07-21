@@ -64,7 +64,7 @@ import { resolveTokensCached } from '../renderer/token-cache.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
-import { AnimationClock, easeOutCubic, type TweenSpec } from './animation.js';
+import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
 
 /** Edge/center a multi-selection aligns to (see `Editor.align`). */
 export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
@@ -1415,6 +1415,7 @@ export class Editor implements EngineHost {
       ...(opts?.direction ? { direction: opts.direction } : {}),
     };
     const result = await engine.layout(graph, opts);
+    const olds = new Map<Id, { x: number; y: number }>(nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
     const changes: Change[] = [];
     for (const n of nodes) {
       const pos = result.positions[n.id];
@@ -1422,7 +1423,29 @@ export class Editor implements EngineHost {
         changes.push({ op: 'update', id: n.id, patch: { x: pos.x, y: pos.y } });
       }
     }
+    // Commit final positions FIRST, in one undoable step — undo/serialization must see the truthful
+    // final state immediately. The glide below is a purely visual presentation overlay, seeded after.
     if (changes.length) this.store.apply(changes, { capture: 'immediately' });
+    // Each moved node glides from its old position to the just-committed new one: seed a presentation
+    // offset equal to (old - new), then tween it back to 0. Reduced motion snaps `animate` to done on
+    // the first step, so the offset collapses to 0 immediately — no special-casing needed here.
+    for (const c of changes) {
+      if (c.op !== 'update') continue;
+      const old = olds.get(c.id);
+      if (!old) continue;
+      const pos = c.patch as { x: number; y: number };
+      const ox = old.x - pos.x;
+      const oy = old.y - pos.y;
+      this.setPresentation(c.id, { dx: ox, dy: oy });
+      this.animate({
+        from: 1,
+        to: 0,
+        durationMs: 400,
+        easing: easeInOutCubic,
+        onTick: (t) => this.setPresentation(c.id, { dx: ox * t, dy: oy * t }),
+        onDone: () => this.clearPresentation(c.id),
+      });
+    }
   }
 
   // ==========================================================================
