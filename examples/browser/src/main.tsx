@@ -1302,7 +1302,7 @@ function App(): ReactElement {
           </div>
         </div>
 
-        <StatusBar editor={editor} cursor={cursor} />
+        <StatusBar editor={editor} cursor={cursor} nodeCount={nodeCount} selCount={selCount} />
 
         {/* ===== OVERLAYS ===== */}
         <CommandPalette editor={editor} commands={commands} />

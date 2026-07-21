@@ -18,14 +18,14 @@ export function formatCoords(p: { x: number; y: number } | null): string {
 export interface StatusBarProps {
   editor: Editor;
   cursor: { x: number; y: number } | null;
+  nodeCount: number;
+  selCount: number;
 }
 
-export function StatusBar({ editor, cursor }: StatusBarProps): ReactElement {
+export function StatusBar({ editor, cursor, nodeCount, selCount }: StatusBarProps): ReactElement {
   const t = useUiTokens(editor);
   const tool = useCurrentTool(editor);
   const z = useValue(() => editor.cameraAtom.get().z);
-  const selCount = useValue(() => editor.selectedAtom.get().size);
-  const nodeCount = useValue(() => (editor.sceneIndex.version.get(), editor.store.nodes().length));
 
   return (
     <div

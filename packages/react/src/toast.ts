@@ -48,6 +48,7 @@ function toastIcon(tone: 'ok' | 'error'): SVGSVGElement {
   svg.setAttribute('stroke-width', '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
   const path = document.createElementNS(SVG_NS, 'path');
   path.setAttribute('d', tone === 'error' ? 'M18 6L6 18M6 6l12 12' : 'M20 6L9 17l-5-5');
   svg.appendChild(path);

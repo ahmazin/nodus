@@ -50,8 +50,9 @@ export function EmptyState({ editor, onDismiss, onCommandPalette }: EmptyStatePr
     >
       <div
         data-testid="empty-state"
+        data-nodus-ui=""
         className="nd-pop"
-        role="dialog"
+        role="region"
         aria-label="Get started"
         style={{
           pointerEvents: 'auto',
