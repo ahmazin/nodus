@@ -33,6 +33,27 @@ function prefersReducedMotion(): boolean {
   );
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** A small inline glyph for the toast: a checkmark for `'ok'`, an X for `'error'`. Built with raw
+ *  `createElementNS` (this module is not React) and colored via `stroke="currentColor"` so it
+ *  inherits the container's `color:${fg}` — no separate color plumbing needed. */
+function toastIcon(tone: 'ok' | 'error'): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', tone === 'error' ? 'M18 6L6 18M6 6l12 12' : 'M20 6L9 17l-5-5');
+  svg.appendChild(path);
+  return svg;
+}
+
 export interface ToastOptions {
   /** Chrome mode for the token colors. Defaults to `'dark'` (the app's default appearance); callers
    *  with an editor can pass `modeOfTheme(editor.themeAtom.peek())` for an exact theme match. */
@@ -48,7 +69,6 @@ export function showToast(message: string, tone: 'ok' | 'error' = 'ok', opts: To
   const el = document.createElement('div');
   // Errors are assertive so a screen reader interrupts; success is polite.
   el.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  el.textContent = message;
   const fg = tone === 'error' ? t.color.danger : t.color.accent;
   el.style.cssText = [
     'position:fixed',
@@ -56,6 +76,9 @@ export function showToast(message: string, tone: 'ok' | 'error' = 'ok', opts: To
     `bottom:${BASE}px`,
     'transform:translateX(-50%)',
     'z-index:2000',
+    'display:inline-flex',
+    'align-items:center',
+    'gap:8px',
     `background:${t.color.panel}`,
     `color:${fg}`,
     `border:1px solid ${t.color.border}`,
@@ -68,6 +91,10 @@ export function showToast(message: string, tone: 'ok' | 'error' = 'ok', opts: To
     'pointer-events:none',
     'max-width:min(420px, 90vw)',
   ].join(';');
+  el.appendChild(toastIcon(tone));
+  const text = document.createElement('span');
+  text.textContent = message;
+  el.appendChild(text);
   document.body.appendChild(el);
   stack.unshift(el);
   reflow();
