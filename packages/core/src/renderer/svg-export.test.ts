@@ -167,3 +167,32 @@ describe('SVGContext primitives', () => {
     expect(ctx.measureText('abcd').width).toBeCloseTo(4 * 20 * 0.6);
   });
 });
+
+describe('SVGContext gradients', () => {
+  it('emits a deterministic linearGradient def and references it via url()', () => {
+    const ctx = new SVGContext();
+    const g = ctx.createLinearGradient(0, 0, 0, 100);
+    g.addColorStop(0, '#112233');
+    g.addColorStop(1, '#445566');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.rect(0, 0, 100, 100);
+    ctx.fill();
+    const out = ctx.toSVG(100, 100);
+    expect(out).toContain('<defs>');
+    expect(out).toContain('<linearGradient id="nd-grad-0" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100">');
+    expect(out).toContain('<stop offset="0" stop-color="#112233"/>');
+    expect(out).toContain('<stop offset="1" stop-color="#445566"/>');
+    expect(out).toContain('fill="url(#nd-grad-0)"');
+    // determinism: identical scene → identical markup
+    const ctx2 = new SVGContext();
+    const g2 = ctx2.createLinearGradient(0, 0, 0, 100);
+    g2.addColorStop(0, '#112233');
+    g2.addColorStop(1, '#445566');
+    ctx2.fillStyle = g2;
+    ctx2.beginPath();
+    ctx2.rect(0, 0, 100, 100);
+    ctx2.fill();
+    expect(ctx2.toSVG(100, 100)).toBe(out);
+  });
+});

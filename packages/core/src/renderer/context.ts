@@ -9,6 +9,15 @@ export interface DrawableImage {
 }
 
 /**
+ * Structural subset of the DOM `CanvasGradient` — only `addColorStop`, which is all the renderer uses.
+ * A real `CanvasGradient` (browser or `@napi-rs/canvas`) satisfies it; `SVGContext` returns its own
+ * recorder that serializes to a `<linearGradient>` def.
+ */
+export interface CanvasGradientLike {
+  addColorStop(offset: number, color: string): void;
+}
+
+/**
  * `Ctx2D` — a structural subset of `CanvasRenderingContext2D`. Both a browser 2D context and a
  * headless Skia context (`@napi-rs/canvas`) satisfy it, so the exact same paint code runs in the
  * browser and in Node for tests / PNG export. Cast the real context to `Ctx2D` at the boundary.
@@ -72,8 +81,10 @@ export interface Ctx2D {
 
   setLineDash(segments: number[]): void;
 
-  fillStyle: string;
-  strokeStyle: string;
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradientLike;
+
+  fillStyle: string | CanvasGradientLike;
+  strokeStyle: string | CanvasGradientLike;
   lineWidth: number;
   lineCap: string;
   lineJoin: string;

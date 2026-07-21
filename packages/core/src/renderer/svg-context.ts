@@ -21,11 +21,11 @@
  *  - `drawImage` emits `<image href>` only if the drawable exposes a string `src`/`currentSrc`;
  *    otherwise a dashed placeholder box is drawn. The engine-owned `DrawableImage` type only
  *    guarantees `width`/`height`, so the href is read best-effort.
- *  - Gradients/patterns as `fillStyle`/`strokeStyle` are passed through verbatim (only CSS color
- *    strings render); `fill`/`stroke` never resolve a `CanvasGradient`.
+ *  - Linear gradients render as `<linearGradient>` defs (see `paintValue`); other paint types
+ *    (patterns, radial gradients) are not supported by `createLinearGradient`'s recorder.
  */
 
-import type { Ctx2D, DrawableImage } from './context.js';
+import type { Ctx2D, CanvasGradientLike, DrawableImage } from './context.js';
 
 interface Matrix {
   a: number;
@@ -37,8 +37,8 @@ interface Matrix {
 }
 
 interface StyleState {
-  fillStyle: string;
-  strokeStyle: string;
+  fillStyle: string | SVGGradient;
+  strokeStyle: string | SVGGradient;
   lineWidth: number;
   lineCap: string;
   lineJoin: string;
@@ -139,10 +139,26 @@ function parseFont(font: string): { size: number; family: string; weight: string
   return { size, family, weight, style };
 }
 
+/** Records a linear gradient's geometry + stops; serialized to a `<linearGradient>` def by SVGContext. */
+class SVGGradient implements CanvasGradientLike {
+  readonly stops: { offset: number; color: string }[] = [];
+  constructor(
+    readonly x0: number,
+    readonly y0: number,
+    readonly x1: number,
+    readonly y1: number,
+  ) {}
+  addColorStop(offset: number, color: string): void {
+    this.stops.push({ offset, color });
+  }
+}
+
 export class SVGContext implements Ctx2D {
   private body: string[] = [];
   private ctm: Matrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
   private stack: { ctm: Matrix; style: StyleState }[] = [];
+  private defs: string[] = [];
+  private gradSeq = 0;
 
   // path accumulation (in the current user space; the transform is applied via the wrapping <g>)
   private path: string[] = [];
@@ -178,9 +194,10 @@ export class SVGContext implements Ctx2D {
   toSVG(width: number, height: number): string {
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
+    const defs = this.defs.length ? `<defs>${this.defs.join('')}</defs>` : '';
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" ` +
-      `viewBox="0 0 ${w} ${h}">${this.body.join('')}</svg>`
+      `viewBox="0 0 ${w} ${h}">${defs}${this.body.join('')}</svg>`
     );
   }
 
@@ -244,14 +261,14 @@ export class SVGContext implements Ctx2D {
 
   fillRect(x: number, y: number, w: number, h: number): void {
     const s = this.style;
-    let attrs = `x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" fill="${escapeAttr(s.fillStyle)}"`;
+    let attrs = `x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" fill="${this.paintValue(s.fillStyle)}"`;
     if (s.globalAlpha < 1) attrs += ` fill-opacity="${fmt(s.globalAlpha)}"`;
     this.emit(`<rect ${attrs}/>`);
   }
 
   strokeRect(x: number, y: number, w: number, h: number): void {
     const s = this.style;
-    let attrs = `x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" fill="none" stroke="${escapeAttr(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
+    let attrs = `x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" fill="none" stroke="${this.paintValue(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
     attrs += this.strokeExtras();
     this.emit(`<rect ${attrs}/>`);
   }
@@ -443,7 +460,7 @@ export class SVGContext implements Ctx2D {
   fill(fillRule?: 'nonzero' | 'evenodd'): void {
     if (this.path.length === 0) return;
     const s = this.style;
-    let attrs = `d="${this.path.join(' ')}" fill="${escapeAttr(s.fillStyle)}"`;
+    let attrs = `d="${this.path.join(' ')}" fill="${this.paintValue(s.fillStyle)}"`;
     if (fillRule === 'evenodd') attrs += ` fill-rule="evenodd"`;
     if (s.globalAlpha < 1) attrs += ` fill-opacity="${fmt(s.globalAlpha)}"`;
     this.emit(`<path ${attrs}/>`);
@@ -452,7 +469,7 @@ export class SVGContext implements Ctx2D {
   stroke(): void {
     if (this.path.length === 0) return;
     const s = this.style;
-    let attrs = `d="${this.path.join(' ')}" fill="none" stroke="${escapeAttr(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
+    let attrs = `d="${this.path.join(' ')}" fill="none" stroke="${this.paintValue(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
     attrs += this.strokeExtras();
     this.emit(`<path ${attrs}/>`);
   }
@@ -482,10 +499,10 @@ export class SVGContext implements Ctx2D {
     const baseline = baselineFor(s.textBaseline);
     if (baseline) attrs += ` dominant-baseline="${baseline}"`;
     if (stroked) {
-      attrs += ` fill="none" stroke="${escapeAttr(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
+      attrs += ` fill="none" stroke="${this.paintValue(s.strokeStyle)}" stroke-width="${fmt(s.lineWidth)}"`;
       if (s.globalAlpha < 1) attrs += ` stroke-opacity="${fmt(s.globalAlpha)}"`;
     } else {
-      attrs += ` fill="${escapeAttr(s.fillStyle)}"`;
+      attrs += ` fill="${this.paintValue(s.fillStyle)}"`;
       if (s.globalAlpha < 1) attrs += ` fill-opacity="${fmt(s.globalAlpha)}"`;
     }
     this.emit(`<text ${attrs}>${escapeText(text)}</text>`);
@@ -535,18 +552,36 @@ export class SVGContext implements Ctx2D {
     this.style.lineDash = segments.slice();
   }
 
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): SVGGradient {
+    return new SVGGradient(x0, y0, x1, y1);
+  }
+
+  /** Resolve a fill/stroke style to an SVG paint value; registers a `<linearGradient>` def for gradients. */
+  private paintValue(style: string | SVGGradient): string {
+    if (typeof style === 'string') return escapeAttr(style);
+    const id = `nd-grad-${this.gradSeq++}`;
+    const stops = style.stops
+      .map((s) => `<stop offset="${fmt(s.offset)}" stop-color="${escapeAttr(s.color)}"/>`)
+      .join('');
+    this.defs.push(
+      `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" ` +
+        `x1="${fmt(style.x0)}" y1="${fmt(style.y0)}" x2="${fmt(style.x1)}" y2="${fmt(style.y1)}">${stops}</linearGradient>`,
+    );
+    return `url(#${id})`;
+  }
+
   // ---- style properties (backed by the current style state) ----
 
-  get fillStyle(): string {
+  get fillStyle(): string | SVGGradient {
     return this.style.fillStyle;
   }
-  set fillStyle(v: string) {
+  set fillStyle(v: string | SVGGradient) {
     this.style.fillStyle = v;
   }
-  get strokeStyle(): string {
+  get strokeStyle(): string | SVGGradient {
     return this.style.strokeStyle;
   }
-  set strokeStyle(v: string) {
+  set strokeStyle(v: string | SVGGradient) {
     this.style.strokeStyle = v;
   }
   get lineWidth(): number {

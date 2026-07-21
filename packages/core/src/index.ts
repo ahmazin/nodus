@@ -157,7 +157,7 @@ export { rectNodeUtil, lineEdgeUtil, groupNodeUtil, drawEdgeLabel } from './buil
 
 // renderer
 export { DrawApi, type FillOpts, type StrokeOpts, type LabelOpts, type ImageOpts } from './renderer/draw-api.js';
-export type { Ctx2D, DrawableImage } from './renderer/context.js';
+export type { Ctx2D, CanvasGradientLike, DrawableImage } from './renderer/context.js';
 export { fillBackground, drawGrid, paintItem, strokeWorldBox, fillHandle, setPaintErrorHandler } from './renderer/paint.js';
 export { SVGContext } from './renderer/svg-context.js';
 export { renderSVG, type RenderSVGOptions } from './renderer/svg-export.js';
