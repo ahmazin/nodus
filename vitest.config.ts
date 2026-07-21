@@ -25,7 +25,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/**/*.test.{ts,tsx}', 'examples/browser/src/import-analyze.test.ts'],
+    include: [
+      'packages/**/*.test.{ts,tsx}',
+      'examples/browser/src/import-analyze.test.ts',
+      'examples/browser/src/status-bar.test.ts',
+    ],
     environment: 'node',
   },
 });

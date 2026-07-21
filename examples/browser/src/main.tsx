@@ -9,13 +9,23 @@
  * `templates-modal`) are preserved on their relocated controls.
  */
 
-import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import {
+  StrictMode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
 import { SyncInfra } from './sync-infra';
 import { ImportEditor } from './import-editor';
+import { StatusBar } from './status-bar';
 import { analyzeImport, detectImportFormat, type ImportAnalysis, type ImportFormat } from './import-analyze';
 import {
   ArrowIcon,
@@ -527,6 +537,12 @@ function App(): ReactElement {
   const [importOpen, setImportOpen] = useState(false);
   const [importInitial, setImportInitial] = useState<ImportFormat | undefined>(undefined);
 
+  // Status-bar cursor readout: world-space coords of the pointer over the canvas, throttled so a
+  // fast mouse move doesn't re-render every event. `null` while the pointer is off the canvas.
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+  const lastCursorMoveRef = useRef(0);
+
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
   // Restore a previous session if one exists (mount-only; the seed model stands if there's none).
@@ -997,7 +1013,19 @@ function App(): ReactElement {
           </div>
 
           {/* CANVAS */}
-          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <div
+            ref={canvasWrapperRef}
+            style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
+            onPointerMove={(e) => {
+              const now = performance.now();
+              if (now - lastCursorMoveRef.current < 30) return;
+              lastCursorMoveRef.current = now;
+              const rect = canvasWrapperRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              setCursor(editor.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top }));
+            }}
+            onPointerLeave={() => setCursor(null)}
+          >
             {/* The dotted background is the renderer's own camera-synced `theme.canvas.grid` (painted
                 behind every node), so no DOM overlay is needed here. */}
             <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
@@ -1251,6 +1279,8 @@ function App(): ReactElement {
             </div>
           </div>
         </div>
+
+        <StatusBar editor={editor} cursor={cursor} />
 
         {/* ===== OVERLAYS ===== */}
         <CommandPalette editor={editor} commands={commands} />
