@@ -7,7 +7,7 @@
 import type { Box, Vec2 } from '../model.js';
 import { drawIcon } from '../icons/index.js';
 import type { ResolvedTokens } from '../theme/index.js';
-import type { Ctx2D, DrawableImage } from './context.js';
+import type { Ctx2D, CanvasGradientLike, DrawableImage } from './context.js';
 
 export interface ImageOpts {
   /** `'contain'` (default) letterboxes the whole image inside the box; `'cover'` fills and crops. */
@@ -15,10 +15,25 @@ export interface ImageOpts {
   opacity?: number;
 }
 
+export interface GradientSpec {
+  /** Ordered color stops; `at` in [0,1]. */
+  stops: { at: number; color: string }[];
+  /** Direction in degrees: 0 = left→right, 90 (default) = top→bottom. */
+  angle?: number;
+}
+export interface ShadowSpec {
+  color: string;
+  blur: number;
+  dx?: number;
+  dy?: number;
+}
+
 export interface FillOpts {
   glow?: string | null;
   glowBlur?: number;
   opacity?: number;
+  gradient?: GradientSpec;
+  shadow?: ShadowSpec;
 }
 export interface StrokeOpts {
   width?: number;
@@ -95,6 +110,31 @@ export class DrawApi {
     ctx.arcTo(b.x, y2, b.x, b.y, r);
     ctx.arcTo(b.x, b.y, x2, b.y, r);
     ctx.closePath();
+  }
+
+  /** Build a linear gradient spanning `b` along `spec.angle` (deg; 90 = top→bottom). */
+  private gradientFor(b: Box, spec: GradientSpec): CanvasGradientLike {
+    const rad = ((spec.angle ?? 90) * Math.PI) / 180;
+    // Snap near-zero trig noise (e.g. Math.cos(Math.PI/2) === 6.12e-17, not exactly 0) so cardinal
+    // angles (0/90/180/270) yield exact axis-aligned endpoints instead of a sub-ULP diagonal drift.
+    const dx = Math.abs(Math.cos(rad)) < 1e-10 ? 0 : Math.cos(rad);
+    const dy = Math.abs(Math.sin(rad)) < 1e-10 ? 0 : Math.sin(rad);
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    // half-extent of the axis-aligned box projected onto the direction (box support function)
+    const proj = Math.abs(dx) * (b.w / 2) + Math.abs(dy) * (b.h / 2);
+    const g = this.ctx.createLinearGradient(cx - dx * proj, cy - dy * proj, cx + dx * proj, cy + dy * proj);
+    for (const s of spec.stops) g.addColorStop(s.at, s.color);
+    return g;
+  }
+
+  /** Offset drop shadow (distinct from the symmetric `glow`). */
+  private applyShadow(s: ShadowSpec): void {
+    const { ctx } = this;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur = s.blur;
+    ctx.shadowOffsetX = s.dx ?? 0;
+    ctx.shadowOffsetY = s.dy ?? 0;
   }
 
   private polyPath(points: Vec2[], close: boolean): void {
@@ -201,11 +241,12 @@ export class DrawApi {
     const { ctx } = this;
     ctx.save();
     if (opts.opacity !== undefined) ctx.globalAlpha *= opts.opacity;
-    if (opts.glow) {
+    if (opts.shadow) this.applyShadow(opts.shadow);
+    else if (opts.glow) {
       ctx.shadowColor = opts.glow;
       ctx.shadowBlur = opts.glowBlur ?? 14;
     }
-    ctx.fillStyle = color;
+    ctx.fillStyle = opts.gradient ? this.gradientFor(b, opts.gradient) : color;
     this.roundRectPath(b, radius);
     ctx.fill();
     ctx.restore();
