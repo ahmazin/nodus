@@ -30,7 +30,10 @@ export const infraConnectorUtil: EdgeUtil = {
       dash: tokens.dash,
       glow: tokens.glow ?? undefined,
       glowBlur: 8,
+      ...(tokens.strokeGradient ? { gradient: tokens.strokeGradient } : {}),
     });
+    // the arrowhead stays the flat (target-ish) `tokens.stroke` even when the line body is a
+    // source→target gradient — a gradient-filled triangle would read as a smear, not a direction cue.
     const a = route[route.length - 2];
     const b = route[route.length - 1];
     if (a && b) {

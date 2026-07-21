@@ -223,7 +223,10 @@ export interface ItemPresentation {
 
 /** Paint one scene item (caller sets the world transform). `present`, when non-identity, multiplies
  *  `globalAlpha` and applies a scale/offset about the item's `aabb` center before drawing; identity or
- *  omitted is the exact prior behavior (fast path) — layer-cache output is unchanged. */
+ *  omitted is the exact prior behavior (fast path) — layer-cache output is unchanged. `override`, when
+ *  supplied, is shallow-merged over the resolved tokens (`{ ...tokens, ...override }`) before the item
+ *  is drawn — e.g. the editor uses it to inject a per-edge source→target `strokeGradient` that only it
+ *  can compute (it alone can see both endpoint nodes' colors). Omitted is the exact prior behavior. */
 export function paintItem(
   ctx: Ctx2D,
   item: RenderItem,
@@ -231,11 +234,13 @@ export function paintItem(
   edges: EdgeRegistry,
   theme: Theme,
   present?: ItemPresentation,
+  override?: Partial<ResolvedTokens>,
 ): void {
   const rec = item.record;
   let tokens: ResolvedTokens;
   try {
     tokens = resolveTokensCached(theme, rec);
+    if (override) tokens = { ...tokens, ...override };
   } catch (err) {
     // even token resolution can throw on a corrupt record/theme — skip the item, keep the frame.
     paintErrorHandler(err, rec);

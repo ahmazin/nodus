@@ -33,7 +33,7 @@ import {
   zoomAt,
 } from '../camera/index.js';
 import { boxEncloses, dist, padBox, unionBox } from '../geometry/index.js';
-import { defaultTheme, type StateTokens, type Theme } from '../theme/index.js';
+import { defaultTheme, type ResolvedTokens, type StateTokens, type Theme } from '../theme/index.js';
 import { Store, type ChangeInfo, type StoreListener } from '../store/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
 import { History } from '../history/index.js';
@@ -60,6 +60,7 @@ import { rectNodeUtil, lineEdgeUtil, groupNodeUtil } from '../builtins/index.js'
 import { drawAmbient, drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
 import { StaticLayerCache, type CreateOffscreen, type LayerCacheStats } from '../renderer/layer-cache.js';
 import { planDirtyRegion } from '../renderer/dirty-region.js';
+import { resolveTokensCached } from '../renderer/token-cache.js';
 import { resolveFlow } from '../flow.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
@@ -196,6 +197,12 @@ function snapshotVisible(items: readonly RenderItem[]): Map<Id, RenderItem> {
   const map = new Map<Id, RenderItem>();
   for (const it of items) map.set(it.id, it);
   return map;
+}
+
+/** The node an endpoint resolves to, or `undefined` for a `'point'` endpoint (pinned to a free world
+ *  coordinate — no node to color-match against). */
+function endpointNodeId(ep: Endpoint): Id<'node'> | undefined {
+  return ep.kind === 'node' || ep.kind === 'outline' ? ep.nodeId : undefined;
 }
 
 export class Editor implements EngineHost {
@@ -1555,8 +1562,40 @@ export class Editor implements EngineHost {
     drawGrid(ctx, theme, cam, cssW, cssH);
     this.setWorldTransform(ctx, dpr);
     for (const item of items) {
-      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id));
+      const override = item.kind === 'edge' ? this.edgeGradientOverride(item, theme) : undefined;
+      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override);
     }
+  }
+
+  /** Source→target stroke-gradient override for an edge item, or `undefined` (flat — today's behavior)
+   *  when either endpoint isn't a resolvable node (a `'point'` endpoint, or a dangling `nodeId` the
+   *  scene index doesn't have an item for). This is the ONE place both endpoint colors are reachable —
+   *  `paintItem`/the edge util only ever see the single edge record, never its neighbors — so the
+   *  gradient is computed here and threaded through as `paintItem`'s `override` param. Recomputed on
+   *  every static repaint; a node's color changing bumps `sceneIndex.version`, which already invalidates
+   *  the static layer-cache bitmap, so no extra cache-key plumbing is needed. */
+  private edgeGradientOverride(item: RenderItem, theme: Theme): Partial<ResolvedTokens> | undefined {
+    const route = item.route;
+    if (!route || route.length < 2) return undefined;
+    const rec = item.record as EdgeRecord;
+    const srcId = endpointNodeId(rec.from);
+    const tgtId = endpointNodeId(rec.to);
+    if (!srcId || !tgtId) return undefined;
+    const srcRec = this.sceneIndex.getItem(srcId)?.record;
+    const tgtRec = this.sceneIndex.getItem(tgtId)?.record;
+    if (!srcRec || !tgtRec) return undefined;
+    let src: string;
+    let tgt: string;
+    try {
+      src = resolveTokensCached(theme, srcRec).stroke;
+      tgt = resolveTokensCached(theme, tgtRec).stroke;
+    } catch {
+      return undefined; // a corrupt endpoint record must fall back to flat, not break the frame
+    }
+    const a = route[0]!;
+    const b = route[route.length - 1]!;
+    const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    return { strokeGradient: { stops: [{ at: 0, color: src }, { at: 1, color: tgt }], angle } };
   }
 
   paintOverlays(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {

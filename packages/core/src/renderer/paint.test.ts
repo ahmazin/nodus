@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultTheme, type Camera, type Ctx2D, type NodeRecord, type NodeRegistry, type NodeUtil, type RenderItem } from '../index.js';
+import {
+  defaultTheme,
+  type Camera,
+  type Ctx2D,
+  type EdgeRecord,
+  type EdgeRegistry,
+  type EdgeUtil,
+  type NodeRecord,
+  type NodeRegistry,
+  type NodeUtil,
+  type RenderItem,
+  type ResolvedTokens,
+} from '../index.js';
 import { drawAmbient, drawGrid, paintItem, setPaintErrorHandler, type ItemPresentation } from './paint.js';
 import { clearTokenCache } from './token-cache.js';
 
@@ -45,6 +57,35 @@ function nodeItem(id: string, type: string): RenderItem {
     renderVersion: 0,
   };
 }
+
+function edgeItem(id: string, type: string): RenderItem {
+  const record = {
+    id: `edge:${id}`, typeName: 'edge', version: 0, type,
+    from: { kind: 'point', x: 0, y: 0 }, to: { kind: 'point', x: 40, y: 20 },
+    visual: { state: 'solid' }, props: {},
+  } as EdgeRecord;
+  const route = [{ x: 0, y: 0 }, { x: 40, y: 20 }];
+  return {
+    id: record.id, kind: 'edge', record,
+    geometry: {} as RenderItem['geometry'],
+    aabb: { x: 0, y: 0, w: 40, h: 20 },
+    route,
+    renderVersion: 0,
+  };
+}
+
+const edgeUtil = (type: string, draw: EdgeUtil['draw']): EdgeUtil => ({
+  type,
+  getRoute: () => [],
+  draw,
+});
+
+function edgeRegistryOf(...utils: EdgeUtil[]): EdgeRegistry {
+  const map = new Map(utils.map((u) => [u.type, u]));
+  return { get: (t: string) => map.get(t) } as unknown as EdgeRegistry;
+}
+
+const noNodes = { get: () => undefined } as unknown as NodeRegistry;
 
 const util = (type: string, draw: NodeUtil['draw']): NodeUtil => ({
   type, getDefaultProps: () => ({}),
@@ -160,6 +201,42 @@ describe('paintItem presentation modifier', () => {
 
     const transformOps = log.filter((l) => l.startsWith('translate(') || l.startsWith('scale('));
     expect(transformOps).toEqual(['translate(25,17)', 'scale(2,2)', 'translate(-20,-10)']);
+  });
+});
+
+describe('paintItem override', () => {
+  it('shallow-merges override into the tokens the util sees — a strokeGradient reaches draw()', () => {
+    const seen: (ResolvedTokens['strokeGradient'] | undefined)[] = [];
+    const edges = edgeRegistryOf(edgeUtil('e', (_api, _edge, tokens) => { seen.push(tokens.strokeGradient); }));
+    const { ctx } = stubCtx();
+    const override: Partial<ResolvedTokens> = {
+      strokeGradient: { stops: [{ at: 0, color: '#111111' }, { at: 1, color: '#222222' }], angle: 45 },
+    };
+
+    paintItem(ctx, edgeItem('e1', 'e'), noNodes, edges, defaultTheme, undefined, override);
+
+    expect(seen).toEqual([override.strokeGradient]);
+  });
+
+  it('without an override, strokeGradient is undefined — unchanged behavior', () => {
+    const seen: (ResolvedTokens['strokeGradient'] | undefined)[] = [];
+    const edges = edgeRegistryOf(edgeUtil('e', (_api, _edge, tokens) => { seen.push(tokens.strokeGradient); }));
+    const { ctx } = stubCtx();
+
+    paintItem(ctx, edgeItem('e1', 'e'), noNodes, edges, defaultTheme);
+
+    expect(seen).toEqual([undefined]);
+  });
+
+  it('other override fields (e.g. stroke) merge too, alongside untouched tokens', () => {
+    const seen: ResolvedTokens[] = [];
+    const edges = edgeRegistryOf(edgeUtil('e', (_api, _edge, tokens) => { seen.push(tokens); }));
+    const { ctx } = stubCtx();
+
+    paintItem(ctx, edgeItem('e1', 'e'), noNodes, edges, defaultTheme, undefined, { stroke: '#abcdef' });
+
+    expect(seen[0]!.stroke).toBe('#abcdef');
+    expect(seen[0]!.fill).toBe(defaultTheme.states.solid!.fill); // non-overridden fields pass through
   });
 });
 
