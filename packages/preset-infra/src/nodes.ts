@@ -20,6 +20,7 @@ import {
   type ResolvedTokens,
   type Theme,
 } from '@nodus/core';
+import { classifyIcon } from './classify-icon.js';
 import { INFRA_TYPES, type InfraKind, infraTypeKey } from './theme.js';
 
 /** infra kind -> icon glyph name (from the core icon registry). */
@@ -52,7 +53,10 @@ function infraNodeUtil(kind: InfraKind): NodeUtil {
       ];
     },
     draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void {
-      drawStencil(api, node, tokens, { icon: iconName, label: node.label ?? kind });
+      // Explicit props.icon wins; else classify the label into a more specific registered glyph;
+      // else fall back to the type's default icon. Draw-time only — never written to the record.
+      const icon = (node.props.icon as string) ?? classifyIcon(node.label) ?? iconName;
+      drawStencil(api, node, tokens, { icon, label: node.label ?? kind });
     },
   };
 }
