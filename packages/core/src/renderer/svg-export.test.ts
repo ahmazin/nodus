@@ -195,4 +195,26 @@ describe('SVGContext gradients', () => {
     ctx2.fill();
     expect(ctx2.toSVG(100, 100)).toBe(out);
   });
+
+  it('assigns ids in draw order and is byte-identical across runs', () => {
+    const build = (): string => {
+      const ctx = new SVGContext();
+      for (let i = 0; i < 2; i++) {
+        const g = ctx.createLinearGradient(0, i * 10, 0, i * 10 + 10);
+        g.addColorStop(0, '#111111');
+        g.addColorStop(1, '#222222');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.rect(0, i * 10, 10, 10);
+        ctx.fill();
+      }
+      return ctx.toSVG(10, 20);
+    };
+    const a = build();
+    expect(a).toContain('id="nd-grad-0"');
+    expect(a).toContain('id="nd-grad-1"');
+    expect(a).toContain('fill="url(#nd-grad-0)"');
+    expect(a).toContain('fill="url(#nd-grad-1)"');
+    expect(build()).toBe(a); // deterministic
+  });
 });
