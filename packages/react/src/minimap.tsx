@@ -111,7 +111,15 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
       const vp = editor.viewportAtom.peek();
       editor.setCamera({ x: wx - vp.w / (2 * cam.z), y: wy - vp.h / (2 * cam.z), z: cam.z });
     };
-    const onDown = (e: PointerEvent) => { dragging = true; canvas.setPointerCapture(e.pointerId); recenter(e); };
+    const onDown = (e: PointerEvent) => {
+      // Same bug class as the main canvas's `onPointerDown`: a still-gliding momentum-pan tween's
+      // residual `panByScreen` deltas must not stack on top of a minimap-driven recenter, or the camera
+      // outruns the drag.
+      editor.cancelPanMomentum();
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      recenter(e);
+    };
     const onMove = (e: PointerEvent) => { if (dragging) recenter(e); };
     const onUp = () => { dragging = false; };
     canvas.addEventListener('pointerdown', onDown);

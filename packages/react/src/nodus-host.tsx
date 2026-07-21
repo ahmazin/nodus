@@ -218,6 +218,9 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     };
     const onWheel = (e: WheelEvent): void => {
       e.preventDefault();
+      // Same bug class as `onPointerDown`: a still-gliding momentum-pan tween's residual `panByScreen`
+      // deltas must not stack on top of a wheel-driven pan/zoom, or the camera outruns the input.
+      editor.cancelPanMomentum();
       if (e.ctrlKey || e.metaKey) {
         editor.zoomBy(Math.exp(-e.deltaY * 0.0016), local(e));
       } else {

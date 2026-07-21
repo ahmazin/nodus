@@ -1564,11 +1564,19 @@ export class Editor implements EngineHost {
   /** The static bitmap's cache key WITHOUT the scene version: everything else the static pass depends
    *  on. Two frames sharing this prefix differ (if at all) only by scene mutations — exactly when the
    *  drag fast path applies. Selection/hover/marquee/flow live in other passes, so they are absent (that
-   *  is what makes those frames a cache hit). Theme is keyed by identity (themes are swapped, not mutated). */
+   *  is what makes those frames a cache hit). Theme is keyed by identity (themes are swapped, not mutated).
+   *
+   *  `presentationEpoch` is included so a presentation-only tween (entrance fade/scale, layout glide,
+   *  grab-lift spring-back) is NOT invisible to this key: `paintItem` reads `presentationFor(id)` (see
+   *  `paintStaticInto`), but that data lives in a private Map the scene index knows nothing about, so
+   *  without the epoch here two animating frames would share an identical prefix+version and the cache
+   *  would blit the same stale bitmap for the whole tween (see `presentationEpoch`'s doc comment for the
+   *  full failure mode). Including it also means the epoch's post-tween bump (on `clearPresentation`)
+   *  forces one final miss so the resting frame is a true repaint, not a leftover mid-tween blit. */
   private staticPrefix(cssW: number, cssH: number, dpr: number): string {
     const cam = this.camera;
     const themeId = this.layerCache?.idOf(this.themeAtom.peek()) ?? 0;
-    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}`;
+    return `${themeId}|${cam.x}|${cam.y}|${cam.z}|${cssW}|${cssH}|${dpr}|p${this.presentationEpoch}`;
   }
 
   paintStatic(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {
@@ -1989,6 +1997,18 @@ export class Editor implements EngineHost {
    *  Keyed by plain string id (not the branded `Id` type) — presentation targets need not be
    *  live record ids (e.g. transient overlay elements), so this stays deliberately loose. */
   private presentation = new Map<string, Presentation>();
+  /** Bumped on every `setPresentation`/`clearPresentation` call. `presentation` is a private plain Map —
+   *  invisible to `sceneIndex.version`, which is the static-layer cache's only invalidation signal — so
+   *  without this, an entrance/layout-glide/grab-lift tween that mutates ONLY `presentation` (no store
+   *  change, no scene-index bump) leaves the static cache key unchanged and it blits a stale bitmap: the
+   *  animation never renders and the node freezes at whatever frame first seeded the cache, until some
+   *  unrelated pan/zoom/select finally busts the key. Folding this epoch into `staticPrefix` forces a
+   *  cache MISS (full repaint) on every frame a presentation is live, and once more when it clears — so
+   *  the animation actually paints, and the final frame at rest is a true repaint, not a stale blit. This
+   *  is a full-scene repaint per animating frame; acceptable since these tweens are transient (a couple
+   *  hundred ms). A more surgical dirty-region plan for presentation-only frames is a possible future
+   *  perf optimization, not done here. */
+  private presentationEpoch = 0;
   /** Cancel fn for an in-flight momentum-pan tween (see `startPanMomentum`), or `null` when none is
    *  running. A new gesture (fresh pan grab, or any other pointer-down) must cancel a still-gliding
    *  glide — otherwise its residual `panByScreen` deltas keep stacking on top of the live drag and the
@@ -2045,9 +2065,11 @@ export class Editor implements EngineHost {
   setPresentation(id: string, patch: Partial<Presentation>): void {
     const cur = this.presentation.get(id) ?? { alpha: 1, scale: 1, dx: 0, dy: 0 };
     this.presentation.set(id, { ...cur, ...patch });
+    this.presentationEpoch++;
   }
   clearPresentation(id: string): void {
     this.presentation.delete(id);
+    this.presentationEpoch++;
   }
   /** Entrance animation (fade + scale-in) for freshly created/loaded/imported nodes — a staggered
    *  cascade when `opts.stagger` is set. Each id starts at alpha 0 / scale 0.92, tweens to alpha 1 /
