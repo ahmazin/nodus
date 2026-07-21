@@ -70,6 +70,7 @@ import {
   saveToFile,
   showToast,
   useAutosave,
+  useCurrentTool,
   useUiTokens,
   useValue,
   type Command,
@@ -114,12 +115,42 @@ const DOC_NAME = 'playground.nodus.json';
  */
 const playgroundDark = {
   ...darkInfraTheme,
-  canvas: { ...darkInfraTheme.canvas, fill: '#0a0b0e', grid: { color: 'rgba(255,255,255,0.06)', size: 26 } },
+  canvas: {
+    ...darkInfraTheme.canvas,
+    fill: '#0a0b0e',
+    grid: { ...darkInfraTheme.canvas.grid, color: 'rgba(255,255,255,0.06)', size: 26 },
+  },
 };
 const playgroundLight = {
   ...infraLightTheme,
-  canvas: { ...infraLightTheme.canvas, grid: { color: 'rgba(10,11,14,0.06)', size: 26 } },
+  canvas: {
+    ...infraLightTheme.canvas,
+    grid: { ...infraLightTheme.canvas.grid, color: 'rgba(10,11,14,0.06)', size: 26 },
+  },
 };
+
+/** Tiny FNV-1a string hash (demo-only determinism helper, not for security) — same edge id always
+ *  yields the same synthetic rate across reloads, so the flow-rate pill looks stable rather than
+ *  reshuffling on every toggle. */
+function fnv1aHash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Deterministic synthetic flow rate for an edge id, in a plausible ~120-2000 range. The core only
+ * draws the flow-rate pill when an edge's resolved `data` is a finite number (see
+ * `packages/core/src/editor/index.ts`'s `drawFlowRatePill`); the demo's edges otherwise carry
+ * `DEFAULT_FLOW` with no `data`, so toggling Flow would show moving dots but never a rate label. This
+ * is demo-only seed data — real usage is `editor.setFlowMetric`/`bindFlowSource` for a live metric.
+ */
+function syntheticFlowRate(id: string): number {
+  return 120 + (fnv1aHash(id) % 1900);
+}
 
 /**
  * Load the user's saved stencil library from localStorage, tolerating a missing or corrupt value.
@@ -181,6 +212,30 @@ function buildEditor(): Editor {
   // expose for e2e verification
   (window as unknown as { __editor: Editor }).__editor = editor;
   return editor;
+}
+
+/**
+ * A 120×120 `feTurbulence` noise tile, inlined as a `data:` URI so the film-grain overlay (Change 3
+ * below) needs no asset file. Tiled + panned via the `nd-grain` CSS animation (index.html) to read as
+ * a faint, moving grain rather than a static repeating pattern.
+ */
+const GRAIN_SVG =
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120">
+      <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" /></filter>
+      <rect width="100%" height="100%" filter="url(#n)" />
+    </svg>`,
+  )}`;
+
+/** `#rrggbb` -> `rgba(r,g,b,alpha)`. Tokens only expose the accent as a hex string, but the cursor-glow
+ *  spotlight (Change 4 below) needs a translucent radial-gradient stop. Assumes a well-formed 6-digit
+ *  hex, true of both Playground themes' `accent` values. */
+function hexToRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 /** Read a File as a `data:` URI (self-contained, canonical-serializable image source). */
@@ -558,8 +613,18 @@ function App(): ReactElement {
   // Status-bar cursor readout: world-space coords of the pointer over the canvas, throttled so a
   // fast mouse move doesn't re-render every event. `null` while the pointer is off the canvas.
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  // Screen-local pointer position (relative to the canvas wrapper), for the cursor-glow spotlight
+  // (Change 4) — a DOM overlay positions in pixels, not world units, so it needs its own copy rather
+  // than reprojecting `cursor` back through the camera.
+  const [cursorScreen, setCursorScreen] = useState<{ x: number; y: number } | null>(null);
+  const [isPointerDown, setIsPointerDown] = useState(false);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
   const lastCursorMoveRef = useRef(0);
+  const currentTool = useCurrentTool(editor);
+  // Hide the glow while it would be distracting: no pointer over the canvas, mid-drag (dragging a
+  // node, marquee-selecting, resizing), or while connect/eraser are active (both rely on precise
+  // cursor feedback of their own that the glow would compete with).
+  const glowHidden = !cursorScreen || isPointerDown || currentTool === 'connect' || currentTool === 'eraser';
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -724,15 +789,25 @@ function App(): ReactElement {
     );
   }, [editor, sketchOn]);
 
-  // Global flow toggle: turn animated flow on/off for every edge at once via the editor-level helper
-  // (undoable). Per-edge authoring stays in the Properties FlowControls.
+  // Global flow toggle: turn animated flow on/off for every edge at once. Turning it ON also seeds a
+  // deterministic, per-edge synthetic `flow.data` (demo-only — real usage is `editor.setFlowMetric`/
+  // `bindFlowSource`) so the core's rate pill has a numeric value to format; without it every edge
+  // would share one `DEFAULT_FLOW` object with no `data`, and the pill never appears. One `store.apply`
+  // call keeps the whole toggle a single undo entry, matching `editor.setFlow`'s own grouping. Per-edge
+  // authoring stays in the Properties FlowControls.
   const toggleFlow = useCallback((): void => {
     const next = !flowOn;
     setFlowOn(next);
-    editor.setFlow(
-      editor.store.edges().map((e) => e.id),
-      next ? DEFAULT_FLOW : null,
-    );
+    const edges = editor.store.edges();
+    if (!edges.length) return;
+    if (next) {
+      editor.store.apply(
+        edges.map((e) => ({ op: 'update' as const, id: e.id, patch: { flow: { ...DEFAULT_FLOW, data: syntheticFlowRate(e.id) } } })),
+        { capture: 'immediately' },
+      );
+    } else {
+      editor.setFlow(edges.map((e) => e.id), null);
+    }
   }, [editor, flowOn]);
 
   const exportPNG = useCallback((): void => {
@@ -1040,13 +1115,61 @@ function App(): ReactElement {
               lastCursorMoveRef.current = now;
               const rect = canvasWrapperRef.current?.getBoundingClientRect();
               if (!rect) return;
-              setCursor(editor.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top }));
+              const screen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+              setCursorScreen(screen);
+              setCursor(editor.screenToWorld(screen));
             }}
-            onPointerLeave={() => setCursor(null)}
+            onPointerLeave={() => {
+              setCursor(null);
+              setCursorScreen(null);
+            }}
+            onPointerDown={() => setIsPointerDown(true)}
+            onPointerUp={() => setIsPointerDown(false)}
           >
             {/* The dotted background is the renderer's own camera-synced `theme.canvas.grid` (painted
                 behind every node), so no DOM overlay is needed here. */}
             <Nodus editor={editor} style={canvasStyle} imageNodeType="diagram.image" />
+
+            {/* Film-grain atmosphere (Change 3): a static feTurbulence tile, panned by the `nd-grain`
+                keyframes in index.html (which the `prefers-reduced-motion` block there disables). Purely
+                cosmetic — inset:0 + pointer-events:none so it never intercepts canvas interaction, and a
+                z-index below the floating controls/EmptyState (both 15) so it never visually competes. */}
+            <div
+              aria-hidden="true"
+              className="nd-grain"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 5,
+                pointerEvents: 'none',
+                opacity: 0.05,
+                mixBlendMode: 'overlay',
+                backgroundImage: `url("${GRAIN_SVG}")`,
+                backgroundSize: '120px 120px',
+              }}
+            />
+
+            {/* Cursor-following glow spotlight (Change 4): an accent-tinted radial gradient centered on
+                the pointer, reusing the same throttled screen-space tracking as the status-bar cursor
+                readout above. Hidden (opacity 0, no display flip needed) while off-canvas, mid-drag, or
+                while connect/eraser are active — see `glowHidden`. */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: (cursorScreen?.x ?? 0) - 240,
+                top: (cursorScreen?.y ?? 0) - 240,
+                width: 480,
+                height: 480,
+                borderRadius: '50%',
+                zIndex: 6,
+                pointerEvents: 'none',
+                mixBlendMode: 'screen',
+                background: `radial-gradient(circle, ${hexToRgba(t.color.accent, 0.1)} 0%, transparent 70%)`,
+                opacity: glowHidden ? 0 : 1,
+                transition: 'opacity 150ms ease',
+              }}
+            />
 
             {nodeCount === 0 && !onboardDismissed && (
               <EmptyState editor={editor} onDismiss={dismissOnboarding} onCommandPalette={openPalette} />

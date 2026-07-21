@@ -24,13 +24,30 @@
       .nd-pulse-dot { animation: nd-pulse 2.4s ease-in-out infinite; }
       .nd-pop { animation: nd-pop 0.12s ease-out; }
 
+      /* Film-grain canvas overlay (main.tsx's `.nd-grain` div): pans the same static noise tile through
+         a handful of irregular offsets, held with `steps()` so it reads as a slow flicker rather than a
+         smooth scroll. Reduced-motion-safe (see the media query below) — it just freezes on one frame. */
+      @keyframes nd-grain {
+        0%, 100% { background-position: 0 0; }
+        10% { background-position: -37px 12px; }
+        20% { background-position: 58px -46px; }
+        30% { background-position: -19px 63px; }
+        40% { background-position: 71px 24px; }
+        50% { background-position: -54px -33px; }
+        60% { background-position: 33px 57px; }
+        70% { background-position: -68px -12px; }
+        80% { background-position: 14px -59px; }
+        90% { background-position: -41px 38px; }
+      }
+      .nd-grain { animation: nd-grain 5s steps(10) infinite; }
+
       /* Header buttons have no [data-nodus-ui] ancestor, so the press-scale from
          packages/react/src/ui/global-styles.ts is mirrored here for them. */
       header button { transition: transform 80ms ease; }
       header button:active { transform: scale(0.97); }
 
       @media (prefers-reduced-motion: reduce) {
-        .nd-pulse-dot, .nd-pop { animation: none !important; }
+        .nd-pulse-dot, .nd-pop, .nd-grain { animation: none !important; }
         header button { transform: none !important; }
       }
     </style>
