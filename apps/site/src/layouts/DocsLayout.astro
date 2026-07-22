@@ -1,0 +1,243 @@
+---
+import SiteHead from '../components/SiteHead.astro';
+import { SITE } from '../config';
+
+// Markdown pages pass `frontmatter` + `headings`; .astro callers may pass title/description directly.
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+interface Props {
+  frontmatter?: { title?: string; description?: string };
+  title?: string;
+  description?: string;
+  headings?: Heading[];
+}
+const fm = Astro.props.frontmatter ?? Astro.props;
+const title = fm.title ?? 'Docs';
+const description = fm.description ?? SITE.description;
+const pathname = Astro.url.pathname.replace(/\/$/, '') || '/';
+const headings = (Astro.props.headings ?? []).filter((h) => h.depth === 2 || h.depth === 3);
+
+const DOCS_NAV = [
+  {
+    group: 'Start',
+    items: [
+      { title: 'Getting started', href: '/docs' },
+      { title: 'Concepts', href: '/docs/concepts' },
+    ],
+  },
+  {
+    group: 'Tooling',
+    items: [
+      { title: 'CLI · nodus', href: '/docs/cli' },
+      { title: 'MCP server', href: '/docs/mcp' },
+    ],
+  },
+];
+const isActive = (href: string) => pathname === href.replace(/\/$/, '');
+
+// Flatten for prev/next.
+const flat = DOCS_NAV.flatMap((s) => s.items);
+const idx = flat.findIndex((it) => isActive(it.href));
+const prev = idx > 0 ? flat[idx - 1] : null;
+const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <SiteHead title={`${title} · ${SITE.name} docs`} description={description} path={Astro.url.pathname} />
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+
+    <header class="hdr">
+      <div class="hdr-inner">
+        <a href="/" class="brand" aria-label="Nodus home">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="5" cy="6.5" r="2.5" style="fill:var(--accent)"></circle>
+            <circle cx="18.5" cy="6" r="2.3" style="stroke:var(--fg)" stroke-width="1.6"></circle>
+            <circle cx="12" cy="18" r="2.5" style="stroke:var(--fg)" stroke-width="1.6"></circle>
+            <path d="M6.7 8 L10.6 15.8 M17 8 L13.3 15.8 M7.4 6.4 L16.2 6" style="stroke:var(--edge)" stroke-width="1.4" stroke-linecap="round"></path>
+          </svg>
+          <span class="brand-name">Nodus</span>
+          <span class="pill">docs</span>
+        </a>
+        <nav class="hdr-nav">
+          <a href="/#features">Features</a>
+          <a href="/#compare">Compare</a>
+          <a href="/docs" aria-current="page">Docs</a>
+        </nav>
+        <div class="hdr-actions">
+          <button id="nd-theme-toggle" aria-label="Toggle theme" aria-pressed="false" class="icon-btn">
+            <svg class="nd-icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.5M12 19v2.5M4.5 4.5l1.8 1.8M17.7 17.7l1.8 1.8M2.5 12H5M19 12h2.5M4.5 19.5l1.8-1.8M17.7 6.3l1.8-1.8" stroke-linecap="round"></path></svg>
+            <svg class="nd-icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:currentColor" stroke-width="1.7"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.3 6.3 0 0 0 20 14.5Z" stroke-linejoin="round"></path></svg>
+          </button>
+          <a href={SITE.github} target="_blank" rel="noopener" class="ghost">GitHub</a>
+          <a href={SITE.playground} class="cta">Try the demo →</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="shell">
+      <aside class="side" aria-label="Docs navigation">
+        {DOCS_NAV.map((sec) => (
+          <div class="side-group">
+            <div class="side-label">{sec.group}</div>
+            <ul>
+              {sec.items.map((it) => (
+                <li>
+                  <a href={it.href} class:list={['side-link', { active: isActive(it.href) }]} aria-current={isActive(it.href) ? 'page' : undefined}>
+                    {it.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </aside>
+
+      <main class="content">
+        <p class="eyebrow">Documentation</p>
+        <h1>{title}</h1>
+        {description && <p class="lede">{description}</p>}
+        <article class="docs-prose">
+          <slot />
+        </article>
+
+        {(prev || next) && (
+          <nav class="prevnext" aria-label="Pagination">
+            {prev ? (
+              <a class="pn prev" href={prev.href}>
+                <span>← Previous</span>
+                <strong>{prev.title}</strong>
+              </a>
+            ) : (
+              <span></span>
+            )}
+            {next ? (
+              <a class="pn next" href={next.href}>
+                <span>Next →</span>
+                <strong>{next.title}</strong>
+              </a>
+            ) : (
+              <span></span>
+            )}
+          </nav>
+        )}
+
+        <footer class="doc-foot">
+          <span>MIT · © 2026 Nodus</span>
+          <a href={SITE.github} target="_blank" rel="noopener">Edit on GitHub →</a>
+        </footer>
+      </main>
+
+      <nav class="toc" aria-label="On this page">
+        {headings.length > 0 && (
+          <div class="toc-inner">
+            <div class="toc-label">On this page</div>
+            <ul>
+              {headings.map((h) => (
+                <li class:list={[{ sub: h.depth === 3 }]}>
+                  <a href={`#${h.slug}`}>{h.text}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </nav>
+    </div>
+
+    <script>
+      import { initThemeToggle } from '../scripts/theme';
+      initThemeToggle();
+    </script>
+
+    <style>
+      .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-color:var(--bg);background-image:radial-gradient(680px 380px at 88% -8%, var(--glow), transparent 68%), radial-gradient(var(--dot) 1px, transparent 1px);background-size:100% 100%, 26px 26px;background-position:0 0, -13px -13px}
+
+      .hdr{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:var(--header-bg);border-bottom:1px solid var(--line)}
+      .hdr-inner{max-width:1240px;margin:0 auto;padding:0 clamp(16px,4vw,32px);min-height:60px;display:flex;align-items:center;gap:14px}
+      .brand{display:flex;align-items:center;gap:9px}
+      .brand-name{font-weight:600;font-size:17px;letter-spacing:-0.01em;color:var(--fg)}
+      .pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--fg3);border:1px solid var(--line2);border-radius:5px;padding:2px 5px}
+      .hdr-nav{display:flex;gap:2px;margin-left:8px}
+      .hdr-nav a{font-size:13.5px;color:var(--fg2);padding:7px 9px;border-radius:8px}
+      .hdr-nav a[aria-current="page"]{color:var(--fg)}
+      .hdr-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+      .icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--line2);border-radius:9px;color:var(--fg2);cursor:pointer}
+      .ghost{display:inline-flex;align-items:center;font-size:14px;color:var(--fg);border:1px solid var(--line2);border-radius:9px;padding:8px 13px;font-weight:500}
+      .cta{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#0a0b0e;font-weight:600;font-size:14px;border-radius:9px;padding:9px 14px}
+
+      .shell{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 clamp(16px,4vw,32px);display:grid;grid-template-columns:210px minmax(0,1fr) 196px;gap:clamp(22px,3.5vw,48px);align-items:start}
+      .side{position:sticky;top:84px;padding:34px 0;max-height:calc(100dvh - 84px);overflow-y:auto}
+      .side-group{margin-bottom:22px}
+      .side-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3);margin-bottom:10px}
+      .side ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+      .side-link{display:block;font-size:14px;color:var(--fg2);padding:6px 10px;border-radius:8px;border-left:2px solid transparent}
+      .side-link:hover{color:var(--fg);background:var(--bg2)}
+      .side-link.active{color:var(--fg);border-left-color:var(--accent);background:var(--bg2)}
+
+      .content{padding:38px 0 80px;min-width:0}
+      .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3);margin:0}
+      .content h1{font-size:clamp(30px,4vw,44px);line-height:1.04;letter-spacing:-0.03em;font-weight:600;margin:10px 0 0;color:var(--fg);text-wrap:balance}
+      .lede{color:var(--fg2);font-size:18px;line-height:1.6;margin:16px 0 0;max-width:62ch;text-wrap:pretty}
+
+      .prevnext{margin-top:48px;display:flex;gap:14px;flex-wrap:wrap}
+      .pn{flex:1 1 200px;display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--bg2)}
+      .pn:hover{border-color:var(--line2)}
+      .pn span{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--fg3)}
+      .pn strong{font-weight:600;font-size:15px;color:var(--fg)}
+      .pn.next{text-align:right}
+
+      .doc-foot{margin-top:32px;padding-top:22px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg3)}
+      .doc-foot a{color:var(--fg3)}
+      .doc-foot a:hover{color:var(--accent-text)}
+
+      .toc{padding:38px 0}
+      .toc-inner{position:sticky;top:84px}
+      .toc-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3);margin-bottom:12px}
+      .toc ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;border-left:1px solid var(--line)}
+      .toc li{padding-left:14px}
+      .toc li.sub{padding-left:26px}
+      .toc a{font-size:13px;color:var(--fg2);line-height:1.4}
+      .toc a:hover{color:var(--accent-text)}
+
+      @media (max-width:1080px){
+        .shell{grid-template-columns:210px minmax(0,1fr)}
+        .toc{display:none}
+      }
+      @media (max-width:820px){
+        .hdr-nav{display:none}
+        .shell{grid-template-columns:1fr}
+        .side{position:static;max-height:none;padding:20px 0 0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 20px}
+        .side-group{margin-bottom:0}
+      }
+      @media (max-width:520px){ .ghost{display:none} }
+    </style>
+
+    <!-- Prose styling for the rendered Markdown (global so it reaches slotted content). -->
+    <style is:global>
+      .docs-prose{max-width:768px;color:var(--fg2);font-size:16px;line-height:1.72;margin-top:34px}
+      .docs-prose > :first-child{margin-top:0}
+      .docs-prose h2{color:var(--fg);font-size:26px;line-height:1.15;letter-spacing:-0.02em;font-weight:600;margin:44px 0 12px;scroll-margin-top:80px}
+      .docs-prose h3{color:var(--fg);font-size:19px;font-weight:600;margin:30px 0 10px;scroll-margin-top:80px}
+      .docs-prose p{margin:14px 0}
+      .docs-prose a{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+      .docs-prose strong{color:var(--fg);font-weight:600}
+      .docs-prose ul,.docs-prose ol{padding-left:22px;margin:14px 0}
+      .docs-prose li{margin:6px 0}
+      .docs-prose li::marker{color:var(--fg3)}
+      .docs-prose :not(pre) > code{font-family:'JetBrains Mono',monospace;font-size:0.85em;background:var(--bg3);border:1px solid var(--line);border-radius:5px;padding:1.5px 5px;color:var(--accent-text)}
+      .docs-prose pre{border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;margin:18px 0;font-size:13.5px;line-height:1.6}
+      .docs-prose pre code{font-family:'JetBrains Mono',monospace;background:none;border:0;padding:0}
+      .docs-prose table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+      .docs-prose th,.docs-prose td{border:1px solid var(--line);padding:8px 13px;text-align:left}
+      .docs-prose th{color:var(--fg);background:var(--bg2);font-weight:600}
+      .docs-prose blockquote{border-left:3px solid var(--accent);margin:18px 0;padding:2px 16px;color:var(--fg2)}
+      .docs-prose hr{border:0;border-top:1px solid var(--line);margin:34px 0}
+    </style>
+  </body>
+</html>

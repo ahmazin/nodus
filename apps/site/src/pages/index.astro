@@ -1,0 +1,154 @@
+---
+import { SITE } from '../config';
+import '../styles/theme.css'; // shared resets + theme tokens + toggle icon-swap
+// Raw design body (Claude-Design `Nodus.dc.html`, transformed to framework-free markup).
+// Imported raw so Astro does NOT parse the code-sample braces as `{expr}`.
+import rawBody from '../content/landing.html?raw';
+
+// Resolve %%TOKENS%% -> real URLs from the single source of truth (src/config.ts).
+const urls: Record<string, string> = {
+  '%%PLAYGROUND%%': SITE.playground,
+  '%%GITHUB%%': SITE.github,
+  '%%GITHUB_RELEASES%%': SITE.githubReleases,
+  '%%DOCS%%': SITE.docs,
+  '%%DOCS_CLI%%': SITE.docsCli,
+  '%%DOCS_MCP%%': SITE.docsMcp,
+  '%%NPM_CORE%%': SITE.npm.core,
+  '%%NPM_REACT%%': SITE.npm.react,
+  '%%NPM_PRESET_INFRA%%': SITE.npm.presetInfra,
+  '%%NPM_MCP%%': SITE.npm.mcp,
+  '%%NPM_ORG%%': SITE.npmOrg,
+  '%%DISCORD%%': SITE.discord,
+};
+let body = rawBody;
+for (const [token, value] of Object.entries(urls)) body = body.split(token).join(value);
+
+const title = `${SITE.name} — ${SITE.tagline} Headless diagram engine for TypeScript`;
+const ogImage = new URL('/og-image.png', SITE.origin).href;
+const canonical = new URL('/', SITE.origin).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={SITE.description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f7f7f3" media="(prefers-color-scheme: light)" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={SITE.description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={SITE.description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Fonts (design system: Space Grotesk display, JetBrains Mono code) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Set theme before first paint (no flash). Default = dark (design default). -->
+    <script is:inline>
+      try {
+        if (localStorage.getItem('nodus-theme') === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {}
+    </script>
+
+    <style is:global>
+      /* Landing-only styles — shared resets/tokens/toggle live in styles/theme.css */
+
+      /* copy button: copy icon -> check for 1.6s */
+      .nd-icon-check{display:none}
+      .nd-copy-btn.is-copied .nd-icon-copy{display:none}
+      .nd-copy-btn.is-copied .nd-icon-check{display:block}
+
+      /* code tabs */
+      .nd-tab{font-family:'JetBrains Mono',monospace;font-size:12.5px;letter-spacing:0.01em;padding:13px 14px;white-space:nowrap;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--fg2);cursor:pointer}
+      .nd-tab:hover{color:var(--fg)}
+      .nd-tab.is-active{border-bottom-color:var(--accent);color:var(--fg)}
+      .nd-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+      .nd-panel[hidden]{display:none}
+      .nd-panel{display:none}
+      .nd-panel.is-active{display:block}
+
+      /* !important defeats the design's inline `display:flex` on the <nav>. */
+      @media (max-width:860px){ .nd-nav{display:none !important} }
+
+      /* reduced motion: drop the animated flow packets (generic rules are in theme.css) */
+      @media (prefers-reduced-motion: reduce){ .nd-flow{display:none !important} }
+    </style>
+  </head>
+  <body>
+    <Fragment set:html={body} />
+
+    <script>
+      import { initThemeToggle } from '../scripts/theme';
+      // Framework-free interactions: theme toggle, copy-to-clipboard, code tabs.
+      initThemeToggle();
+
+      // Copy-install
+      const timers = new WeakMap<Element, number>();
+      document.querySelectorAll<HTMLButtonElement>('.nd-copy-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cmd = btn.getAttribute('data-copy') || '';
+          try { await navigator.clipboard.writeText(cmd); } catch (e) {}
+          btn.classList.add('is-copied');
+          clearTimeout(timers.get(btn));
+          timers.set(btn, window.setTimeout(() => btn.classList.remove('is-copied'), 1600));
+        });
+      });
+
+      // Code tabs (click + arrow-key roving focus)
+      const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.nd-tab'));
+      const panels = Array.from(document.querySelectorAll<HTMLElement>('.nd-panel'));
+      const select = (i: number) => {
+        tabs.forEach((t, j) => {
+          const on = j === i;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-selected', String(on));
+          t.tabIndex = on ? 0 : -1;
+        });
+        panels.forEach((p) => {
+          const on = p.getAttribute('data-panel') === String(i);
+          p.classList.toggle('is-active', on);
+          p.toggleAttribute('hidden', !on);
+        });
+      };
+      tabs.forEach((tab, i) => {
+        tab.addEventListener('click', () => select(i));
+        tab.addEventListener('keydown', (e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          e.preventDefault();
+          const next = e.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length;
+          select(next);
+          tabs[next]?.focus();
+        });
+      });
+
+      // Belt-and-suspenders for reduced motion: pause any SMIL that slipped through.
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.querySelectorAll<SVGSVGElement>('svg').forEach((svg) => {
+          try { svg.pauseAnimations?.(); } catch (e) {}
+        });
+      }
+    </script>
+  </body>
+</html>

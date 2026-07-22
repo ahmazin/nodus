@@ -1,0 +1,70 @@
+---
+import SiteHead from '../components/SiteHead.astro';
+import { SITE } from '../config';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <SiteHead title={`Page not found · ${SITE.name}`} description="This page is off the graph." path="/404" />
+  </head>
+  <body>
+    <div class="bg" aria-hidden="true"></div>
+
+    <header class="hdr">
+      <a href="/" class="brand" aria-label="Nodus home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="5" cy="6.5" r="2.5" style="fill:var(--accent)"></circle>
+          <circle cx="18.5" cy="6" r="2.3" style="stroke:var(--fg)" stroke-width="1.6"></circle>
+          <circle cx="12" cy="18" r="2.5" style="stroke:var(--fg)" stroke-width="1.6"></circle>
+          <path d="M6.7 8 L10.6 15.8 M17 8 L13.3 15.8 M7.4 6.4 L16.2 6" style="stroke:var(--edge)" stroke-width="1.4" stroke-linecap="round"></path>
+        </svg>
+        <span class="brand-name">Nodus</span>
+      </a>
+      <button id="nd-theme-toggle" aria-label="Toggle theme" aria-pressed="false" class="icon-btn">
+        <svg class="nd-icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.5M12 19v2.5M4.5 4.5l1.8 1.8M17.7 17.7l1.8 1.8M2.5 12H5M19 12h2.5M4.5 19.5l1.8-1.8M17.7 6.3l1.8-1.8" stroke-linecap="round"></path></svg>
+        <svg class="nd-icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" style="stroke:currentColor" stroke-width="1.7"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.3 6.3 0 0 0 20 14.5Z" stroke-linejoin="round"></path></svg>
+      </button>
+    </header>
+
+    <main class="wrap">
+      <!-- a node with a severed edge -->
+      <svg width="112" height="112" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+        <circle cx="26" cy="30" r="9" style="fill:var(--glow);stroke:var(--accent)" stroke-width="1.6"></circle>
+        <circle cx="94" cy="90" r="9" style="stroke:var(--fg2)" stroke-width="1.6"></circle>
+        <path d="M35 39 L54 58" style="stroke:var(--edge)" stroke-width="1.8" stroke-linecap="round"></path>
+        <path d="M66 70 L85 89" style="stroke:var(--edge)" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="4 6"></path>
+        <path d="M52 54 L68 72 M68 56 L52 72" style="stroke:var(--del)" stroke-width="2" stroke-linecap="round"></path>
+      </svg>
+
+      <p class="code">404</p>
+      <h1>Off the graph.</h1>
+      <p class="lede">That page has no edges — nothing here points to it. Let's get you back to a connected node.</p>
+      <div class="actions">
+        <a href="/" class="cta">Back home <span aria-hidden="true">→</span></a>
+        <a href={SITE.docs} class="ghost">Read the docs</a>
+        <a href={SITE.playground} class="ghost">Try the demo</a>
+      </div>
+    </main>
+
+    <script>
+      import { initThemeToggle } from '../scripts/theme';
+      initThemeToggle();
+    </script>
+
+    <style>
+      .bg{position:fixed;inset:0;z-index:0;pointer-events:none;background-color:var(--bg);background-image:radial-gradient(680px 380px at 84% -6%, var(--glow), transparent 66%), radial-gradient(var(--dot) 1px, transparent 1px);background-size:100% 100%, 26px 26px;background-position:0 0, -13px -13px}
+      .hdr{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:20px clamp(16px,4vw,32px);display:flex;align-items:center;justify-content:space-between}
+      .brand{display:flex;align-items:center;gap:9px}
+      .brand-name{font-weight:600;font-size:17px;letter-spacing:-0.01em;color:var(--fg)}
+      .icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid var(--line2);border-radius:9px;color:var(--fg2);cursor:pointer}
+      .wrap{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:clamp(48px,12vh,120px) clamp(18px,4vw,32px) 80px;text-align:center}
+      .code{font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:0.24em;color:var(--fg3);margin:26px 0 0}
+      .wrap h1{font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-0.035em;font-weight:600;color:var(--fg);margin:10px 0 0}
+      .lede{color:var(--fg2);font-size:17px;line-height:1.6;margin:18px auto 0;max-width:46ch;text-wrap:pretty}
+      .actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:32px}
+      .cta{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#0a0b0e;font-weight:600;font-size:15px;border-radius:11px;padding:13px 20px}
+      .ghost{display:inline-flex;align-items:center;color:var(--fg);font-weight:500;font-size:15px;border:1px solid var(--line2);border-radius:11px;padding:13px 18px}
+    </style>
+  </body>
+</html>

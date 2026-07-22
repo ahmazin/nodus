@@ -1,0 +1,51 @@
+---
+// Shared <head> for every page. Emits meta + OG + fonts + favicon + the anti-FOUC theme
+// script, and pulls in the shared theme stylesheet.
+import '../styles/theme.css';
+import { SITE } from '../config';
+
+interface Props {
+  title: string;
+  description?: string;
+  path?: string;
+}
+const { title, description = SITE.description, path = '/' } = Astro.props;
+const canonical = new URL(path, SITE.origin).href;
+const ogImage = new URL('/og-image.png', SITE.origin).href;
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#f7f7f3" media="(prefers-color-scheme: light)" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={SITE.name} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={ogImage} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImage} />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+  rel="stylesheet"
+/>
+
+<script is:inline>
+  try {
+    if (localStorage.getItem('nodus-theme') === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  } catch (e) {}
+</script>

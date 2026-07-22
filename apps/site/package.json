@@ -1,0 +1,16 @@
+{
+  "name": "@nodus/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Marketing site + landing page for Nodus (Astro, static output).",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "node scripts/build.mjs",
+    "build:landing": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^7.1.3"
+  }
+}
