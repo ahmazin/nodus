@@ -118,14 +118,17 @@ const playgroundDark = {
   canvas: {
     ...darkInfraTheme.canvas,
     fill: '#0a0b0e',
-    grid: { ...darkInfraTheme.canvas.grid, color: 'rgba(255,255,255,0.06)', size: 26 },
+    // Design's dotted backdrop: sage-green dots (peak α 0.14, matching the reference's `dotA`) with
+    // accent-lime major lines every 5th cell. `drawGrid` fades both toward the viewport edges, which
+    // reproduces the design's radial vignette mask — no DOM overlay needed.
+    grid: { color: 'rgba(150,175,140,0.14)', size: 26, major: 'rgba(196,242,78,0.13)', majorEvery: 5 },
   },
 };
 const playgroundLight = {
   ...infraLightTheme,
   canvas: {
     ...infraLightTheme.canvas,
-    grid: { ...infraLightTheme.canvas.grid, color: 'rgba(10,11,14,0.06)', size: 26 },
+    grid: { color: 'rgba(10,11,14,0.10)', size: 26, major: 'rgba(120,150,40,0.11)', majorEvery: 5 },
   },
 };
 
@@ -208,7 +211,9 @@ function buildEditor(): Editor {
   });
   editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
   editor.setTheme(playgroundDark); // apply the prominent-grid variant on top of the preset's dark theme
-  editor.setIdleShimmer(true); // demo-only opt-in: a barely-perceptible idle shimmer (core default stays off)
+  // Idle shimmer intentionally left OFF: it kept the canvas repainting ~38×/s even while idle, which —
+  // behind the glass backdrop-filter chrome — is a needless, continuous compositing cost. The canvas
+  // now paints only in response to real interaction/animation.
   // expose for e2e verification
   (window as unknown as { __editor: Editor }).__editor = editor;
   return editor;
@@ -276,6 +281,29 @@ function PenIcon({ size = 16 }: { size?: number }): ReactElement {
     >
       <path d="M4 20l1-4 10-10a2 2 0 0 1 3 3L8 19z" />
       <path d="M13.5 6.5l3.5 3.5" />
+    </svg>
+  );
+}
+
+/** A 2×2 tile grid — the left-rail trigger for the cloud-icon picker (reads as an "asset library"). */
+function CloudGridIcon({ size = 17 }: { size?: number }): ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: 'block' }}
+    >
+      <rect x="3" y="3" width="7" height="7" rx="1.6" />
+      <rect x="14" y="3" width="7" height="7" rx="1.6" />
+      <rect x="3" y="14" width="7" height="7" rx="1.6" />
+      <rect x="14" y="14" width="7" height="7" rx="1.6" />
     </svg>
   );
 }
@@ -613,18 +641,20 @@ function App(): ReactElement {
   // Status-bar cursor readout: world-space coords of the pointer over the canvas, throttled so a
   // fast mouse move doesn't re-render every event. `null` while the pointer is off the canvas.
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
-  // Screen-local pointer position (relative to the canvas wrapper), for the cursor-glow spotlight
-  // (Change 4) — a DOM overlay positions in pixels, not world units, so it needs its own copy rather
-  // than reprojecting `cursor` back through the camera.
-  const [cursorScreen, setCursorScreen] = useState<{ x: number; y: number } | null>(null);
   const [isPointerDown, setIsPointerDown] = useState(false);
+  const [overCanvas, setOverCanvas] = useState(false);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+  // The cursor-glow spotlight is positioned via this ref (a direct `transform` write on each pointer
+  // move) rather than React state — so tracking the pointer never re-renders the App tree. Only the
+  // throttled status-bar coord readout below still goes through state.
+  const glowRef = useRef<HTMLDivElement | null>(null);
   const lastCursorMoveRef = useRef(0);
   const currentTool = useCurrentTool(editor);
   // Hide the glow while it would be distracting: no pointer over the canvas, mid-drag (dragging a
   // node, marquee-selecting, resizing), or while connect/eraser are active (both rely on precise
-  // cursor feedback of their own that the glow would compete with).
-  const glowHidden = !cursorScreen || isPointerDown || currentTool === 'connect' || currentTool === 'eraser';
+  // cursor feedback of their own that the glow would compete with). All rarely-changing states — no
+  // per-move churn.
+  const glowHidden = !overCanvas || isPointerDown || currentTool === 'connect' || currentTool === 'eraser';
 
   const canvasStyle: CSSProperties = { position: 'absolute', inset: 0 };
 
@@ -1095,6 +1125,9 @@ function App(): ReactElement {
             style={{
               width: 50,
               flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               borderRight: `1px solid ${t.color.border}`,
               background: t.color.glass,
               backdropFilter: `blur(${t.blur}) saturate(1.4)`,
@@ -1102,6 +1135,33 @@ function App(): ReactElement {
               zIndex: 30,
             }}
           >
+            {/* Cloud-icon library — a rail asset picker whose popover floats out over the canvas. */}
+            <div style={{ paddingTop: 9 }}>
+              <CloudIconPicker
+                editor={editor}
+                catalog={cloudIconCatalog}
+                variant="popover"
+                triggerTitle="Cloud icons"
+                triggerContent={<CloudGridIcon />}
+                triggerStyle={{
+                  width: 34,
+                  height: 34,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: t.radius.md,
+                  // longhand (not the `border` shorthand) so the picker's open-state `borderColor`
+                  // accent doesn't trip React's shorthand/longhand style-conflict warning
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: 'transparent',
+                  background: 'transparent',
+                  color: t.color.textMuted,
+                  cursor: 'pointer',
+                }}
+              />
+            </div>
+            <div style={{ width: 22, height: 1, background: t.color.border, margin: '6px 0' }} />
             <ToolPalette editor={editor} tools={tools} style={railStyle} />
           </div>
 
@@ -1110,18 +1170,23 @@ function App(): ReactElement {
             ref={canvasWrapperRef}
             style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
             onPointerMove={(e) => {
-              const now = performance.now();
-              if (now - lastCursorMoveRef.current < 30) return;
-              lastCursorMoveRef.current = now;
               const rect = canvasWrapperRef.current?.getBoundingClientRect();
               if (!rect) return;
-              const screen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-              setCursorScreen(screen);
-              setCursor(editor.screenToWorld(screen));
+              const sx = e.clientX - rect.left;
+              const sy = e.clientY - rect.top;
+              // Position the glow directly (no React state) so pointer tracking never re-renders.
+              const g = glowRef.current;
+              if (g) g.style.transform = `translate3d(${sx - 240}px, ${sy - 240}px, 0)`;
+              if (!overCanvas) setOverCanvas(true);
+              // Only the status-bar coord readout needs React — throttle it so movement stays light.
+              const now = performance.now();
+              if (now - lastCursorMoveRef.current < 50) return;
+              lastCursorMoveRef.current = now;
+              setCursor(editor.screenToWorld({ x: sx, y: sy }));
             }}
             onPointerLeave={() => {
               setCursor(null);
-              setCursorScreen(null);
+              setOverCanvas(false);
             }}
             onPointerDown={() => setIsPointerDown(true)}
             onPointerUp={() => setIsPointerDown(false)}
@@ -1154,11 +1219,12 @@ function App(): ReactElement {
                 readout above. Hidden (opacity 0, no display flip needed) while off-canvas, mid-drag, or
                 while connect/eraser are active — see `glowHidden`. */}
             <div
+              ref={glowRef}
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                left: (cursorScreen?.x ?? 0) - 240,
-                top: (cursorScreen?.y ?? 0) - 240,
+                left: 0,
+                top: 0,
                 width: 480,
                 height: 480,
                 borderRadius: '50%',
@@ -1168,6 +1234,7 @@ function App(): ReactElement {
                 background: `radial-gradient(circle, ${hexToRgba(t.color.accent, 0.1)} 0%, transparent 70%)`,
                 opacity: glowHidden ? 0 : 1,
                 transition: 'opacity 150ms ease',
+                willChange: 'transform',
               }}
             />
 

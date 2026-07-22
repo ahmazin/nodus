@@ -1331,6 +1331,11 @@ export class Editor implements EngineHost {
     return this.cameraAtom.peek();
   }
   setCamera(cam: Camera): void {
+    // Reject a non-finite camera (NaN/Infinity from a corrupt content bound, a divide-by-zero fit, or a
+    // bad restore) at this one chokepoint — a single NaN here freezes the whole viewport, and every
+    // downstream consumer (drawGrid/drawAmbient/hit-test) already has to defend against it. z must be a
+    // positive scale. On rejection keep the last good camera rather than poisoning the view.
+    if (!Number.isFinite(cam.x) || !Number.isFinite(cam.y) || !Number.isFinite(cam.z) || cam.z <= 0) return;
     this.cameraAtom.set(cam);
     this.events.emit({ type: 'camera', camera: cam });
   }
@@ -1746,6 +1751,14 @@ export class Editor implements EngineHost {
     const route = item.route;
     if (!route || route.length < 2) return undefined;
     const rec = item.record as EdgeRecord;
+    // An explicit user-picked stroke (Properties color swatch → `record.style.stroke`) must win over
+    // the automatic source→target gradient — otherwise the gradient paints over the pick and the color
+    // control looks broken. Honor the flat chosen color (drop the gradient) and, on dark, let it glow
+    // in that same hue so the connection still reads as alive.
+    const picked = rec.style?.stroke;
+    if (typeof picked === 'string') {
+      return theme.appearance === 'dark' ? { glow: picked } : undefined;
+    }
     const srcId = endpointNodeId(rec.from);
     const tgtId = endpointNodeId(rec.to);
     if (!srcId || !tgtId) return undefined;
@@ -1763,7 +1776,15 @@ export class Editor implements EngineHost {
     const a = route[0]!;
     const b = route[route.length - 1]!;
     const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-    return { strokeGradient: { stops: [{ at: 0, color: src }, { at: 1, color: tgt }], angle } };
+    const override: Partial<ResolvedTokens> = {
+      strokeGradient: { stops: [{ at: 0, color: src }, { at: 1, color: tgt }], angle },
+    };
+    // Connection glow (Playground parity): a soft halo in the edge's own blended endpoint hue, so a
+    // link reads as "alive" like the nodes it joins — the connector util already forwards `tokens.glow`
+    // to `strokePolyline` (shadow-blur), it just never had a color to use. Dark surface only: a
+    // symmetric blur halo muddies the light canvas, and the design likewise drops the edge blur in light.
+    if (theme.appearance === 'dark') override.glow = mix(src, tgt, 0.5);
+    return override;
   }
 
   paintOverlays(ctx: Ctx2D, cssW: number, cssH: number, dpr: number): void {

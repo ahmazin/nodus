@@ -4,7 +4,7 @@
  * onto the canvas creates an icon node at the drop point; a click (no drag) adds it at the viewport
  * center. Decoupled from @nodus/icons-cloud — the catalog arrives as a prop.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { getIcon, type Ctx2D, type Editor } from '@nodus/core';
 import { getCanvas } from './canvas-registry.js';
 import { catalogCounts, filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
@@ -25,6 +25,14 @@ export interface CloudIconPickerProps {
    *   outside-click close) so it fits inside a narrow docked side panel.
    */
   variant?: 'popover' | 'inline';
+  /** Custom trigger content for the `'popover'` variant — e.g. a compact icon for a narrow tool rail
+   *  instead of the default "Cloud icons ▾" text. Ignored for `'inline'`. */
+  triggerContent?: ReactNode;
+  /** Accessible name / tooltip for a custom (icon-only) trigger. */
+  triggerTitle?: string;
+  /** Style override for the trigger button (e.g. a square rail button). An `open` accent is layered
+   *  on top so the toggle still shows its active state. */
+  triggerStyle?: CSSProperties;
 }
 
 const TILE = 46; // preview size in css px
@@ -207,7 +215,7 @@ function Preview({ name, color }: { name: string; color: string }): ReactElement
   return <canvas ref={ref} style={{ width: TILE, height: TILE, display: 'block' }} />;
 }
 
-export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popover' }: CloudIconPickerProps): ReactElement {
+export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popover', triggerContent, triggerTitle, triggerStyle }: CloudIconPickerProps): ReactElement {
   const t = useUiTokens(editor);
   const S = buildStyles(t, variant);
   const inline = variant === 'inline';
@@ -337,10 +345,18 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
         data-testid="cloud-picker-button"
         aria-expanded={open}
         aria-haspopup="listbox"
-        style={inline ? { ...S.btn(open), width: '100%', textAlign: 'left' } : S.btn(open)}
+        title={triggerTitle}
+        aria-label={triggerContent ? (triggerTitle ?? 'Cloud icons') : undefined}
+        style={
+          triggerContent
+            ? { ...triggerStyle, ...(open ? { borderColor: t.color.accent, color: t.color.accent } : null) }
+            : inline
+              ? { ...S.btn(open), width: '100%', textAlign: 'left' }
+              : S.btn(open)
+        }
         onClick={() => setOpen((o) => !o)}
       >
-        Cloud icons ▾
+        {triggerContent ?? 'Cloud icons ▾'}
       </button>
       {open && (
         <div data-testid="cloud-picker-panel" style={S.panel} onPointerDown={(e) => e.stopPropagation()}>

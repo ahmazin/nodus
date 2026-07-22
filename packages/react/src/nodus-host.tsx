@@ -270,6 +270,11 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
 
       // ---- arrow-key nudge: 1px, or 10px with Shift ----
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        // A focused form control (Properties number field / slider / select, or any host input) must
+        // handle its OWN arrow keys — don't nudge the selection or preventDefault out from under it.
+        // This is a window listener, so without this guard a selected node would steal the arrows.
+        const tgt = e.target as HTMLElement | null;
+        if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable)) return;
         const sel = editor.selectedIdsArray();
         if (sel.length) {
           e.preventDefault();

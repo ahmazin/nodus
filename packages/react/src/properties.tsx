@@ -45,12 +45,13 @@ export function Properties({ editor, className, style }: PropertiesProps): React
   const t = useUiTokens(editor);
 
   // Re-render on selection change (selectedAtom.get registers the dep — selectedIdsArray uses peek(),
-  // which does NOT) AND on any document mutation (version bump reflects new style/geometry live).
-  const sig = useValue(() => {
-    editor.sceneIndex.version.get();
-    return [...editor.selectedAtom.get()].join(',');
-  });
-  const ids = (sig ? sig.split(',') : []) as Id[];
+  // which does NOT) AND on any document mutation. The version MUST be folded into the returned snapshot,
+  // not merely read: `useValue` is useSyncExternalStore, which re-renders only when the snapshot VALUE
+  // changes (Object.is). A style-only edit bumps the version and fires the subscription, but if the
+  // snapshot were just the id list it would be byte-identical → React bails and the panel's own controls
+  // (sliders, swatches, opacity readout) freeze at stale values until the selection changes.
+  const sig = useValue(() => `${editor.sceneIndex.version.get()}|${[...editor.selectedAtom.get()].join(',')}`);
+  const ids = sig.slice(sig.indexOf('|') + 1).split(',').filter(Boolean) as Id[];
   if (ids.length === 0) return null;
   const first = editor.store.peek(ids[0]!);
   if (!first) return null;

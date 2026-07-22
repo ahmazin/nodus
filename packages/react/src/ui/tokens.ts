@@ -115,7 +115,7 @@ const dark: UiTokens = {
     popover: '0 20px 50px -18px rgba(0,0,0,0.6)',
   },
   focusRing: '#c4f24e', // 15.1:1 on canvas — far above the 3:1 non-text minimum
-  blur: '12px',
+  blur: '8px',
   font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 
@@ -160,7 +160,7 @@ const light: UiTokens = {
     popover: '0 20px 50px -18px rgba(15,23,42,0.22)',
   },
   focusRing: '#3f6212', // same darkened lime — 7.08:1 on surface/panel, 6.59:1 on canvas
-  blur: '12px',
+  blur: '8px',
   font: { family: FONT_STACK, mono: MONO_STACK, size: { ...FONT_SIZE } },
 };
 

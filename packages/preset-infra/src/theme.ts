@@ -9,22 +9,37 @@ import type { Theme } from '@nodus/core';
 export const INFRA_TYPES = ['service', 'db', 'cache', 'queue', 'lb', 'edge'] as const;
 export type InfraKind = (typeof INFRA_TYPES)[number];
 
-/** `service | db | cache | queue | lb | edge` -> accent hex. */
+/** `service | db | cache | queue | lb | edge` -> accent hex. Mapped onto the Playground design's five
+ *  category hues: compute→lime, gateway→blue, data→purple, queue→cyan, client→orange (cache shares the
+ *  queue's cyan — six infra types onto five design colors). Status colors (met/partial/missed) below
+ *  stay their own green/amber/red — they signal drift state, not node category. */
 export const ACCENTS: Record<InfraKind, string> = {
-  service: '#10b981', // emerald
-  db: '#06b6d4', // cyan
-  cache: '#f59e0b', // amber
-  queue: '#8b5cf6', // violet
-  lb: '#3b82f6', // blue
-  edge: '#ef4444', // red
+  service: '#c4f24e', // lime — "compute" (the design accent)
+  db: '#c199ff', // purple — "data"
+  cache: '#37cfe0', // cyan
+  queue: '#37cfe0', // cyan — "queue"
+  lb: '#6ea8ff', // blue — "gateway"
+  edge: '#ff9f5c', // orange — "client"
+};
+
+/** Light-canvas variants of the category hues. The dark palette above is bright — tuned to glow on a
+ *  near-black canvas — so those colors wash out as node labels/glyphs on a light background. These are
+ *  darker, more-saturated members of the same hue families (each ≥4.5:1 on the light canvas/cards). */
+export const ACCENTS_LIGHT: Record<InfraKind, string> = {
+  service: '#4d7c0f', // dark lime (compute)
+  db: '#7c3aed', // violet (data)
+  cache: '#0e7490', // deep cyan
+  queue: '#0e7490', // deep cyan
+  lb: '#2563eb', // blue (gateway)
+  edge: '#c2410c', // burnt orange (client)
 };
 
 export const infraTypeKey = (kind: InfraKind): string => `infra.${kind}`;
 
-function byTypeSlices(): Theme['byType'] {
+function byTypeSlices(accents: Record<InfraKind, string> = ACCENTS): Theme['byType'] {
   const out: NonNullable<Theme['byType']> = {};
   for (const kind of INFRA_TYPES) {
-    const accent = ACCENTS[kind];
+    const accent = accents[kind];
     out[infraTypeKey(kind)] = { stroke: accent, text: accent, glow: accent };
   }
   return out;
@@ -33,7 +48,7 @@ function byTypeSlices(): Theme['byType'] {
 export const darkInfraTheme: Theme = {
   name: 'infra-dark',
   appearance: 'dark',
-  palette: { accent: '#10b981', neutral: '#3a423f', ...ACCENTS },
+  palette: { accent: '#c4f24e', neutral: '#3a423f', ...ACCENTS },
   typography: {
     fontFamily: "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
     size: 10.5,
@@ -110,7 +125,7 @@ export const darkInfraTheme: Theme = {
 export const infraLightTheme: Theme = {
   name: 'infra-light',
   appearance: 'light',
-  palette: { accent: '#10b981', neutral: '#64748b', ...ACCENTS },
+  palette: { accent: '#4d7c0f', neutral: '#64748b', ...ACCENTS_LIGHT },
   typography: {
     fontFamily: "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
     size: 10.5,
@@ -158,7 +173,8 @@ export const infraLightTheme: Theme = {
     partial: { stroke: '#d97706', glow: '#f59e0b' },
     missed: { stroke: '#dc2626', glow: '#ef4444' },
   },
-  // White glow is invisible on a light canvas — focus reads via the accent glow instead.
-  focus: { strokeWidth: 2, glow: '#10b981' },
-  byType: byTypeSlices(),
+  // White glow is invisible on a light canvas — focus reads via the accent glow instead. Uses the
+  // darkened lime so the ring is visible on the light canvas.
+  focus: { strokeWidth: 2, glow: '#4d7c0f' },
+  byType: byTypeSlices(ACCENTS_LIGHT),
 };

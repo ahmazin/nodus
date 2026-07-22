@@ -121,10 +121,18 @@ export function drawGrid(ctx: Ctx2D, theme: Theme, cam: Camera, cssW: number, cs
   const cx = cssW / 2;
   const cy = cssH / 2;
   const maxDist = Math.hypot(cssW, cssH) / 2;
-  // normalized fade: 1 at the viewport center, clamped to 0 by the corners. `maxDist <= 0` (a
-  // degenerate zero-size viewport) falls back to full strength rather than dividing by zero.
-  const fadeAt = (sx: number, sy: number): number =>
-    maxDist > 0 ? clamp(1 - Math.hypot(sx - cx, sy - cy) / maxDist, 0, 1) : 1;
+  // Vignette fade: full strength across the central ~55% of the half-diagonal, then an eased
+  // (squared) falloff to 0 at the corners — mirrors the design's radial mask so the dots tile the
+  // whole backdrop, instead of a plain linear fade that evaporates them halfway out. `maxDist <= 0`
+  // (a degenerate zero-size viewport) falls back to full strength rather than dividing by zero.
+  const HOLD = 0.55;
+  const fadeAt = (sx: number, sy: number): number => {
+    if (maxDist <= 0) return 1;
+    const n = Math.hypot(sx - cx, sy - cy) / maxDist;
+    if (n <= HOLD) return 1;
+    const band = (n - HOLD) / (1 - HOLD);
+    return clamp(1 - band * band, 0, 1);
+  };
 
   ctx.save();
   ctx.fillStyle = grid.color;
@@ -346,7 +354,10 @@ export function paintFlowMarkers(ctx: Ctx2D, item: RenderItem, theme: Theme, tim
   if (total < 1) return;
 
   const tokens = resolveTokensCached(theme, rec);
-  const color = flow.color ?? tokens.stroke;
+  // Flow packets/dashes default to the theme accent (a single, unified "flow" signal across every
+  // edge, matching the Playground design) — a per-edge `flow.color` still overrides it, and the
+  // resolved edge stroke is the last-resort fallback if a theme somehow has no accent.
+  const color = flow.color ?? theme.palette.accent ?? tokens.stroke;
   const speed = flow.speed ?? 70;
   const dir = flow.reverse ? -1 : 1;
   const t = time / 1000;
