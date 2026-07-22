@@ -12,6 +12,7 @@ import {
   buildShareUrl,
   decodeScene,
   encodeScene,
+  MAX_SCENE_BYTES,
   sceneFromHash,
 } from './share.js';
 
@@ -84,5 +85,23 @@ describe('buildEmbedSnippet', () => {
     expect(snippet).toContain(buildShareUrl(editor));
     expect(snippet).toContain('width="400"');
     expect(snippet).toContain('height="300"');
+  });
+});
+
+describe('share — zero-click #scene= size cap (audit M2)', () => {
+  it('rejects an oversized encoded fragment before decoding, returning null', () => {
+    // A crafted share link loads zero-click on page open; an over-cap fragment must be refused before
+    // atob/JSON.parse allocates. Pre-fix this decoded + parsed a multi-MB blob on the main thread.
+    const huge = 'A'.repeat(MAX_SCENE_BYTES + 1);
+    expect(decodeScene(huge)).toBeNull();
+    expect(sceneFromHash(`#scene=${huge}`)).toBeNull();
+  });
+
+  it('still round-trips an ordinary scene', () => {
+    const ed = new Editor();
+    ed.createNode({ type: 'rect', x: 0, y: 0, w: 10, h: 10 });
+    const encoded = encodeScene(ed.toJSON());
+    expect(encoded.length).toBeLessThan(MAX_SCENE_BYTES);
+    expect(decodeScene(encoded)).not.toBeNull();
   });
 });

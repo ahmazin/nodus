@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord, type NodeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError } from '@nodus/import-infra';
+import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError, MAX_IMPORT_BYTES, MAX_IMPORT_ELEMENTS } from '@nodus/import-infra';
 
 describe('terraform import', () => {
   it('maps resource types to infra kinds', () => {
@@ -316,5 +316,31 @@ describe('kubernetes import — hardening (trust boundary)', () => {
     const api = ed.store.nodes().find((n: NodeRecord) => n.label === 'api')!;
     const to = edges[0]!.to;
     expect(to.kind === 'node' && to.nodeId === api.id).toBe(true);
+  });
+});
+
+describe('import — resource-exhaustion caps (audit M2)', () => {
+  it('aborts a Terraform state whose resource count exceeds the element cap', () => {
+    // Lane A measured ~7s of synchronous work on 2,000,000 flat resources; the cap fails fast instead.
+    const resources = Array.from({ length: MAX_IMPORT_ELEMENTS + 1 }, (_, i) => ({
+      address: `aws_instance.n${i}`,
+      type: 'aws_instance',
+      name: `n${i}`,
+    }));
+    const showJson = { values: { root_module: { resources } } };
+    expect(() => analyzeTerraform(showJson)).toThrow(ImportError);
+    expect(() => analyzeTerraform(showJson)).toThrow(new RegExp(String(MAX_IMPORT_ELEMENTS)));
+  });
+
+  it('aborts an oversized Kubernetes manifest string before parsing', () => {
+    const huge = 'x'.repeat(MAX_IMPORT_BYTES + 1);
+    expect(() => analyzeKubernetes(huge)).toThrow(ImportError);
+    expect(() => analyzeKubernetes(huge)).toThrow(/too (large|big)|cap/i);
+  });
+
+  it('still imports an ordinary small graph', () => {
+    const showJson = { values: { root_module: { resources: [{ address: 'aws_instance.web', type: 'aws_instance', name: 'web' }] } } };
+    const { records } = analyzeTerraform(showJson);
+    expect(records.filter((r) => r.typeName === 'node')).toHaveLength(1);
   });
 });

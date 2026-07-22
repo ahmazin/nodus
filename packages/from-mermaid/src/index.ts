@@ -42,7 +42,7 @@ export interface ParsedMermaid {
 function cleanLines(src: string): string[] {
   return src
     .split('\n')
-    .map((l) => l.replace(/%%.*$/, '').replace(/\s+$/, '')) // drop `%%` comments + trailing ws
+    .map((l) => l.replace(/%%.*$/, '').trimEnd()) // drop `%%` comments + trailing ws (`.trimEnd()` is O(n); `/\s+$/` backtracks O(n²) on a long trailing-whitespace run — ReDoS)
     .filter((l) => l.trim().length > 0);
 }
 
@@ -177,9 +177,13 @@ function parseFlowStatement(stmt: string): { nodes: NodeTok[]; links: LinkTok[] 
   // a run of whitespace backtrack cubically on a no-closing-arrow input (ReDoS). Anchoring the label
   // start/end to a non-space makes each backtracked split fail in O(1) → linear. Outer spaces were
   // already trimmed downstream by `unquote`, so the captured label is unchanged.
+  // The inner class is ALSO length-bounded (`{0,200}`): anchoring alone still lets a line of many
+  // `--`/`==` operators with no arrow re-backtrack the remaining line at each operator start → O(n²)
+  // (a distinct ReDoS from the whitespace one). Bounding the label length caps that at O(200·n)=O(n).
+  // Mermaid edge labels are short; a label >200 chars simply isn't normalized to pipe form.
   let s = stmt
-    .replace(/(?:--|==)\s+([^\s|>][^|>\n]*[^\s|>]|[^\s|>])\s+(-->|---|==>|===)/g, '$2|$1|')
-    .replace(/-\.\s+([^\s|>][^|>\n]*[^\s|>]|[^\s|>])\s+\.->/g, '-.->|$1|')
+    .replace(/(?:--|==)\s+([^\s|>][^|>\n]{0,200}[^\s|>]|[^\s|>])\s+(-->|---|==>|===)/g, '$2|$1|')
+    .replace(/-\.\s+([^\s|>][^|>\n]{0,200}[^\s|>]|[^\s|>])\s+\.->/g, '-.->|$1|')
     .trim();
   const first = consumeNode(s);
   if (!first) return null;
@@ -360,8 +364,18 @@ function parseERDiagram(lines: string[]): { tables: TableSpec[]; relations: { fr
 // public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Hard cap on untrusted Mermaid source, enforced before any parsing. The parser is linear after the
+ * ReDoS fixes, but a large-but-linear paste (imported via `importMermaid` or the MCP `import_mermaid`
+ * tool) still runs synchronously on the main thread — a byte ceiling keeps that bounded. ~512 KB is
+ * far above any hand-authored diagram (a 20k-edge graph is well under this).
+ */
+export const MAX_MERMAID_BYTES = 512_000;
+
 /** Parse a Mermaid string into diagram records (unpositioned — run a layout to place them). */
 export function fromMermaid(src: string): ParsedMermaid {
+  if (src.length > MAX_MERMAID_BYTES)
+    throw new Error(`fromMermaid: source too large (${src.length} chars > ${MAX_MERMAID_BYTES} cap)`);
   const lines = cleanLines(src);
   if (lines.length === 0) throw new Error('fromMermaid: empty source');
   const kind = detectKind(lines[0]!);

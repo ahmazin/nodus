@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Editor } from '@nodus/core';
-import { parseSnapshot, serializeDocument } from './persistence.js';
+import { MAX_SNAPSHOT_BYTES, parseSnapshot, serializeDocument } from './persistence.js';
 
 function makeEditor(): Editor {
   return new Editor({ viewport: { w: 800, h: 600 } });
@@ -67,5 +67,20 @@ describe('serialize -> parse -> reload round-trip', () => {
     // Compare the document body only — `meta.updated` is a wall-clock stamp that legitimately differs.
     const bodyOf = (text: string): unknown => JSON.parse(text).document;
     expect(bodyOf(serializeDocument(b))).toEqual(bodyOf(first));
+  });
+});
+
+describe('parseSnapshot — document size cap (audit M2)', () => {
+  it('rejects an over-cap document before JSON.parse', () => {
+    // Every untrusted load path funnels through parseSnapshot; a multi-MB blob must fail loudly rather
+    // than freeze the main thread. The string need not be valid JSON — the cap is checked first.
+    const huge = 'x'.repeat(MAX_SNAPSHOT_BYTES + 1);
+    expect(() => parseSnapshot(huge)).toThrow(/too large/i);
+  });
+
+  it('accepts an ordinary document', () => {
+    const doc = JSON.stringify({ schemaVersion: 1, document: { records: [] } });
+    expect(doc.length).toBeLessThan(MAX_SNAPSHOT_BYTES);
+    expect(parseSnapshot(doc).document.records).toEqual([]);
   });
 });

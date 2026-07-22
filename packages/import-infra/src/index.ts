@@ -41,6 +41,16 @@ export class ImportError extends Error {
  */
 const MAX_DEPTH = 1000;
 
+/**
+ * Resource-exhaustion guards at the import trust boundary (pre-publication audit M2). `MAX_DEPTH` caps
+ * recursion; these cap *breadth*: a large-but-linear input (Lane A measured 2,000,000 flat Terraform
+ * resources → ~7s of synchronous main-thread work) still freezes the browser importer. A byte ceiling
+ * on raw text and an element ceiling on the parsed model keep that bounded, throwing a catchable
+ * `ImportError` instead of a silent multi-second hang. Both are far above any real infra graph.
+ */
+export const MAX_IMPORT_BYTES = 8_000_000;
+export const MAX_IMPORT_ELEMENTS = 50_000;
+
 // ---------------------------------------------------------------------------
 // Terraform
 // ---------------------------------------------------------------------------
@@ -166,6 +176,8 @@ export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
   const rootModule = root.values?.root_module ?? root.planned_values?.root_module;
   const resources: TfResource[] = [];
   collectResources(rootModule, resources);
+  if (resources.length > MAX_IMPORT_ELEMENTS)
+    throw new ImportError(`Terraform state has ${resources.length} resources (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`);
 
   const nodeKeys = resources.map((r) => r.address);
   const addresses = new Set(nodeKeys);
@@ -304,7 +316,11 @@ export interface KubernetesAnalysis {
 }
 
 export function analyzeKubernetes(input: string | K8sObject[]): KubernetesAnalysis {
+  if (typeof input === 'string' && input.length > MAX_IMPORT_BYTES)
+    throw new ImportError(`Kubernetes manifest is ${input.length} bytes (> ${MAX_IMPORT_BYTES} cap) — aborting import to avoid a main-thread freeze.`);
   const objects = toK8sObjects(input);
+  if (objects.length > MAX_IMPORT_ELEMENTS)
+    throw new ImportError(`Kubernetes input has ${objects.length} objects (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`);
   const nodes: InfraModel['nodes'] = [];
   const edges: NonNullable<InfraModel['edges']> = [];
   const byName = new Map<string, K8sObject>();

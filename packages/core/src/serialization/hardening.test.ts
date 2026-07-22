@@ -144,3 +144,41 @@ describe('6. toCanonicalString — non-finite numbers surface, bytes unchanged',
     expect(issues).toEqual([]);
   });
 });
+
+// Audit 2026-07-22 (M1): the iterative stableStringify rewrite closed the overflow in the canonical
+// writer, but the diff (`sameContent`), share-link (`encodeScene`), and autosave (`serializeDocument`)
+// writers still feed the SAME untrusted record through NATIVE `JSON.stringify`, which overflows on a
+// deeply-nested `props`. restore() now rejects such a record at the trust boundary so no downstream
+// serializer ever sees it. These fail pre-fix (deep record survived restore → native stringify threw).
+describe('M1. restore — rejects a record too deeply nested to serialize', () => {
+  const deepProps = (depth: number): Record<string, unknown> => {
+    const root: Record<string, unknown> = {};
+    let cur = root;
+    for (let i = 0; i < depth; i++) {
+      const next: Record<string, unknown> = {};
+      cur.a = next;
+      cur = next;
+    }
+    return root;
+  };
+
+  it('drops an over-deep record and reports excess-nesting, keeping healthy siblings', () => {
+    const issues: SerializationIssue[] = [];
+    const res = restore(snap([nodeRec('ok'), nodeRec('evil', {}, deepProps(12_000))]), { onError: (i) => issues.push(i) });
+    expect(res.records.map((r) => r.id)).toEqual(['ok']); // deep record dropped, healthy one kept
+    expect(issues.some((i) => i.code === 'excess-nesting')).toBe(true);
+  });
+
+  it('leaves the restored records safe for the native-JSON.stringify sinks (diff / share / autosave)', () => {
+    const res = restore(snap([nodeRec('ok'), nodeRec('evil', {}, deepProps(12_000))]));
+    // Pre-fix the ~12k-deep record survived restore() and overflowed native JSON.stringify downstream.
+    expect(() => JSON.stringify(res.records)).not.toThrow();
+  });
+
+  it('preserves a legitimately nested record well under the cap', () => {
+    const issues: SerializationIssue[] = [];
+    const res = restore(snap([nodeRec('cfg', {}, deepProps(32))]), { onError: (i) => issues.push(i) });
+    expect(res.records.map((r) => r.id)).toEqual(['cfg']);
+    expect(issues.some((i) => i.code === 'excess-nesting')).toBe(false);
+  });
+});

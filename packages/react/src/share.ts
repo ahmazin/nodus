@@ -50,8 +50,17 @@ export function encodeScene(snapshot: Snapshot): string {
   return toBase64Url(JSON.stringify(snapshot));
 }
 
-/** Inverse of encodeScene. Returns null if the string is malformed or not a valid Nodus snapshot. */
+/**
+ * Cap on the encoded `#scene=` fragment length, checked before `fromBase64Url`/`atob` allocates. The
+ * hash of a shared link is fully attacker-controlled and loads zero-click on page open, so a crafted
+ * multi-megabyte fragment must be rejected before it forces a large decode + main-thread `JSON.parse`
+ * (pre-publication audit M2). ~8 MB of base64 ≈ 6 MB decoded — under `parseSnapshot`'s own cap.
+ */
+export const MAX_SCENE_BYTES = 8_000_000;
+
+/** Inverse of encodeScene. Returns null if the string is malformed, oversized, or not a valid Nodus snapshot. */
 export function decodeScene(encoded: string): Snapshot | null {
+  if (encoded.length > MAX_SCENE_BYTES) return null; // reject an oversized #scene= before atob/JSON.parse
   try {
     // `parseSnapshot` does the JSON.parse + shape validation and throws on anything that isn't a
     // Nodus document; `fromBase64Url` throws on non-base64. Either failure → null, never a throw.

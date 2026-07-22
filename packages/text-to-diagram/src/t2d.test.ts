@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { DiagramSpecError, diagramSystemPrompt, diagramTool, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
+import { DiagramSpecError, diagramSystemPrompt, diagramTool, MAX_SPEC_ELEMENTS, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
 
 describe('text-to-diagram', () => {
   it('exposes a valid Anthropic tool definition + system prompt', () => {
@@ -67,6 +67,18 @@ describe('text-to-diagram', () => {
       expect(clean.nodes).toHaveLength(1); // only the one real object survives
       expect(clean.nodes[0]!.id).toBe('ok');
       expect(recordsFromSpec(spec).filter((r) => r.typeName === 'node')).toHaveLength(1);
+    });
+  });
+
+  describe('element cap (audit M2)', () => {
+    it('rejects a spec whose node count exceeds the cap', () => {
+      const nodes = Array.from({ length: MAX_SPEC_ELEMENTS + 1 }, (_, i) => ({ id: `n${i}` }));
+      expect(() => normalizeSpec({ nodes } as DiagramSpec)).toThrow(DiagramSpecError);
+    });
+
+    it('accepts an ordinary spec', () => {
+      const spec = { nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] } as DiagramSpec;
+      expect(normalizeSpec(spec).nodes).toHaveLength(2);
     });
   });
 });

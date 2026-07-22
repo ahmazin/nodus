@@ -20,7 +20,7 @@ export const SCHEMA_VERSION = 1;
  * of crashing on a hand-edited or corrupt `.nodus.json`.
  */
 export interface SerializationIssue {
-  code: 'non-array-records' | 'invalid-record' | 'duplicate-id' | 'bad-schema-version' | 'non-finite-number';
+  code: 'non-array-records' | 'invalid-record' | 'duplicate-id' | 'bad-schema-version' | 'non-finite-number' | 'excess-nesting';
   message: string;
   /** The offending value, when one can be attached (the raw entry, the duplicate id, the number). */
   value?: unknown;
@@ -31,6 +31,36 @@ export interface RestoreOptions {
   resolveMigrations?: (record: { typeName: string; type?: string }) => Migration[] | undefined;
   /** Reports each skipped/repaired defect (bad record shape, duplicate id, out-of-range schemaVersion). Never throws for the caller. */
   onError?: (issue: SerializationIssue) => void;
+}
+
+/**
+ * Depth ceiling for a single record's nested containers, enforced by `restore()`. `restore()` and
+ * `stableStringify()` are both iterative and stack-safe, but the *native* `JSON.stringify` still used
+ * by the diff (`sameContent`), share-link (`encodeScene`), and autosave (`serializeDocument`) writers
+ * overflows the call stack on a record whose `props`/`style`/`meta` nests thousands deep (pre-publication
+ * audit M1). Rejecting such a record here — at the single trust boundary every load path funnels through
+ * — keeps every downstream serializer safe with one guard. 256 is far below the ~5–6k native-stringify
+ * limit and far above any hand-authored diagram (props nest a handful of levels).
+ */
+export const MAX_NEST_DEPTH = 256;
+
+/**
+ * Iterative (stack-safe) predicate: does `v` nest deeper than `max` container levels? Walks with an
+ * explicit stack and short-circuits as soon as the limit is crossed, so a multi-thousand-deep payload
+ * is rejected in O(max) without ever recursing (a recursive check would itself overflow on the attack).
+ */
+function exceedsNestDepth(v: unknown, max: number): boolean {
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: v, depth: 0 }];
+  while (stack.length) {
+    const { node, depth } = stack.pop()!;
+    if (node === null || typeof node !== 'object') continue;
+    if (depth >= max) return true;
+    const children = Array.isArray(node) ? node : Object.values(node as Record<string, unknown>);
+    for (const child of children) {
+      if (child !== null && typeof child === 'object') stack.push({ node: child, depth: depth + 1 });
+    }
+  }
+  return false;
 }
 
 /**
@@ -308,6 +338,13 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
     // `original.typeName`.
     if (original === null || typeof original !== 'object' || Array.isArray(original)) {
       onError?.({ code: 'invalid-record', message: 'record entry is not an object; skipping', value: original });
+      continue;
+    }
+    // Reject a record that nests deeper than we can safely serialize. restore() is stack-safe, but the
+    // native JSON.stringify in the diff / share-link / autosave writers would overflow on it later
+    // (audit M1) — so drop it at the boundary rather than let a valid-JSON payload crash those paths.
+    if (exceedsNestDepth(original, MAX_NEST_DEPTH)) {
+      onError?.({ code: 'excess-nesting', message: `record nests deeper than ${MAX_NEST_DEPTH} levels; skipping to avoid a serialization stack overflow`, value: (original as { id?: unknown }).id });
       continue;
     }
     let r = original as Record<string, unknown>;

@@ -83,11 +83,22 @@ export class DiagramSpecError extends Error {
   }
 }
 
+/**
+ * Element ceiling on a diagram spec, enforced before normalization (pre-publication audit M2). Specs
+ * arrive from a model's tool call or a hand-crafted payload; a cap keeps a pathological one from
+ * building an unbounded record set on the main thread. Far above any real generated diagram.
+ */
+export const MAX_SPEC_ELEMENTS = 10_000;
+
 /** Validate + normalize an LLM `DiagramSpec` (unknown types fall back to `service`). */
 export function normalizeSpec(spec: DiagramSpec): DiagramSpec {
   const nodes = isObject(spec) ? spec.nodes : undefined;
   if (!Array.isArray(nodes)) {
     throw new DiagramSpecError('Diagram spec must be an object with a `nodes` array.');
+  }
+  const rawEdgeCount = isObject(spec) && Array.isArray(spec.edges) ? spec.edges.length : 0;
+  if (nodes.length > MAX_SPEC_ELEMENTS || rawEdgeCount > MAX_SPEC_ELEMENTS) {
+    throw new DiagramSpecError(`Diagram spec too large (${nodes.length} nodes / ${rawEdgeCount} edges > ${MAX_SPEC_ELEMENTS} cap).`);
   }
   // Keep only entries that are objects with a string id — otherwise a non-object node (a bare string
   // or number from a malformed payload) would silently become a stray "service" record.

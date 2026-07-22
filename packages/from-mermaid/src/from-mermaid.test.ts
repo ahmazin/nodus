@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord, type NodeRecord, type NodusRecord } from '@nodus/core';
 import { installDiagrams } from '@nodus/preset-diagrams';
 import { elkLayout } from '@nodus/layout-elk';
-import { fromMermaid, importMermaid, parseERDiagram, parseFlowchart, parseStateDiagram } from '@nodus/from-mermaid';
+import { fromMermaid, importMermaid, MAX_MERMAID_BYTES, parseERDiagram, parseFlowchart, parseStateDiagram } from '@nodus/from-mermaid';
 
 const nodesOf = (recs: NodusRecord[]) => recs.filter((r): r is NodeRecord => r.typeName === 'node');
 const edgesOf = (recs: NodusRecord[]) => recs.filter((r): r is EdgeRecord => r.typeName === 'edge');
@@ -208,5 +208,48 @@ describe('from-mermaid: importMermaid + ELK', () => {
 
   it('throws a clear error on an unrecognized header', () => {
     expect(() => fromMermaid('sequenceDiagram\n A->>B: hi')).toThrow(/unrecognized diagram header/);
+  });
+});
+
+// Regression: ReDoS + resource-exhaustion at the mermaid parse boundary (pre-publication audit,
+// 2026-07-22). Each timing case would run ~7–8s on the pre-fix O(n²) code (measured: whitespace-strip
+// 7453ms @100k, inline-link 8373ms @32k `--`) and completes in tens of ms after the fix. The 2000ms
+// ceiling is a ~4× margin under the pre-fix cost and ~40× above the post-fix cost — discriminating,
+// not flaky.
+describe('from-mermaid: ReDoS + input-size guards', () => {
+  const under = (ms: number, fn: () => void): number => {
+    const t0 = performance.now();
+    fn();
+    const dt = performance.now() - t0;
+    expect(dt).toBeLessThan(ms);
+    return dt;
+  };
+
+  it('H2: /\\s+$/ trailing-whitespace strip is linear (long space-run + non-space)', () => {
+    // Pre-fix: cleanLines `.replace(/\s+$/,'')` backtracked O(n²) → 7453ms. Post-fix `.trimEnd()` is O(n).
+    const src = 'flowchart LR\n' + ' '.repeat(100_000) + 'x';
+    under(2000, () => {
+      const r = fromMermaid(src);
+      expect(r.kind).toBe('flowchart');
+    });
+  });
+
+  it('H3: inline-link normalization is linear on repeated `--`/`==` operators (no arrow)', () => {
+    // Pre-fix: label class `[^|>\n]*` re-backtracked the line at each operator → O(n²), 8373ms @32k.
+    under(2000, () => fromMermaid('flowchart LR\nA ' + '-- '.repeat(30_000)));
+    under(2000, () => fromMermaid('flowchart LR\nA ' + '== '.repeat(30_000)));
+    under(2000, () => fromMermaid('flowchart LR\nA ' + '-. '.repeat(30_000)));
+  });
+
+  it('H3: a normal-length inline label still normalizes to a pipe-form edge (fix is behaviour-preserving)', () => {
+    const recs = fromMermaid('flowchart LR\nA -- ' + 'x'.repeat(50) + ' --> B').records;
+    const edge = recs.find((r) => r.typeName === 'edge') as EdgeRecord | undefined;
+    expect(edge?.label).toBe('x'.repeat(50));
+  });
+
+  it('M2: source over the byte cap is rejected before parsing', () => {
+    const tooBig = 'flowchart LR\n' + 'A-->B\n'.repeat(100_000); // ~600 KB > 512 KB cap
+    expect(tooBig.length).toBeGreaterThan(MAX_MERMAID_BYTES);
+    expect(() => fromMermaid(tooBig)).toThrow(/too large/);
   });
 });

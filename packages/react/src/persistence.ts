@@ -35,7 +35,18 @@ export function serializeDocument(editor: Editor): string {
  * (a truncated file, the wrong JSON, an empty string). Throws `SyntaxError` for invalid JSON and
  * `Error` for a structurally-wrong document. Never swallows — the caller decides how to report.
  */
+/**
+ * Upper bound on a document's serialized size, enforced before the main-thread `JSON.parse`. Every
+ * untrusted load path funnels through here (file open, persistence load, and — via `decodeScene` — a
+ * `#scene=` share link), so one cap keeps a multi-megabyte blob from freezing the tab / exhausting
+ * memory (pre-publication audit M2). ~8 MB is far above any hand-authored diagram.
+ */
+export const MAX_SNAPSHOT_BYTES = 8_000_000;
+
 export function parseSnapshot(text: string): Snapshot {
+  if (text.length > MAX_SNAPSHOT_BYTES) {
+    throw new Error(`Document too large (${text.length} bytes > ${MAX_SNAPSHOT_BYTES} cap).`);
+  }
   const data: unknown = JSON.parse(text); // throws SyntaxError on malformed JSON — let it propagate
   if (
     data === null ||
