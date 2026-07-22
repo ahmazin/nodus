@@ -177,6 +177,12 @@ export function ImportEditor({ editor, open, initialFormat, detect, analyze, onC
           </div>
         )}
 
+        {/* Privacy: importers run entirely in-browser (verified zero network egress) — say so, and warn
+            against pasting live secrets/state, since Terraform state & K8s manifests routinely carry them. */}
+        <div data-testid="import-privacy" style={{ fontSize: '11px', color: t.color.textFaint, lineHeight: 1.4 }}>
+          Parsed locally in your browser — nothing is uploaded. Avoid pasting secrets or live state you don't want on screen.
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: '11.5px', color: t.color.textFaint }}>{busy ? 'Importing…' : `${lineCount} line${lineCount === 1 ? '' : 's'}`}</span>
           <button type="button" onClick={onClose} disabled={busy} style={{ ...barBtn, marginLeft: 'auto', height: 34, padding: '0 15px', fontSize: '13px' }}>Cancel</button>

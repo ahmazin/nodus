@@ -19,7 +19,9 @@ The code-side blockers were fixed and verified in this session (with fail-before
 | **M1** deep-nesting DoS | ✅ FIXED | `restore()` rejects records nesting deeper than `MAX_NEST_DEPTH=256` (iterative, stack-safe check) → protects the `diff`/`share`/`autosave` native-`JSON.stringify` sinks at the trust boundary. |
 | **M2** input-size caps | ✅ FIXED | byte/element caps added: `fromMermaid` (`MAX_MERMAID_BYTES`), `parseSnapshot` (`MAX_SNAPSHOT_BYTES`), `decodeScene` zero-click `#scene=` (`MAX_SCENE_BYTES`), `import-infra` (`MAX_IMPORT_BYTES`/`MAX_IMPORT_ELEMENTS`), `text-to-diagram` (`MAX_SPEC_ELEMENTS`). |
 
-**Still open (user/maintainer):** H4 licensing decision · M3 `SECURITY.md` · M4 privacy note in the import modal · M5 real `repository.url` in all 18 manifests · M6 icons-cloud description · M7 SVG `role="img"`/`<title>` · all L-series (post-publish hardening). The findings below are the original audit record.
+**Readiness items also fixed (2026-07-22):** M3 `SECURITY.md` added (with a documented limits & privacy policy) · M4 "parsed locally — don't paste secrets" note added to the import modal · M6 icons-cloud description corrected to state it bundles derived provider artwork · M7 exported SVG now emits `role="img"` + `<title>` + `aria-label` (with a `title` option on `RenderSVGOptions`), regression-tested.
+
+**Still open (need a human decision):** H4 icons-cloud licensing (package is held via `private:true`) · **M5 real `repository.url` across all 18 manifests** (blocked on the final repo slug / project name) · all L-series (post-publish hardening). The findings below are the original audit record.
 
 ---
 

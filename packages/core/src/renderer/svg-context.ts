@@ -212,14 +212,20 @@ export class SVGContext implements Ctx2D {
     this.body.push(markup);
   }
 
-  /** Serialize everything drawn so far into a complete `<svg>` document of the given pixel size. */
-  toSVG(width: number, height: number): string {
+  /**
+   * Serialize everything drawn so far into a complete `<svg>` document of the given pixel size.
+   * `title` gives the exported SVG an accessible name: `role="img"` + `aria-label` + a `<title>`
+   * child mean a screen reader announces it as a labelled image rather than an unlabelled graphic.
+   * Both interpolation sites are escaped (`title` may carry a user-supplied diagram name).
+   */
+  toSVG(width: number, height: number, title = 'Diagram'): string {
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const defs = this.defs.length ? `<defs>${this.defs.join('')}</defs>` : '';
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" ` +
-      `viewBox="0 0 ${w} ${h}">${defs}${this.body.join('')}</svg>`
+      `viewBox="0 0 ${w} ${h}" role="img" aria-label="${escapeAttr(title)}">` +
+      `<title>${escapeText(title)}</title>${defs}${this.body.join('')}</svg>`
     );
   }
 

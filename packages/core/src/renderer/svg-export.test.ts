@@ -272,3 +272,21 @@ describe('SVGContext gradients', () => {
     expect(out).toContain('fill="url(#nd-rgrad-0)"');
   });
 });
+
+describe('renderSVG — accessibility (audit M7)', () => {
+  it('the root <svg> carries role="img", a <title>, and an aria-label (default name)', () => {
+    const svg = renderSVG(buildScene());
+    expect(svg).toContain('role="img"');
+    expect(svg).toContain('aria-label="Diagram"');
+    expect(svg).toContain('<title>Diagram</title>');
+    assertBalanced(svg);
+  });
+
+  it('a caller-supplied title becomes the accessible name and is escaped', () => {
+    const svg = renderSVG(buildScene(), { title: 'Prod "infra" <net>' });
+    expect(svg).toContain('aria-label="Prod &quot;infra&quot; &lt;net&gt;"');
+    expect(svg).toContain('<title>Prod "infra" &lt;net&gt;</title>');
+    expect(svg).not.toContain('<net>'); // no raw markup leaked from the title
+    assertBalanced(svg);
+  });
+});

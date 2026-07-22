@@ -16,7 +16,7 @@
     "type": "git",
     "url": "https://github.com/OWNER/nodus"
   },
-  "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Ships fixture placeholders; real packs are produced by codegen.",
+  "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Bundles derived provider architecture-icon artwork under each provider's icon terms — see LICENSE, NOTICE, and LICENSES/. Not published to npm pending a redistribution-terms review.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

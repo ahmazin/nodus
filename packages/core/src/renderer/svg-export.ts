@@ -35,6 +35,8 @@ export interface RenderSVGOptions {
    *  instead of a single frozen frame, so the exported `.svg` keeps flowing when opened. Default off.
    *  Takes precedence over `flow` (a frozen snapshot). */
   animateFlow?: boolean;
+  /** Accessible name for the exported SVG — becomes the root `aria-label` + `<title>`. Default 'Diagram'. */
+  title?: string;
 }
 
 /**
@@ -59,7 +61,7 @@ export function renderSVG(editor: Editor, opts: RenderSVGOptions = {}): string {
     const anim = flowAnimationSVG(editor, region, ratio);
     if (anim) ctx.raw(anim);
   }
-  return ctx.toSVG(w, h);
+  return ctx.toSVG(w, h, opts.title);
 }
 
 /** Compact number formatter (3 decimals, `-0` normalized) for the flow-animation markup. */
