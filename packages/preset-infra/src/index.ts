@@ -4,7 +4,8 @@
  * public API.
  */
 
-export { darkInfraTheme, infraLightTheme, ACCENTS, INFRA_TYPES, infraTypeKey, type InfraKind } from './theme.js';
+export { darkInfraTheme, infraLightTheme, ACCENTS, ACCENTS_LIGHT, INFRA_TYPES, infraTypeKey, type InfraKind } from './theme.js';
+export { classifyCategory } from './classify-category.js';
 export { infraNodeUtils } from './nodes.js';
 export { infraConnectorUtil } from './edge.js';
 export { installInfraPreset } from './install.js';

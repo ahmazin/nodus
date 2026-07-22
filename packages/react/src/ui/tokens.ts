@@ -177,11 +177,60 @@ export function modeOfTheme(theme: Theme): UiMode {
   return theme.appearance ?? 'dark';
 }
 
+/** Relative luminance (0–1) of a `#rgb`/`#rrggbb` hex, for picking legible text on an accent fill. */
+function luminance(hex: string): number {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
+
+/** `#rrggbb` -> `rgba(r,g,b,a)`; passes non-hex strings through unchanged. */
+function rgba(hex: string, a: number): string {
+  if (hex[0] !== '#') return hex;
+  let h = hex.slice(1);
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/**
+ * Overlay a custom accent onto a base token set. Recomputes only the four accent-derived fields
+ * (`accent`, `accentText`, `selection`, `focusRing`) — text-on-accent is chosen by luminance so any
+ * hue stays legible on its own fill. The caller is responsible for passing a mode-appropriate accent
+ * (a light chrome accent must already be dark enough to read as text on white).
+ */
+export function withAccent(base: UiTokens, accent: string): UiTokens {
+  return {
+    ...base,
+    color: {
+      ...base.color,
+      accent,
+      accentText: luminance(accent) > 0.55 ? '#0a0b0e' : '#ffffff',
+      selection: rgba(accent, base.mode === 'light' ? 0.14 : 0.16),
+    },
+    focusRing: accent,
+  };
+}
+
 /**
  * Subscribe a component to the editor's active theme and return the matching UI tokens. Re-renders
- * (and re-skins) whenever the theme atom changes — one atom drives both canvas and chrome.
+ * (and re-skins) whenever the theme atom changes — one atom drives both canvas and chrome. When the
+ * theme carries a `palette.accentChrome`, the chrome accent follows it (the live accent control);
+ * otherwise the mode's tuned default accent is used, so existing themes are unaffected.
+ *
+ * The snapshot is a single string (mode + accent) rather than an object: `useValue` is
+ * `useSyncExternalStore`, which re-renders on `Object.is` snapshot change, so returning a fresh
+ * object each tick would thrash. Split it back out after subscribing.
  */
 export function useUiTokens(editor: Editor): UiTokens {
-  const mode = useValue(() => modeOfTheme(editor.themeAtom.get()));
-  return uiTokensFor(mode);
+  const sig = useValue(() => {
+    const theme = editor.themeAtom.get();
+    return `${modeOfTheme(theme)}|${theme.palette.accentChrome ?? ''}`;
+  });
+  const sep = sig.indexOf('|');
+  const mode = sig.slice(0, sep) as UiMode;
+  const accentChrome = sig.slice(sep + 1);
+  const base = uiTokensFor(mode);
+  return accentChrome ? withAccent(base, accentChrome) : base;
 }

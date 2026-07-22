@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { Editor, renderSVG, type NodusRecord } from '@nodus/core';
+import { Editor, renderSVG, type NodeUtil, type NodusRecord, type Theme } from '@nodus/core';
 import { DescribeDiagram } from './describe-diagram';
 import { EmptyState } from './empty-state';
 import { SyncInfra } from './sync-infra';
@@ -79,7 +79,10 @@ import {
   type UiTokens,
 } from '@nodus/react';
 import {
+  ACCENTS,
+  ACCENTS_LIGHT,
   INFRA_TYPES,
+  classifyCategory,
   darkInfraTheme,
   infraLightTheme,
   installInfraPreset,
@@ -88,7 +91,7 @@ import {
 } from '@nodus/preset-infra';
 import { iconNode, imageNode, installDiagrams } from '@nodus/preset-diagrams';
 import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
-import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
+import { drawShortcut, installDrawTools, rectShape, ellipseShape, diamondShape } from '@nodus/preset-draw';
 import { dagreLayout } from '@nodus/layout-dagre';
 import { treeLayout } from '@nodus/layout-tree';
 import { forceLayout } from '@nodus/layout-force';
@@ -132,6 +135,42 @@ const playgroundLight = {
   },
 };
 
+/**
+ * The four brand-accent choices from the Playground design's `accent` prop. Each carries the dark
+ * accent (bright — used directly on the near-black canvas and chrome) plus two darkened light variants:
+ * `lightCanvas` for strokes/glows/selection on the paper canvas, and `lightChrome` — a touch darker —
+ * for the accent as active *text/icon* in panels (≥4.5:1 on white, mirroring the shipped light lime).
+ * Lime is the default and maps to the exact tuned values already in `playgroundDark/Light`.
+ */
+type AccentKey = 'lime' | 'cyan' | 'coral' | 'violet';
+interface AccentOption {
+  key: AccentKey;
+  label: string;
+  dark: string;
+  lightCanvas: string;
+  lightChrome: string;
+}
+const ACCENT_OPTIONS: readonly AccentOption[] = [
+  { key: 'lime', label: 'Lime', dark: '#c4f24e', lightCanvas: '#4d7c0f', lightChrome: '#3f6212' },
+  { key: 'cyan', label: 'Cyan', dark: '#35d0e0', lightCanvas: '#0e7490', lightChrome: '#0e6d84' },
+  { key: 'coral', label: 'Coral', dark: '#ff7a5c', lightCanvas: '#c2410c', lightChrome: '#b23a0c' },
+  { key: 'violet', label: 'Violet', dark: '#a98bff', lightCanvas: '#7c3aed', lightChrome: '#6d28d9' },
+];
+
+/**
+ * Build the [dark, light] playground theme pair for a chosen accent. Lime returns the untouched shipped
+ * themes (zero regression). Any other accent overlays `palette.accent` (canvas selection/flow/glow) and
+ * `palette.accentChrome` (chrome accent, read by `useUiTokens`). Node category hues stay put — the accent
+ * is the brand/selection colour, not a node category, so switching it never recolours service/db/queue nodes.
+ */
+function themesForAccent(key: AccentKey): [Theme, Theme] {
+  if (key === 'lime') return [playgroundDark, playgroundLight];
+  const opt = ACCENT_OPTIONS.find((o) => o.key === key) ?? ACCENT_OPTIONS[0]!;
+  const dark: Theme = { ...playgroundDark, palette: { ...playgroundDark.palette, accent: opt.dark, accentChrome: opt.dark } };
+  const light: Theme = { ...playgroundLight, palette: { ...playgroundLight.palette, accent: opt.lightCanvas, accentChrome: opt.lightChrome } };
+  return [dark, light];
+}
+
 /** Tiny FNV-1a string hash (demo-only determinism helper, not for security) — same edge id always
  *  yields the same synthetic rate across reloads, so the flow-rate pill looks stable rather than
  *  reshuffling on every toggle. */
@@ -170,10 +209,41 @@ function loadUserLibrary(): StencilLibraryType {
   }
 }
 
+/**
+ * Wrap a plain draw-shape util so an untyped shape (rect / ellipse / diamond) with NO explicit stroke
+ * picks up its label's category hue — the colour-side twin of the infra glyph classifier, matching the
+ * Playground design where every node colours from its label. An explicit Properties stroke pick still
+ * wins (we only override when `style.stroke` is unset); the tint is applied at draw time and never
+ * written to the record or the serialized diagram. Dark uses the glowing `ACCENTS`; light the darker,
+ * label-legible `ACCENTS_LIGHT` (and drops the symmetric glow, which muddies the light canvas).
+ */
+function categoryColored(util: NodeUtil, editor: Editor): NodeUtil {
+  return {
+    ...util,
+    draw(api, node, tokens) {
+      if (!node.style?.stroke) {
+        const kind = classifyCategory(node.label);
+        if (kind) {
+          const dark = editor.themeAtom.peek().appearance !== 'light';
+          const hue = (dark ? ACCENTS : ACCENTS_LIGHT)[kind];
+          util.draw(api, node, { ...tokens, stroke: hue, text: hue, glow: dark ? hue : tokens.glow });
+          return;
+        }
+      }
+      util.draw(api, node, tokens);
+    },
+  };
+}
+
 function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
   installInfraPreset(editor); // registers infra types + the dark theme (appearance: 'dark')
   installDrawTools(editor);
+  // Re-register the whiteboard shapes with a label→category colour fallback (Playground parity). Same
+  // type keys, so this overrides installDrawTools' plain utils while keeping their tools/shortcuts.
+  for (const shape of [rectShape, ellipseShape, diamondShape]) {
+    editor.registerNodeType(categoryColored(shape, editor));
+  }
   installCloudIcons();
   editor.registerNodeType(iconNode);
   editor.registerNodeType(imageNode); // 'diagram.image' — raster insert / paste target
@@ -462,7 +532,10 @@ function chrome(t: UiTokens): {
       padding: '2px 6px',
     },
     tabStyle: (active) => ({
-      padding: '9px 12px',
+      // Horizontal padding kept tight (6px) so all four tabs fit the 266px panel with a few px of slack
+      // and never clip the last one — "Properties" alone is ~89px, and four tabs at the old 12px padding
+      // overflowed by ~39px (measured), pushing "Insert" under the panel's overflow:hidden edge.
+      padding: '9px 6px',
       border: 'none',
       borderBottom: `2px solid ${active ? t.color.accent : 'transparent'}`,
       background: 'transparent',
@@ -470,6 +543,7 @@ function chrome(t: UiTokens): {
       fontSize: t.font.size.md,
       fontWeight: 500,
       fontFamily: t.font.family,
+      whiteSpace: 'nowrap',
       cursor: 'pointer',
     }),
     topBtn: (active) => ({
@@ -616,6 +690,17 @@ function App(): ReactElement {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [tab, setTab] = useState<'props' | 'source' | 'layers' | 'insert'>('props');
   const [exportOpen, setExportOpen] = useState(false);
+  const [accent, setAccent] = useState<AccentKey>('lime');
+  const [accentOpen, setAccentOpen] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
+  // The [dark, light] playground theme pair for the chosen accent — rebuilt only when the accent changes.
+  const [darkTheme, lightTheme] = useMemo(() => themesForAccent(accent), [accent]);
+  // Apply the accent live: swap in whichever rebuilt theme matches the current appearance. Runs on mount
+  // too (accent 'lime' → the untouched playgroundDark, matching buildEditor's initial setTheme).
+  useEffect(() => {
+    const isLight = editor.themeAtom.peek().appearance === 'light';
+    editor.setTheme(isLight ? lightTheme : darkTheme);
+  }, [editor, darkTheme, lightTheme]);
   const [describeOpen, setDescribeOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -1046,7 +1131,50 @@ function App(): ReactElement {
             >
               <FlowGlyph /> Flow
             </button>
-            <ThemeToggle editor={editor} light={playgroundLight} dark={playgroundDark} />
+            <ThemeToggle editor={editor} light={lightTheme} dark={darkTheme} />
+            {/* Accent picker — the design's `accent` prop. Retints selection/flow/glow + chrome; a 4-swatch
+                popover. Category node hues are deliberately independent of it. */}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setAccentOpen((o) => !o)}
+                aria-expanded={accentOpen}
+                title="Accent colour"
+                style={{ ...c.iconBtn, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.color.accent, boxShadow: `0 0 0 2px ${t.color.selection}` }} />
+              </button>
+              {accentOpen && (
+                <>
+                  <div onPointerDown={() => setAccentOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 49 }} />
+                  <div
+                    className="nd-pop"
+                    style={{ position: 'absolute', right: 0, top: 38, display: 'flex', gap: 6, padding: 8, background: t.color.panel, border: `1px solid ${t.color.borderStrong}`, borderRadius: t.radius.lg, boxShadow: t.shadow.popover, zIndex: 50 }}
+                  >
+                    {ACCENT_OPTIONS.map((o) => (
+                      <button
+                        key={o.key}
+                        type="button"
+                        title={o.label}
+                        aria-pressed={accent === o.key}
+                        onClick={() => { setAccent(o.key); setAccentOpen(false); }}
+                        style={{ width: 24, height: 24, borderRadius: 7, cursor: 'pointer', background: o.dark, border: `2px solid ${accent === o.key ? t.color.text : 'transparent'}` }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {/* Text ↔ canvas source: the dedicated wide code panel (replaces the right panel while open). */}
+            <button
+              type="button"
+              onClick={() => setCodeOpen((o) => !o)}
+              aria-pressed={codeOpen}
+              title="Text ↔ canvas source"
+              style={c.topBtn(codeOpen)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ stroke: 'currentColor' }} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6" /></svg>
+            </button>
             <span style={c.divider} />
             <button
               type="button"
@@ -1273,7 +1401,8 @@ function App(): ReactElement {
             </div>
           </div>
 
-          {/* RIGHT PANEL */}
+          {/* RIGHT PANEL — hidden while the dedicated wide code panel is open */}
+          {!codeOpen && (
           <div
             style={{
               width: 266,
@@ -1288,7 +1417,7 @@ function App(): ReactElement {
               zIndex: 30,
             }}
           >
-            <div style={{ display: 'flex', padding: '8px 8px 0', gap: 4, borderBottom: `1px solid ${t.color.border}` }}>
+            <div style={{ display: 'flex', padding: '8px 6px 0', gap: 3, borderBottom: `1px solid ${t.color.border}` }}>
               <button type="button" onClick={() => setTab('props')} style={c.tabStyle(tab === 'props')} aria-pressed={tab === 'props'}>
                 Properties
               </button>
@@ -1490,6 +1619,25 @@ function App(): ReactElement {
               )}
             </div>
           </div>
+          )}
+          {codeOpen && (
+            <div
+              style={{
+                width: 'min(430px, 45vw)',
+                flexShrink: 0,
+                borderLeft: `1px solid ${t.color.border}`,
+                background: t.color.glass,
+                backdropFilter: `blur(${t.blur}) saturate(1.4)`,
+                WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                zIndex: 30,
+              }}
+            >
+              <CodePanel editor={editor} style={{ height: '100%', border: 'none', borderRadius: 0, background: 'transparent' }} />
+            </div>
+          )}
         </div>
 
         <StatusBar editor={editor} cursor={cursor} nodeCount={nodeCount} selCount={selCount} />
