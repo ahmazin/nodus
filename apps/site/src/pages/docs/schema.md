@@ -19,7 +19,7 @@ interface Snapshot {
   schemaVersion: number;                   // currently 1
   document: { records: NodusRecord[] };    // the entire diagram
   typeVersions?: Record<string, number>;   // per-shape-type props version (drives migrations)
-  meta?: Record<string, unknown>;          // in-memory only — NOT written to disk
+  meta?: Record<string, unknown>;          // DOCUMENT-level; NOT written to disk (≠ per-record meta)
 }
 ```
 
@@ -62,7 +62,7 @@ interface NodeRecord extends BaseRecord<'node'> {
   parentId?: Id;       // group / frame parent, by id-reference
   visual: VisualState; label?: string;
   props: Record<string, unknown>;   // interpreted by the registered NodeUtil
-  meta?: Record<string, unknown>;   // host scratch — never on disk
+  meta?: Record<string, unknown>;   // host scratch (core never reads it) — but DOES persist / round-trip
 }
 
 interface EdgeRecord extends BaseRecord<'edge'> {
@@ -73,6 +73,12 @@ interface EdgeRecord extends BaseRecord<'edge'> {
   meta?: Record<string, unknown>;
 }
 ```
+
+> **Pages are declared but not yet bound to records.** `PageRecord` is a real union arm and
+> round-trips through serialization, and `store.pages()` lists them — but no node or edge references a
+> page. There is no `pageId`, and `parentId` means *group/frame parent only* (a low-z container node),
+> never page membership. Diagrams are effectively single-page today; binding records to pages is a
+> future field, not a reuse of `parentId`.
 
 ## Supporting types
 
@@ -125,7 +131,10 @@ The moat is byte-stability, so anything volatile is excluded from canonical outp
 save would churn the diff:
 
 - **`version`** — the per-record mutation counter (re-defaulted on load; drives diff/render caches only).
-- **`meta`** — volatile keys (`updated`, `exportedBy`) that would change every save.
+- **`Snapshot.meta`** — the *document-envelope* meta (e.g. `updated`, `exportedBy`); `toCanonicalString`
+  never emits it. ⚠️ This is a **different field** from per-record `meta`: `NodeRecord.meta` /
+  `EdgeRecord.meta` **do persist** (they round-trip via `canonicalRecord` → `normalizeNode`/`normalizeEdge`).
+  Same name, opposite contract — a known footgun.
 - **Camera, selection** — session state, like the viewport.
 - **Flow runtime config** (`enabled` / `paused` / `speedScale` / `respectReducedMotion` / `maxFps`) and
   **flow sources** (live `poll` / `subscribe` feeds) — ephemeral, never historied.
