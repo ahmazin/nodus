@@ -49,8 +49,8 @@ type NodusRecord = NodeRecord | EdgeRecord | PageRecord;
 
 | Record | `typeName` | Key fields |
 | --- | --- | --- |
-| **Node** | `'node'` | `type` (registry key, e.g. `infra.db`), `x` `y` `w` `h`, `rotation?`, `z` (fractional-index **string**), `visual`, `props`, `label?`, `locked?`, `hidden?`, `parentId?`, `meta?` |
-| **Edge** | `'edge'` | `type`, `from`/`to` (`Endpoint`), `visual`, `flow?`, `props`, `label?`, `meta?` — **no geometry**; the routed polyline is *derived* from endpoints |
+| **Node** | `'node'` | `type` (registry key, e.g. `infra.db`), `x` `y` `w` `h`, `rotation?`, `z` (fractional-index **string**), `visual`, `props`, `label?`, `locked?`, `hidden?`, `parentId?`, `pageId?`, `meta?` |
+| **Edge** | `'edge'` | `type`, `from`/`to` (`Endpoint`), `visual`, `flow?`, `pageId?`, `props`, `label?`, `meta?` — **no geometry**; the routed polyline is *derived* from endpoints |
 | **Page** | `'page'` | `name`, `index` |
 
 ```ts
@@ -60,6 +60,7 @@ interface NodeRecord extends BaseRecord<'node'> {
   locked?: boolean;    // interaction guard (distinct from the 'locked' visual skin)
   hidden?: boolean;    // in-document but not rendered/hit-tested (distinct from 'ghost')
   parentId?: Id;       // group / frame parent, by id-reference
+  pageId?: Id<'page'>; // page membership — absent ⇒ implicit / first page (see note below)
   visual: VisualState; label?: string;
   props: Record<string, unknown>;   // interpreted by the registered NodeUtil
   meta?: Record<string, unknown>;   // host scratch (core never reads it) — but DOES persist / round-trip
@@ -67,6 +68,7 @@ interface NodeRecord extends BaseRecord<'node'> {
 
 interface EdgeRecord extends BaseRecord<'edge'> {
   type: string; from: Endpoint; to: Endpoint;
+  pageId?: Id<'page'>;              // page membership (see NodeRecord)
   visual: VisualState; label?: string;
   flow?: FlowSpec;                  // animated packets / marching dashes
   props: Record<string, unknown>;
@@ -74,11 +76,13 @@ interface EdgeRecord extends BaseRecord<'edge'> {
 }
 ```
 
-> **Pages are declared but not yet bound to records.** `PageRecord` is a real union arm and
-> round-trips through serialization, and `store.pages()` lists them — but no node or edge references a
-> page. There is no `pageId`, and `parentId` means *group/frame parent only* (a low-z container node),
-> never page membership. Diagrams are effectively single-page today; binding records to pages is a
-> future field, not a reuse of `parentId`.
+> **Page membership (`pageId`).** Nodes and edges carry an optional `pageId` (an id-reference to a
+> `PageRecord`) in the core model + serialization, with a load migration. It is **omit-when-implicit**:
+> a document with no `PageRecord` is a single implicit page and carries no `pageId` (so a pre-pages
+> diagram round-trips byte-identically); once any `PageRecord` exists, every node/edge is explicit, and
+> `restore()` backfills/repoints a missing or dangling `pageId` to the first page. Distinct from
+> `parentId` (a group/frame parent, never a page). The *editor / render* wiring — active page, per-page
+> culling, page CRUD — is a separate follow-on (see `docs/specs/page-membership.md`).
 
 ## Supporting types
 
