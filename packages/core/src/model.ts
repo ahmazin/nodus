@@ -154,6 +154,14 @@ export interface NodeRecord extends BaseRecord<'node'> {
   hidden?: boolean;
   /** Group/frame parent, by id-reference. */
   parentId?: Id;
+  /**
+   * Page membership, by id-reference to a `PageRecord`. Optional and omit-when-implicit: a document
+   * with NO `PageRecord` is a single implicit page and records carry no `pageId` (so a pre-pages
+   * diagram serializes byte-identically); once any `PageRecord` exists, every node/edge carries an
+   * explicit `pageId` resolving to a real page. Distinct from `parentId`, which is a group/frame
+   * parent (a low-z container node), never a page.
+   */
+  pageId?: Id<'page'>;
   visual: VisualState;
   label?: string;
   /** Type-specific data interpreted by the node's registered `NodeUtil`. */
@@ -177,6 +185,12 @@ export interface EdgeRecord extends BaseRecord<'edge'> {
   type: string;
   from: Endpoint;
   to: Endpoint;
+  /**
+   * Page membership — same contract as `NodeRecord.pageId`. Required to resolve a `point` endpoint
+   * (which has no node to inherit a page from); for a node-bound edge it must match its endpoints'
+   * page (an editor-enforced invariant).
+   */
+  pageId?: Id<'page'>;
   visual: VisualState;
   label?: string;
   /** Optional animated flow (packets/dashes) traveling along the edge. */

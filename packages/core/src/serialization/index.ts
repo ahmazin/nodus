@@ -85,6 +85,9 @@ export interface RestoreResult {
   migrationErrors: number;
   /** Count of records kept raw (newer-than-known version, or type util not registered). */
   unmigrated: number;
+  /** Count of node/edge records whose `pageId` was backfilled/repointed to the first page (or stripped
+   *  as dangling when the document has no pages). 0 for every page-less diagram. */
+  repointedPageRefs: number;
 }
 
 export function serializeRecords(
@@ -244,6 +247,8 @@ function normalizeNode(r: Record<string, unknown>): NodeRecord | null {
     ...(r.hidden === true ? { hidden: true } : {}),
     z: typeof r.z === 'string' ? r.z : '00000000',
     ...(typeof r.parentId === 'string' ? { parentId: r.parentId as NodeRecord['parentId'] } : {}),
+    // page membership: kept if a string; validated against real pages (backfilled/repointed) in restore()
+    ...(typeof r.pageId === 'string' ? { pageId: r.pageId as NodeRecord['pageId'] } : {}),
     visual: { state: visual.state ?? 'solid', ...(visual.overlay ? { overlay: visual.overlay } : {}), ...(visual.focused ? { focused: true } : {}) },
     ...(r.style ? { style: r.style as NodeRecord['style'] } : {}),
     ...(typeof r.label === 'string' ? { label: r.label } : {}),
@@ -276,6 +281,7 @@ function normalizeEdge(r: Record<string, unknown>): EdgeRecord | null {
     visual: { state: visual.state ?? 'solid', ...(visual.overlay ? { overlay: visual.overlay } : {}), ...(visual.focused ? { focused: true } : {}) },
     ...(r.style ? { style: r.style as EdgeRecord['style'] } : {}),
     ...(r.flow && typeof r.flow === 'object' ? { flow: r.flow as EdgeRecord['flow'] } : {}),
+    ...(typeof r.pageId === 'string' ? { pageId: r.pageId as EdgeRecord['pageId'] } : {}),
     ...(typeof r.label === 'string' ? { label: r.label } : {}),
     props: (r.props as Record<string, unknown>) ?? {},
     ...(r.meta ? { meta: r.meta as Record<string, unknown> } : {}),
@@ -417,7 +423,29 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
     return true;
   });
 
-  return { records: [...pages, ...nodes, ...keptEdges], droppedEdges, migrationErrors, unmigrated };
+  // ---- page-membership migration / repair ----
+  // Invariant: a document with ≥1 PageRecord assigns every node/edge to a REAL page; a document with
+  // no PageRecord is a single implicit page and carries no `pageId` (so a pre-pages diagram round-trips
+  // byte-identically). Today's corpus has 0 pages, so this is a no-op for every existing file — the
+  // backfill only fires for a (future) multi-page doc that is missing/dangling a `pageId`.
+  const firstPageId = pages.length ? pages.reduce((a, b) => (a.index <= b.index ? a : b)).id : null;
+  const validPageIds = new Set(pages.map((p) => p.id));
+  let repointedPageRefs = 0;
+  const bindPage = <R extends NodeRecord | EdgeRecord>(rec: R): R => {
+    if (firstPageId === null) {
+      if (rec.pageId === undefined) return rec; // implicit single page — nothing to bind
+      repointedPageRefs++; // strip a dangling pageId (no pages exist to point at)
+      const { pageId: _dropped, ...rest } = rec;
+      return rest as R;
+    }
+    if (rec.pageId !== undefined && validPageIds.has(rec.pageId)) return rec; // already on a real page
+    repointedPageRefs++; // backfill missing / repoint dangling → the first page (lowest index)
+    return { ...rec, pageId: firstPageId } as R;
+  };
+  const boundNodes = nodes.map(bindPage);
+  const boundEdges = keptEdges.map(bindPage);
+
+  return { records: [...pages, ...boundNodes, ...boundEdges], droppedEdges, migrationErrors, unmigrated, repointedPageRefs };
 }
 
 export { isNode, isEdge, isPage };
