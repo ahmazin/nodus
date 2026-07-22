@@ -40,8 +40,13 @@ interface Entry {
 
 /** Context handed to `SceneIndexDeps.onError` so a consumer can tell which record failed to index. */
 export interface SceneIndexErrorContext {
-  /** A third-party util (`getGeometry`/`getRoute`/`getPorts`) threw while building a render item. */
-  phase: 'build';
+  /**
+   * Why the record couldn't be indexed:
+   * - `'build'`     — a third-party util (`getGeometry`/`getRoute`/`getPorts`) threw while building it.
+   * - `'non-finite'`— its resolved geometry produced a non-finite (NaN/Infinity) world box, which would
+   *   poison the whole R-tree, so the record is dropped instead of inserted (see `addRecord`).
+   */
+  phase: 'build' | 'non-finite';
   kind: 'node' | 'edge';
   id: Id;
 }
@@ -258,10 +263,27 @@ export class SceneIndex {
       return;
     }
     if (!item) return; // e.g. edge with a still-missing endpoint: linked above, indexed once resolvable
-    this.items.set(rec.id, item);
     const pad = item.kind === 'edge' ? Math.max(6, (item.geometry as Polyline2d).width) : 0;
     const b = pad ? padBox(item.aabb, pad) : item.aabb;
     const entry: Entry = { minX: b.x, minY: b.y, maxX: b.x + b.w, maxY: b.y + b.h, id: rec.id };
+    // A single non-finite coordinate (NaN/Infinity from a degenerate layout, a bad importer, or a
+    // buggy plugin) would poison the ENTIRE R-tree: rbush folds child boxes with Math.min/Math.max,
+    // so one NaN box drives every ancestor bbox — up to the root — non-finite, and every subsequent
+    // query (visible/hitTest/marquee) intersects against NaN and returns nothing (blank canvas), while
+    // contentBounds() goes non-finite and breaks zoomToFit/export. Treat such geometry as unbuildable:
+    // report it and leave the record FULLY unindexed (out of items, entries, and both the incremental
+    // `insert` and bulk `load` paths), exactly like a util that threw, so every healthy record stays
+    // hit-testable and finite. If no onError channel is wired, reportError is a safe no-op and the box
+    // is still dropped.
+    if (!isFiniteEntry(entry)) {
+      this.reportError(new Error(`non-finite geometry for ${String(rec.id)} — record left unindexed`), {
+        phase: 'non-finite',
+        kind: item.kind,
+        id: rec.id,
+      });
+      return;
+    }
+    this.items.set(rec.id, item);
     this.entries.set(rec.id, entry);
     if (bulk) bulk.push(entry); // deferred: the caller (rebuild) bulk-`load`s these in one pass
     else this.tree.insert(entry);
@@ -493,6 +515,20 @@ function localHitPoint(item: RenderItem, p: Vec2): Vec2 {
   const dx = p.x - rc.cx;
   const dy = p.y - rc.cy;
   return { x: rc.cx + dx * cos + dy * sin, y: rc.cy - dx * sin + dy * cos };
+}
+
+/**
+ * Whether all four R-tree coordinates are finite. A non-finite box (NaN/Infinity) must never be inserted:
+ * rbush computes node bounds with Math.min/Math.max, so one such box poisons every ancestor bbox and
+ * silently breaks all spatial queries. `Number.isFinite` rejects NaN, Infinity and -Infinity.
+ */
+function isFiniteEntry(e: Entry): boolean {
+  return (
+    Number.isFinite(e.minX) &&
+    Number.isFinite(e.minY) &&
+    Number.isFinite(e.maxX) &&
+    Number.isFinite(e.maxY)
+  );
 }
 
 /** Paint order: edges below nodes; among nodes by z ascending. Returns >0 if `a` is on top. */

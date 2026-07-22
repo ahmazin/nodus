@@ -69,6 +69,18 @@ function n(v: number): string {
   return Object.is(r, -0) ? '0' : String(r);
 }
 
+/** Escape a string for safe interpolation into an SVG attribute value — mirrors `escapeAttr` in
+ *  svg-context (which escapes node labels/hrefs). Needed because `flow.color` is author-controlled and
+ *  is otherwise dropped raw into `stroke=`/`fill=`, which is a stored-XSS vector once the exported
+ *  `.svg` is opened in a browser. */
+function attr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /**
  * Build looping SVG animation markup for every edge carrying a `FlowSpec`, in world coordinates,
  * wrapped in the same world→viewBox transform `paintRegion` uses (so it overlays the static edges
@@ -95,7 +107,8 @@ function flowAnimationSVG(editor: Editor, region: Box, ratio: number): string {
     const metric = typeof getMetric === 'function' ? getMetric.call(editor, edge.id) : undefined;
     const flow = resolveFlow(edge.flow!, metric);
     const tok = resolveTokens(theme, edge.visual, edge.type);
-    const color = flow.color ?? tok.stroke;
+    // Escape here (not at each site) so both the dash `stroke=` and the packet `fill=` are covered.
+    const color = attr(flow.color ?? tok.stroke);
     const speed = flow.speed && flow.speed > 0 ? flow.speed : 70;
     const dir = flow.reverse ? -1 : 1;
     const d = route.map((p, i) => `${i === 0 ? 'M' : 'L'}${n(p.x)} ${n(p.y)}`).join(' ');

@@ -35,22 +35,76 @@ export const treeLayout: LayoutEngine = {
     let cursor = 0;
     const seen = new Set<Id>();
 
-    const place = (id: Id, depth: number): number => {
-      if (seen.has(id)) return main.get(id) ?? cursor; // guard cycles
-      seen.add(id);
-      depthOf.set(id, depth);
+    // Assign a leaf its main-axis center and advance the shared cursor past it.
+    const placeLeaf = (id: Id): number => {
       const n = nodeById.get(id)!;
-      const kids = children.get(id) ?? [];
-      let center: number;
-      if (kids.length === 0) {
-        center = cursor + mainSize(n) / 2;
-        cursor += mainSize(n) + siblingGap;
-      } else {
-        const cs = kids.map((k) => place(k, depth + 1));
-        center = (cs[0]! + cs[cs.length - 1]!) / 2;
-      }
+      const center = cursor + mainSize(n) / 2;
+      cursor += mainSize(n) + siblingGap;
       main.set(id, center);
       return center;
+    };
+
+    // Iterative post-order placement. A recursive `place` would descend one stack frame per tree
+    // level, so a deep/degenerate tree (e.g. a linear chain of N nodes) overflowed the call stack
+    // around N≈2500. This explicit-stack walk reproduces the recursion exactly — leaves advance the
+    // cursor in left-to-right order; each parent centers over its first and last child — but scales
+    // to arbitrary depth. Frames represent internal nodes only (kids.length ≥ 1); leaves and
+    // already-seen nodes are folded into their parent inline, mirroring the recursive return value.
+    interface Frame {
+      id: Id;
+      depth: number;
+      kids: Id[];
+      i: number;
+      first: number;
+      last: number;
+      has: boolean;
+    }
+    const place = (rootId: Id, rootDepth: number): void => {
+      if (seen.has(rootId)) return; // guard cycles
+      seen.add(rootId);
+      depthOf.set(rootId, rootDepth);
+      const rootKids = children.get(rootId) ?? [];
+      if (rootKids.length === 0) {
+        placeLeaf(rootId);
+        return;
+      }
+      const stack: Frame[] = [{ id: rootId, depth: rootDepth, kids: rootKids, i: 0, first: 0, last: 0, has: false }];
+      while (stack.length) {
+        const f = stack[stack.length - 1]!;
+        if (f.i < f.kids.length) {
+          const kid = f.kids[f.i++]!;
+          let center: number;
+          if (seen.has(kid)) {
+            center = main.get(kid) ?? cursor; // guard cycles: already-placed or in-progress ancestor
+          } else {
+            seen.add(kid);
+            depthOf.set(kid, f.depth + 1);
+            const kkids = children.get(kid) ?? [];
+            if (kkids.length > 0) {
+              stack.push({ id: kid, depth: f.depth + 1, kids: kkids, i: 0, first: 0, last: 0, has: false });
+              continue; // descend; this child's center is folded into f when the child frame pops
+            }
+            center = placeLeaf(kid);
+          }
+          if (!f.has) {
+            f.first = center;
+            f.has = true;
+          }
+          f.last = center;
+        } else {
+          stack.pop();
+          const center = (f.first + f.last) / 2;
+          main.set(f.id, center);
+          const parent = stack[stack.length - 1];
+          if (parent) {
+            if (!parent.has) {
+              parent.first = center;
+              parent.has = true;
+            }
+            parent.last = center;
+          }
+        }
+      }
     };
     for (const r of roots) place(r.id, 0);
     // any nodes left (disconnected / cyclic islands) get appended

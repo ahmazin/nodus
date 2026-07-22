@@ -6,6 +6,16 @@
 import dagre from '@dagrejs/dagre';
 import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@nodus/core';
 
+/**
+ * Above this node count, dagre's internal layered layout (its recursive acyclic cycle-break and
+ * normalize passes) overflows the call stack with a cryptic `RangeError` — empirically around
+ * N≈2000, and lower on smaller-stack runtimes. That recursion lives inside `@dagrejs/dagre`, not in
+ * this adapter, so we can't rewrite it iteratively; instead we fail fast above a safe ceiling with a
+ * clear, catchable error rather than letting the raw `RangeError` escape mid-layout. Callers hitting
+ * this should use the `force` engine (which scales) or lay out a subgraph.
+ */
+export const DAGRE_MAX_NODES = 1500;
+
 function rankdir(dir: LayoutGraph['direction']): string {
   switch (dir) {
     case 'RL':
@@ -22,6 +32,12 @@ function rankdir(dir: LayoutGraph['direction']): string {
 export const dagreLayout: LayoutEngine = {
   id: 'dagre',
   async layout(graph: LayoutGraph, opts?: LayoutOptions): Promise<LayoutResult> {
+    if (graph.nodes.length > DAGRE_MAX_NODES) {
+      throw new Error(
+        `dagre layout: graph too large (${graph.nodes.length} nodes exceeds the ${DAGRE_MAX_NODES}-node limit). ` +
+          `dagre's recursive layout overflows the call stack at this scale; use the 'force' layout engine or lay out a subgraph.`,
+      );
+    }
     const g = new dagre.graphlib.Graph();
     g.setGraph({
       rankdir: rankdir(opts?.direction ?? graph.direction),

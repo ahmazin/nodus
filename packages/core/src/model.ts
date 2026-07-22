@@ -214,10 +214,55 @@ export interface ApplyOptions {
 // ---- id helpers ----
 
 let idCounter = 0;
+const ID_HASH_MULT = 2654435761;
+const ID_HASH_MASK = 0xffffff;
+
+/**
+ * The default auto-generated suffix for counter value `n`: `<n b36>x<hash b36>`. The hash is derived
+ * from `n + 1` to stay byte-identical to the historical inline form (`idCounter++` incremented the
+ * counter before the hash term read it), so ids serialize exactly as before.
+ */
+function autoIdSuffix(n: number): string {
+  return `${n.toString(36)}x${(((n + 1) * ID_HASH_MULT) % ID_HASH_MASK).toString(36)}`;
+}
+
 /** Generate a stable, collision-resistant id for a record type. Not time/random dependent. */
 export function makeId<T extends string>(typeName: T, seed?: string): Id<T> {
-  const suffix = seed ?? `${(idCounter++).toString(36)}x${(idCounter * 2654435761 % 0xffffff).toString(36)}`;
+  const suffix = seed ?? autoIdSuffix(idCounter++);
   return `${typeName}:${suffix}` as Id<T>;
+}
+
+/**
+ * Recover the counter value from an auto-generated id, or `null` if it wasn't produced by the default
+ * scheme. Keyed/custom-seeded ids (e.g. `node:s3-prod`, stencil `node:n0`) are rejected via an exact
+ * round-trip check, so they never perturb the counter. Because the `x` separator is itself a base-36
+ * digit (33 = `"x"`), the counter head can contain `x` — so we try every `x` position and accept the
+ * one whose reconstruction matches exactly (at most one can).
+ */
+function autoIdCounterValue(id: string): number | null {
+  const suffix = id.slice(id.indexOf(':') + 1);
+  for (let x = suffix.indexOf('x'); x >= 0; x = suffix.indexOf('x', x + 1)) {
+    if (x === 0) continue; // head must be non-empty
+    const head = suffix.slice(0, x);
+    if (!/^[0-9a-z]+$/.test(head)) continue;
+    const n = Number.parseInt(head, 36);
+    if (Number.isSafeInteger(n) && n >= 0 && autoIdSuffix(n) === suffix) return n;
+  }
+  return null;
+}
+
+/**
+ * Advance the module id counter past every auto-generated id in `ids`, so ids minted *after* a load
+ * can't collide with loaded records. The counter is a module global that resets to 0 each JS context
+ * and is otherwise never seeded — without this, draw → save → reopen → draw regenerates a loaded node's
+ * id, which the store then refuses as a duplicate `add` (see `Store.apply`). Called from `Store.load`.
+ * Covers every record type (node/edge/page share this one counter).
+ */
+export function seedIdCounter(ids: Iterable<string>): void {
+  for (const id of ids) {
+    const n = autoIdCounterValue(id);
+    if (n !== null && n >= idCounter) idCounter = n + 1;
+  }
 }
 
 export function isNode(r: NodusRecord): r is NodeRecord {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord, type NodeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind } from '@nodus/import-infra';
+import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError } from '@nodus/import-infra';
 
 describe('terraform import', () => {
   it('maps resource types to infra kinds', () => {
@@ -224,5 +224,97 @@ metadata: { name: creds }
     // string vs pre-parsed array parity (the existing array path must still work)
     const arr = [{ kind: 'Deployment', metadata: { name: 'solo' } }];
     expect(analyzeKubernetes(arr).records.length).toBe(single.records.length);
+  });
+});
+
+// The importers are a TRUST BOUNDARY — inputs are untrusted shared files. These guard against the
+// resource-exhaustion / raw-throw failure modes: unbounded recursion (stack overflow), O(n²) blowup,
+// and raw parser exceptions escaping instead of a structured, catchable error.
+describe('terraform import — hardening (trust boundary)', () => {
+  it('caps deeply-nested child_modules with a structured ImportError, not a RangeError stack overflow', () => {
+    let mod: unknown = { resources: [{ address: 'aws_x.leaf', type: 'aws_x', name: 'leaf' }] };
+    for (let i = 0; i < 20000; i++) mod = { child_modules: [mod] };
+    // Before the depth cap this recursed ~20000 deep and threw `RangeError: Maximum call stack size`.
+    expect(() => analyzeTerraform({ values: { root_module: mod } })).toThrow(ImportError);
+  });
+
+  it('caps deeply-nested configuration expressions with a structured ImportError', () => {
+    let expr: unknown = { references: ['aws_a.b'] };
+    for (let i = 0; i < 20000; i++) expr = { nested: [expr] };
+    const plan = {
+      planned_values: { root_module: { resources: [
+        { address: 'aws_a.b', type: 'aws_a', name: 'b' },
+        { address: 'aws_c.d', type: 'aws_c', name: 'd' },
+      ] } },
+      configuration: { root_module: { resources: [
+        { address: 'aws_c.d', type: 'aws_c', name: 'd', expressions: expr },
+      ] } },
+    };
+    expect(() => analyzeTerraform(plan)).toThrow(ImportError);
+  });
+
+  it('resolves a depends_on pointing at an indexed instance to its managed resource (boundary-prefix path)', () => {
+    const show = { values: { root_module: { resources: [
+      { address: 'aws_instance.web', type: 'aws_instance', name: 'web' },
+      { address: 'aws_db_instance.orders', type: 'aws_db_instance', name: 'orders', depends_on: ['aws_instance.web[0]'] },
+    ] } } };
+    const { records } = analyzeTerraform(show);
+    const ed = new Editor();
+    installInfraPreset(ed);
+    ed.loadSnapshot({ schemaVersion: 1, document: { records } });
+    // 'aws_instance.web[0]' is more specific than the managed address 'aws_instance.web' but must still
+    // resolve to it — exactly one edge web -> orders (the O(1) resolver must not lose this).
+    expect(ed.store.edges()).toHaveLength(1);
+    const web = ed.store.nodes().find((n: NodeRecord) => n.label === 'web')!;
+    const e = (ed.store.edges() as EdgeRecord[])[0]!;
+    expect(e.from.kind === 'node' && e.from.nodeId === web.id).toBe(true);
+  });
+
+  it('resolves a modest-size depends_on chain correctly (guards the de-quadratified path at scale)', () => {
+    const N = 300;
+    const resources = Array.from({ length: N }, (_, i) => ({
+      address: `aws_service.s${i}`, type: 'aws_lambda_function', name: `s${i}`,
+      ...(i > 0 ? { depends_on: [`aws_service.s${i - 1}`] } : {}),
+    }));
+    const { records } = analyzeTerraform({ values: { root_module: { resources } } });
+    expect(records.filter((r) => r.typeName === 'node')).toHaveLength(N);
+    expect(records.filter((r) => r.typeName === 'edge')).toHaveLength(N - 1); // a straight chain -> N-1 edges
+  });
+});
+
+describe('kubernetes import — hardening (trust boundary)', () => {
+  it('surfaces a YAML alias bomb as a structured ImportError, not a raw parser throw', () => {
+    const bomb = [
+      'a: &a ["x","x","x","x","x","x","x","x","x"]',
+      'b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]',
+      'c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]',
+      'd: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]',
+      'e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]',
+      'f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]',
+      'kind: Service',
+      'metadata: { name: x }',
+    ].join('\n');
+    // The yaml lib caps alias expansion (mitigating billion-laughs) but throws a raw ReferenceError;
+    // the importer must convert that to a structured ImportError at the boundary.
+    expect(() => fromKubernetes(bomb)).toThrow(ImportError);
+  });
+
+  it('matches a Service to workloads by the FULL multi-label selector (label-index correctness)', () => {
+    const objects = [
+      { kind: 'Service', metadata: { name: 'api-svc' }, spec: { selector: { app: 'api', tier: 'backend' } } },
+      { kind: 'Deployment', metadata: { name: 'api' }, spec: { template: { metadata: { labels: { app: 'api', tier: 'backend' } } } } },
+      // shares app=api but tier differs — a single-label index would wrongly connect it; full match must reject it.
+      { kind: 'Deployment', metadata: { name: 'worker' }, spec: { template: { metadata: { labels: { app: 'api', tier: 'worker' } } } } },
+      { kind: 'Deployment', metadata: { name: 'web' }, spec: { template: { metadata: { labels: { app: 'web' } } } } },
+    ];
+    const { records } = analyzeKubernetes(objects);
+    const ed = new Editor();
+    installInfraPreset(ed);
+    ed.loadSnapshot({ schemaVersion: 1, document: { records } });
+    const edges = ed.store.edges() as EdgeRecord[];
+    expect(edges).toHaveLength(1); // api-svc -> api ONLY
+    const api = ed.store.nodes().find((n: NodeRecord) => n.label === 'api')!;
+    const to = edges[0]!.to;
+    expect(to.kind === 'node' && to.nodeId === api.id).toBe(true);
   });
 });

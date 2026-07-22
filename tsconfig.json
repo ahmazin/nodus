@@ -20,7 +20,7 @@
         "packages/icons-cloud/src/index.ts"
       ],
       "@nodus/react": [
-        "packages/react/src/index.ts"
+        "packages/react/src/index.tsx"
       ],
       "@nodus/preset-infra": [
         "packages/preset-infra/src/index.ts"

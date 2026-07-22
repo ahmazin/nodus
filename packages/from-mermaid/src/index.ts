@@ -172,9 +172,14 @@ interface LinkTok {
 /** Split one flowchart statement into an alternating chain: node, link, node, link, ... */
 function parseFlowStatement(stmt: string): { nodes: NodeTok[]; links: LinkTok[] } | null {
   // Normalise inline-text links (`A -- txt --> B`, `A == txt ==> B`, `A -. txt .-> B`) to pipe form.
+  // The label class is anchored to non-space boundaries (`[^\s|>] … [^\s|>]`) rather than an
+  // unbounded lazy `[^|>\n]+?` between two `\s+`: three quantifiers that can all match a space around
+  // a run of whitespace backtrack cubically on a no-closing-arrow input (ReDoS). Anchoring the label
+  // start/end to a non-space makes each backtracked split fail in O(1) → linear. Outer spaces were
+  // already trimmed downstream by `unquote`, so the captured label is unchanged.
   let s = stmt
-    .replace(/(?:--|==)\s+([^|>\n]+?)\s+(-->|---|==>|===)/g, '$2|$1|')
-    .replace(/-\.\s+([^|>\n]+?)\s+\.->/g, '-.->|$1|')
+    .replace(/(?:--|==)\s+([^\s|>][^|>\n]*[^\s|>]|[^\s|>])\s+(-->|---|==>|===)/g, '$2|$1|')
+    .replace(/-\.\s+([^\s|>][^|>\n]*[^\s|>]|[^\s|>])\s+\.->/g, '-.->|$1|')
     .trim();
   const first = consumeNode(s);
   if (!first) return null;

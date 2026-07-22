@@ -7,6 +7,16 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@nodus/core';
 
+/**
+ * Above this node count, elkjs's layout kernel overflows the call stack with a cryptic `RangeError`
+ * — empirically around N≈10000, and lower on smaller-stack runtimes. That recursion lives inside
+ * `elkjs`, not in this adapter, so we can't rewrite it iteratively; instead we fail fast above a
+ * safe ceiling with a clear, catchable error rather than letting the raw `RangeError` escape from
+ * the async kernel mid-layout. Callers hitting this should use the `force` engine (which scales) or
+ * lay out a subgraph.
+ */
+export const ELK_MAX_NODES = 8000;
+
 function elkDirection(dir: string | undefined): string {
   switch (dir) {
     case 'LR': return 'RIGHT';
@@ -28,6 +38,12 @@ export function createElkLayout(defaults?: ElkLayoutOptions): LayoutEngine {
   return {
     id: 'elk',
     async layout(graph: LayoutGraph, opts?: ElkLayoutOptions): Promise<LayoutResult> {
+      if (graph.nodes.length > ELK_MAX_NODES) {
+        throw new Error(
+          `elk layout: graph too large (${graph.nodes.length} nodes exceeds the ${ELK_MAX_NODES}-node limit). ` +
+            `elkjs overflows the call stack at this scale; use the 'force' layout engine or lay out a subgraph.`,
+        );
+      }
       const o = { ...defaults, ...opts };
       const elk = new ELK(o.workerUrl ? { workerUrl: o.workerUrl } : {});
       const elkGraph = {

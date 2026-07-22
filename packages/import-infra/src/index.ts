@@ -22,6 +22,25 @@ import {
 import { modelToRecords, type InfraModel } from '@nodus/preset-infra';
 import { parseAllDocuments } from 'yaml';
 
+/**
+ * A structured, catchable error raised at the import trust boundary. Importers parse UNTRUSTED
+ * shared files (Terraform JSON, Kubernetes manifests); a malformed or hostile input surfaces as an
+ * `ImportError` with a clean message rather than a raw parser exception or a stack overflow.
+ */
+export class ImportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ImportError';
+  }
+}
+
+/**
+ * Recursion-depth cap for walking nested Terraform structures (child modules, expression trees).
+ * Legitimate nesting is a handful of levels; anything beyond this indicates malformed or adversarial
+ * input crafted to exhaust the call stack, so the walk stops with an `ImportError` instead of a crash.
+ */
+const MAX_DEPTH = 1000;
+
 // ---------------------------------------------------------------------------
 // Terraform
 // ---------------------------------------------------------------------------
@@ -47,10 +66,11 @@ interface TfModule {
   child_modules?: TfModule[];
 }
 
-function collectResources(mod: TfModule | undefined, out: TfResource[]): void {
+function collectResources(mod: TfModule | undefined, out: TfResource[], depth = 0): void {
   if (!mod) return;
+  if (depth > MAX_DEPTH) throw new ImportError(`Terraform module nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
   for (const r of mod.resources ?? []) out.push(r);
-  for (const c of mod.child_modules ?? []) collectResources(c, out);
+  for (const c of mod.child_modules ?? []) collectResources(c, out, depth + 1);
 }
 
 interface TfConfigResource {
@@ -64,30 +84,32 @@ interface TfConfigModule {
 }
 
 /** Recursively collect configuration resources, qualifying each address with its module path. */
-function collectConfigResources(mod: TfConfigModule | undefined, modulePrefix: string, out: TfConfigResource[]): void {
+function collectConfigResources(mod: TfConfigModule | undefined, modulePrefix: string, out: TfConfigResource[], depth = 0): void {
   if (!mod) return;
+  if (depth > MAX_DEPTH) throw new ImportError(`Terraform configuration nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
   for (const r of mod.resources ?? []) {
     const base = r.address ?? (r.type && r.name ? `${r.type}.${r.name}` : undefined);
     if (!base) continue;
     out.push({ address: modulePrefix ? `${modulePrefix}.${base}` : base, expressions: r.expressions });
   }
   for (const [name, call] of Object.entries(mod.module_calls ?? {})) {
-    collectConfigResources(call.module, modulePrefix ? `${modulePrefix}.module.${name}` : `module.${name}`, out);
+    collectConfigResources(call.module, modulePrefix ? `${modulePrefix}.module.${name}` : `module.${name}`, out, depth + 1);
   }
 }
 
 /** Recursively gather every `references: string[]` under an expressions tree (blocks nest arrays/objects). */
-function collectReferences(expr: unknown, out: string[]): void {
+function collectReferences(expr: unknown, out: string[], depth = 0): void {
   if (!expr || typeof expr !== 'object') return;
+  if (depth > MAX_DEPTH) throw new ImportError(`Terraform expression nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
   if (Array.isArray(expr)) {
-    for (const v of expr) collectReferences(v, out);
+    for (const v of expr) collectReferences(v, out, depth + 1);
     return;
   }
   const o = expr as Record<string, unknown>;
   if (Array.isArray(o['references'])) for (const ref of o['references']) if (typeof ref === 'string') out.push(ref);
   for (const [k, v] of Object.entries(o)) {
     if (k === 'references' || k === 'constant_value') continue;
-    collectReferences(v, out);
+    collectReferences(v, out, depth + 1);
   }
 }
 
@@ -108,9 +130,25 @@ function resolveRef(ref: string, modulePrefix: string, known: Set<string>): stri
   return null;
 }
 
-/** Node keys (values addresses) matching a config address: exact, or its count/for_each instances. */
-function nodeKeysFor(configAddr: string, nodeKeys: string[]): string[] {
-  return nodeKeys.filter((k) => k === configAddr || k.startsWith(`${configAddr}[`));
+/**
+ * Index node keys (values addresses) by the config address they belong to — a node key matches its
+ * exact address and, for a `count`/`for_each` instance like `aws_x.y[0]`, its base address `aws_x.y`.
+ * Precomputed once so reference resolution is a Map lookup, not an O(n) scan of every key per
+ * reference (which made large states O(n²)).
+ */
+function indexNodeKeysByConfigAddr(nodeKeys: string[]): Map<string, string[]> {
+  const idx = new Map<string, string[]>();
+  const add = (addr: string, key: string): void => {
+    const bucket = idx.get(addr);
+    if (bucket) bucket.push(key);
+    else idx.set(addr, [key]);
+  };
+  for (const k of nodeKeys) {
+    add(k, k);
+    const br = k.indexOf('[');
+    if (br >= 0) add(k.slice(0, br), k);
+  }
+  return idx;
 }
 
 export interface TerraformAnalysis {
@@ -131,6 +169,8 @@ export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
 
   const nodeKeys = resources.map((r) => r.address);
   const addresses = new Set(nodeKeys);
+  const keysByConfigAddr = indexNodeKeysByConfigAddr(nodeKeys);
+  const nodeKeysFor = (configAddr: string): string[] => keysByConfigAddr.get(configAddr) ?? [];
   const model: InfraModel = {
     nodes: resources.map((r) => ({ key: r.address, type: terraformKind(r.type), label: r.name, x: 0, y: 0 })),
     edges: [],
@@ -145,10 +185,25 @@ export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
     model.edges!.push({ from, to });
   };
 
-  // (1) explicit depends_on
+  // (1) explicit depends_on — resolve each dep to a managed address via set/boundary lookup (O(1) per
+  // dep), never a linear scan of every resource (which made large states O(n²)).
+  const resolveDep = (dep: string): string | null => {
+    if (addresses.has(dep)) return dep;
+    // `dep` may be more specific than a managed address (an indexed instance or an attribute path);
+    // walk its boundary-aligned prefixes and return the longest that names a known resource.
+    let i = dep.length;
+    while (i > 0) {
+      const cut = Math.max(dep.lastIndexOf('.', i - 1), dep.lastIndexOf('[', i - 1));
+      if (cut <= 0) break;
+      const prefix = dep.slice(0, cut);
+      if (addresses.has(prefix)) return prefix;
+      i = cut;
+    }
+    return null;
+  };
   for (const r of resources) {
     for (const dep of r.depends_on ?? []) {
-      const target = addresses.has(dep) ? dep : resources.find((o) => dep.startsWith(o.address))?.address;
+      const target = resolveDep(dep);
       if (target) addEdge(target, r.address);
     }
   }
@@ -166,8 +221,8 @@ export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
       for (const ref of refs) {
         const targetAddr = resolveRef(ref, prefix, known);
         if (!targetAddr) continue;
-        for (const fromKey of nodeKeysFor(targetAddr, nodeKeys))
-          for (const toKey of nodeKeysFor(c.address, nodeKeys)) addEdge(fromKey, toKey);
+        for (const fromKey of nodeKeysFor(targetAddr))
+          for (const toKey of nodeKeysFor(c.address)) addEdge(fromKey, toKey);
       }
     }
   } else {
@@ -220,9 +275,18 @@ function workloadLabels(obj: K8sObject): Record<string, string> {
 
 /** Normalize string (YAML/JSON, multi-doc) or a pre-parsed array into a flat list of manifest objects. */
 function toK8sObjects(input: string | K8sObject[]): K8sObject[] {
-  const raw: unknown[] = typeof input === 'string'
-    ? parseAllDocuments(input).map((d) => d.toJS()).filter((v) => v != null)
-    : input;
+  let raw: unknown[];
+  if (typeof input === 'string') {
+    try {
+      raw = parseAllDocuments(input).map((d) => d.toJS()).filter((v) => v != null);
+    } catch (e) {
+      // The YAML parser throws on adversarial input (e.g. the alias bomb it caps at maxAliasCount).
+      // Surface it as a structured ImportError at the trust boundary, not a raw parser exception.
+      throw new ImportError(`Invalid Kubernetes YAML: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else {
+    raw = input;
+  }
   const objs: K8sObject[] = [];
   for (const doc of raw) {
     if (Array.isArray(doc)) objs.push(...(doc as K8sObject[]));
@@ -258,6 +322,22 @@ export function analyzeKubernetes(input: string | K8sObject[]): KubernetesAnalys
   }
   const included = new Set(nodes.map((n) => n.key));
 
+  // Precompute the workload set and a `label=value` -> workloads index ONCE, so each Service resolves
+  // its selector by Map lookup instead of re-scanning every object (previously O(services × objects)).
+  const workloads = objects.filter(
+    (w) => kubernetesKind(w.kind) !== null && w.kind !== 'Service' && w.kind !== 'Ingress',
+  );
+  const workloadOrder = new Map<K8sObject, number>(workloads.map((w, i) => [w, i]));
+  const workloadsByLabel = new Map<string, K8sObject[]>();
+  for (const w of workloads) {
+    for (const [k, v] of Object.entries(workloadLabels(w))) {
+      const key = `${k}\u0000${v}`;
+      const bucket = workloadsByLabel.get(key);
+      if (bucket) bucket.push(w);
+      else workloadsByLabel.set(key, [w]);
+    }
+  }
+
   for (const o of objects) {
     if (o.kind === 'Ingress') {
       const rules = (o.spec?.rules as Array<{ http?: { paths?: Array<{ backend?: { serviceName?: string; service?: { name?: string } } }> } }>) ?? [];
@@ -269,11 +349,20 @@ export function analyzeKubernetes(input: string | K8sObject[]): KubernetesAnalys
         }
     } else if (o.kind === 'Service') {
       const selector = (o.spec?.selector as Record<string, string>) ?? {};
-      if (Object.keys(selector).length === 0) continue;
-      for (const w of objects) {
-        if (kubernetesKind(w.kind) === null || w.kind === 'Service' || w.kind === 'Ingress') continue;
-        if (labelsMatch(selector, workloadLabels(w)) && included.has(keyOf(w))) edges.push({ from: keyOf(o), to: keyOf(w) });
+      const selEntries = Object.entries(selector);
+      if (selEntries.length === 0) continue;
+      // A full match must carry EVERY selector label, so it is guaranteed to appear in the bucket of
+      // the rarest label=value pair — scan only that (smallest) candidate set, then confirm the match.
+      let candidates: K8sObject[] | undefined;
+      for (const [k, v] of selEntries) {
+        const bucket = workloadsByLabel.get(`${k}\u0000${v}`) ?? [];
+        if (candidates === undefined || bucket.length < candidates.length) candidates = bucket;
       }
+      const matched = (candidates ?? []).filter(
+        (w) => labelsMatch(selector, workloadLabels(w)) && included.has(keyOf(w)),
+      );
+      matched.sort((a, b) => (workloadOrder.get(a) ?? 0) - (workloadOrder.get(b) ?? 0)); // preserve object order
+      for (const w of matched) edges.push({ from: keyOf(o), to: keyOf(w) });
     }
   }
 

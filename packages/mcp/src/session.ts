@@ -147,7 +147,7 @@ export const TOOLS = [
   {
     name: 'add_node',
     description: 'Add a node. type must be registered by the active preset (e.g. diagrams: process/decision/pill/state/table/card). Returns the new node id.',
-    inputSchema: S({ label: { type: 'string' }, type: { type: 'string' }, x: { type: 'number' }, y: { type: 'number' } }, ['label']),
+    inputSchema: S({ label: { type: 'string' }, type: { type: 'string' }, x: { type: 'number' }, y: { type: 'number' } }), // label defaults to '' in the handler — not required
   },
   {
     name: 'connect_nodes',
@@ -162,7 +162,7 @@ export const TOOLS = [
   {
     name: 'delete_elements',
     description: 'Delete nodes/edges by id or node label. Deleting a node cascades its edges.',
-    inputSchema: S({ refs: { type: 'array', items: { type: 'string' } } }, ['refs']),
+    inputSchema: S({ refs: { type: 'array', items: { type: 'string' } } }), // refs defaults to [] in the handler — not required
   },
   {
     name: 'layout',
@@ -203,8 +203,7 @@ export const TOOLS = [
     description: "Push live metric values (throughput / health / utilization) for data-driven flow. EPHEMERAL — not saved to the document. Each edge's flow.scale maps the value to packet speed + color. Call repeatedly as metrics change.",
     inputSchema: S(
       { metrics: { type: 'array', items: { type: 'object', properties: { edge: { type: 'string' }, value: { type: 'number' } }, required: ['edge', 'value'], additionalProperties: false } } },
-      ['metrics'],
-    ),
+    ), // metrics defaults to [] in the handler — not required (each item still requires edge+value)
   },
   {
     name: 'export_png',
@@ -240,7 +239,14 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
   try {
     switch (name) {
       case 'new_diagram': {
-        session.reset((args.preset as Preset) ?? 'diagrams');
+        const preset = (args.preset as Preset) ?? 'diagrams';
+        // Enforce the schema enum here (like set_flow guards scale.domain): an off-enum preset must
+        // fail loudly, not fall through to reset() and poison the next default add_node with an
+        // "unknown node type undefined" from DEFAULT_TYPE[<bad preset>].
+        if (preset !== 'diagrams' && preset !== 'infra' && preset !== 'draw') {
+          return fail(`unknown preset "${preset}" (allowed: diagrams, infra, draw)`);
+        }
+        session.reset(preset);
         return json({ ok: true, ...session.summary() });
       }
       case 'import_mermaid': {

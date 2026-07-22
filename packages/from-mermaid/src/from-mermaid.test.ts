@@ -150,6 +150,36 @@ describe('from-mermaid: review regressions', () => {
     expect(tables.map((t) => t.id).sort()).toEqual(['CUSTOMER', 'PRODUCT']);
     expect(tables.every((t) => t.columns.length === 0)).toBe(true);
   });
+
+  it('inline-link normalization does not catastrophically backtrack on a no-arrow run of spaces (ReDoS)', () => {
+    // `A --<many spaces>x` opens the inline-link form (`-- <label> -->`) but never closes it. With the
+    // old `\s+ … [^|>\n]+? … \s+` regex this backtracked ~cubically (4000 chars froze the event loop for
+    // ~30s+); the anchored label class makes it linear. Guard with a strict time bound.
+    const pathological = 'flowchart LR\nA --' + ' '.repeat(4000) + 'x';
+    const t0 = performance.now();
+    const { records } = fromMermaid(pathological);
+    const elapsed = performance.now() - t0;
+    expect(elapsed).toBeLessThan(100); // unpatched: seconds; patched: sub-millisecond
+    // It parses as two bare nodes (no label was closed), never throws.
+    expect(nodesOf(records).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the dotted `-. txt .->` inline form is equally guarded against ReDoS', () => {
+    const pathological = 'flowchart LR\nA -.' + ' '.repeat(4000) + 'x';
+    const t0 = performance.now();
+    fromMermaid(pathological);
+    expect(performance.now() - t0).toBeLessThan(100);
+  });
+
+  it('inline-text links with internal spaces keep their full label after the ReDoS fix', () => {
+    // Regression guard that the anchored label class did not drop internal spaces or change parsing.
+    const solid = fromMermaid('graph LR\n A -- two words --> B');
+    expect(edgesOf(solid.records).find((e) => e.label)?.label).toBe('two words');
+    const dotted = fromMermaid('graph LR\n A -. keep spaces .-> B');
+    expect(edgesOf(dotted.records).find((e) => e.label)?.label).toBe('keep spaces');
+    const thick = fromMermaid('graph LR\n A == build now ==> B');
+    expect(edgesOf(thick.records).find((e) => e.label)?.label).toBe('build now');
+  });
 });
 
 describe('from-mermaid: importMermaid + ELK', () => {

@@ -441,8 +441,9 @@ export class Editor implements EngineHost {
       h: partial.h ?? size.h,
       z: partial.z ?? this.makeZ(),
       visual: partial.visual ?? { state: 'accent' },
-      label: partial.label,
       props,
+      // Omit `label` entirely when unset rather than writing an explicit `label: undefined` own-key.
+      ...(partial.label !== undefined ? { label: partial.label } : {}),
       ...(partial.parentId ? { parentId: partial.parentId } : {}),
       ...(partial.meta ? { meta: partial.meta } : {}),
     };
@@ -2006,8 +2007,10 @@ export class Editor implements EngineHost {
    *  dashboard can tick continuously without churning the document. Read by `paintFlow` each frame. */
   private readonly flowMetrics = new Map<Id, number>();
 
-  /** Set the live metric that drives a data-driven edge's flow (via its `flow.scale`). */
+  /** Set the live metric that drives a data-driven edge's flow (via its `flow.scale`). Ignores an id
+   *  with no live record, so a stale feed can't accumulate orphan metrics after its edge is deleted. */
   setFlowMetric(id: Id, value: number): void {
+    if (!this.store.has(id)) return;
     this.flowMetrics.set(id, value);
   }
   /** Bulk-set live metrics (e.g. one dashboard tick). */

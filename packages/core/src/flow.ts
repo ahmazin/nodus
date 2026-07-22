@@ -25,6 +25,10 @@ export function colorForValue(scale: FlowScale, value: number): string | undefin
   const stops = scale.colors;
   if (!stops || stops.length === 0) return undefined;
   const sorted = [...stops].sort((a, b) => a.at - b.at);
+  // A NaN metric compares false against every stop, so it slips past the endpoint clamps below and
+  // poisons the gradient interpolation into an invalid `#NaNNaNNaN`. Fall back to the low stop.
+  // (±Infinity is fine — the `<=`/`>=` endpoint clamps handle it.)
+  if (Number.isNaN(value)) return sorted[0]!.color;
   if (value <= sorted[0]!.at) return sorted[0]!.color;
   if (value >= sorted[sorted.length - 1]!.at) return sorted[sorted.length - 1]!.color;
   // find the bracketing pair

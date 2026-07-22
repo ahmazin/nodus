@@ -20,6 +20,15 @@ describe('nodus-mcp: tool surface', () => {
       expect(t.inputSchema.type).toBe('object');
     }
   });
+
+  it('does not mark schema-required fields that the handler defaults', () => {
+    // Each of these handlers coalesces the field to a default (label→'', refs→[], metrics→[]),
+    // so the advertised schema must not claim they are required.
+    const requiredOf = (name: string) => TOOLS.find((t) => t.name === name)!.inputSchema.required as readonly string[];
+    expect(requiredOf('add_node')).not.toContain('label');
+    expect(requiredOf('delete_elements')).not.toContain('refs');
+    expect(requiredOf('set_flow_metric')).not.toContain('metrics');
+  });
 });
 
 describe('nodus-mcp: authoring', () => {
@@ -59,6 +68,17 @@ describe('nodus-mcp: authoring', () => {
     expect(ok.isError).toBeUndefined();
     const bad = await call(s, 'add_node', { label: 'Y', type: 'process' }); // diagrams type, not infra
     expect(bad.isError).toBe(true);
+  });
+
+  it('new_diagram rejects an off-enum preset instead of silently proceeding', async () => {
+    const s = new DiagramSession({ dataDir });
+    const r = await call(s, 'new_diagram', { preset: 'bogus' });
+    expect(r.isError).toBe(true); // not ok:true
+    expect(r.content[0]!.text).toMatch(/unknown preset/i);
+    // and the rejected reset must not poison the session: the next default add_node still works
+    // (the pre-fix bug left preset='bogus' → DEFAULT_TYPE['bogus']=undefined → "unknown node type undefined")
+    const add = await call(s, 'add_node', { label: 'A' });
+    expect(add.isError).toBeUndefined();
   });
 
   it('update_node renames and delete_elements removes by label', async () => {

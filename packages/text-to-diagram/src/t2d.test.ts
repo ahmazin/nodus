@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Editor, type EdgeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { diagramSystemPrompt, diagramTool, recordsFromSpec, recordsFromToolUse } from '@nodus/text-to-diagram';
+import { DiagramSpecError, diagramSystemPrompt, diagramTool, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
 
 describe('text-to-diagram', () => {
   it('exposes a valid Anthropic tool definition + system prompt', () => {
@@ -48,5 +48,25 @@ describe('text-to-diagram', () => {
   it('recordsFromSpec is stable without edges', () => {
     const recs = recordsFromSpec({ nodes: [{ id: 'a', type: 'cache', label: 'Redis' }] });
     expect(recs).toHaveLength(1);
+  });
+
+  // `normalizeSpec`/`recordsFrom*` are a TRUST BOUNDARY over untrusted LLM/tool output.
+  describe('hardening (trust boundary)', () => {
+    it('throws a structured DiagramSpecError for a malformed spec instead of a raw TypeError', () => {
+      const bad = (v: unknown) => () => normalizeSpec(v as DiagramSpec);
+      expect(bad({})).toThrow(DiagramSpecError); // missing nodes
+      expect(bad({ nodes: 'oops' })).toThrow(DiagramSpecError); // nodes not an array
+      expect(bad(null)).toThrow(DiagramSpecError); // null spec
+      // ...and via the tool-use entry point
+      expect(() => recordsFromToolUse({ name: 'render_diagram', input: {} })).toThrow(DiagramSpecError);
+    });
+
+    it('skips non-object node entries instead of emitting garbage records', () => {
+      const spec = { nodes: ['justastring', 42, null, { id: 'ok', type: 'db', label: 'OK' }] } as unknown as DiagramSpec;
+      const clean = normalizeSpec(spec);
+      expect(clean.nodes).toHaveLength(1); // only the one real object survives
+      expect(clean.nodes[0]!.id).toBe('ok');
+      expect(recordsFromSpec(spec).filter((r) => r.typeName === 'node')).toHaveLength(1);
+    });
   });
 });

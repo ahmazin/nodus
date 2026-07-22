@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type LayoutEngine } from '@nodus/core';
+import { Editor, type Id, type LayoutEngine, type LayoutGraph } from '@nodus/core';
 import { treeLayout } from '@nodus/layout-tree';
 import { forceLayout } from '@nodus/layout-force';
-import { elkLayout } from '@nodus/layout-elk';
+import { elkLayout, ELK_MAX_NODES } from '@nodus/layout-elk';
 
 function graphEditor(): Editor {
   const ed = new Editor();
@@ -40,5 +40,17 @@ describe('layout adapters', () => {
   });
   it('elk layered layout positions nodes', async () => {
     await check(elkLayout, 'LR');
+  });
+
+  // Regression: elkjs's layout kernel overflowed the call stack (`RangeError`) around N≈10000. That
+  // recursion is inside elkjs, so the adapter fails fast above a safe ceiling with a clear, catchable
+  // error. The guard trips *before* elk.layout() runs, so this never invokes the heavy async kernel
+  // — no thousands of nodes are actually laid out.
+  it('elk rejects a graph above ELK_MAX_NODES with a clear error, not a raw RangeError', async () => {
+    const n = ELK_MAX_NODES + 1;
+    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n:${i}` as Id, w: 40, h: 30 }));
+    const graph: LayoutGraph = { nodes, edges: [] };
+    await expect(elkLayout.layout(graph)).rejects.toThrow(/elk layout: graph too large/);
+    await expect(elkLayout.layout(graph)).rejects.toThrow(String(ELK_MAX_NODES));
   });
 });

@@ -69,13 +69,40 @@ export const diagramSystemPrompt =
   '"reads"). Keep ids short and stable. Return the full diagram in a single tool call.';
 
 const isKind = (t: string): boolean => (KINDS as readonly string[]).includes(t);
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
+
+/**
+ * A structured, catchable error for a malformed diagram spec. `recordsFromSpec`/`recordsFromToolUse`
+ * are a trust boundary — the spec is untrusted LLM/tool output — so an invalid payload surfaces as a
+ * `DiagramSpecError` with a clean message instead of a raw `TypeError` from destructuring undefined.
+ */
+export class DiagramSpecError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DiagramSpecError';
+  }
+}
 
 /** Validate + normalize an LLM `DiagramSpec` (unknown types fall back to `service`). */
 export function normalizeSpec(spec: DiagramSpec): DiagramSpec {
-  const ids = new Set(spec.nodes.map((n) => n.id));
+  const nodes = isObject(spec) ? spec.nodes : undefined;
+  if (!Array.isArray(nodes)) {
+    throw new DiagramSpecError('Diagram spec must be an object with a `nodes` array.');
+  }
+  // Keep only entries that are objects with a string id — otherwise a non-object node (a bare string
+  // or number from a malformed payload) would silently become a stray "service" record.
+  const validNodes = (nodes as unknown[]).filter(
+    (n): n is DiagramSpec['nodes'][number] => isObject(n) && typeof n.id === 'string',
+  );
+  const ids = new Set(validNodes.map((n) => n.id));
+  const rawEdges = isObject(spec) ? spec.edges : undefined;
+  const edges = (Array.isArray(rawEdges) ? (rawEdges as unknown[]) : []).filter(
+    (e): e is NonNullable<DiagramSpec['edges']>[number] =>
+      isObject(e) && typeof e.from === 'string' && typeof e.to === 'string' && ids.has(e.from) && ids.has(e.to),
+  );
   return {
-    nodes: spec.nodes.map((n) => ({ ...n, type: isKind(n.type) ? n.type : 'service' })),
-    edges: (spec.edges ?? []).filter((e) => ids.has(e.from) && ids.has(e.to)),
+    nodes: validNodes.map((n) => ({ ...n, type: isKind(n.type) ? n.type : 'service' })),
+    edges,
   };
 }
 

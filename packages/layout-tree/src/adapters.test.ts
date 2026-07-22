@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor, type Id, type LayoutGraph } from '@nodus/core';
 import { treeLayout } from './index.js';
+
+/** A directed chain of `n` nodes (n0 → n1 → … ) — a maximally deep tree — as a raw LayoutGraph. */
+function chainGraph(n: number): LayoutGraph {
+  const nodes = Array.from({ length: n }, (_, i) => ({ id: `n:${i}` as Id, w: 40, h: 30 }));
+  const edges = Array.from({ length: Math.max(0, n - 1) }, (_, i) => ({
+    id: `e:${i}` as Id,
+    source: `n:${i}` as Id,
+    target: `n:${i + 1}` as Id,
+  }));
+  return { nodes, edges };
+}
 
 /**
  * A small tree laid out by the adapter:
@@ -108,5 +119,22 @@ describe('tree layout adapter', () => {
     expect(spread(ed)).toBeGreaterThan(50);
     ed.undo();
     expect(spread(ed)).toBeLessThan(1);
+  });
+
+  // Regression: the tree adapter's own `place()` recursed one stack frame per tree level, so a deep
+  // (degenerate) tree overflowed the call stack (`RangeError`) around N≈2500. The rewrite walks the
+  // tree with an explicit stack, so arbitrary depth is fine. This chain is far deeper than any
+  // native call-stack limit; it threw before the rewrite and completes after it.
+  it('lays out a very deep linear chain without a stack overflow', async () => {
+    const DEEP_CHAIN = 50_000;
+    const graph = chainGraph(DEEP_CHAIN);
+    const res = await treeLayout.layout(graph, { direction: 'TB' });
+    expect(Object.keys(res.positions)).toHaveLength(DEEP_CHAIN);
+    const first = res.positions['n:0' as Id]!;
+    const last = res.positions[`n:${DEEP_CHAIN - 1}` as Id]!;
+    // ran end to end: the chain's tail sits on a much later rank than its head, with finite coords
+    expect(Number.isFinite(first.y)).toBe(true);
+    expect(Number.isFinite(last.y)).toBe(true);
+    expect(first.y).toBeLessThan(last.y);
   });
 });

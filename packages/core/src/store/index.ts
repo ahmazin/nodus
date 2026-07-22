@@ -17,7 +17,7 @@ import type {
   NodusRecord,
   PageRecord,
 } from '../model.js';
-import { isEdge, isNode, isPage } from '../model.js';
+import { isEdge, isNode, isPage, seedIdCounter } from '../model.js';
 
 export interface ChangeInfo {
   changes: Change[];
@@ -29,11 +29,21 @@ export interface ChangeInfo {
 export type StoreListener = (info: ChangeInfo) => void;
 
 /** Context handed to `StoreOptions.onError` so a consumer can tell what failed and why. */
-export interface StoreErrorContext {
-  /** A registered change listener threw while being dispatched (post-commit). */
-  phase: 'listener';
-  info: ChangeInfo;
-}
+export type StoreErrorContext =
+  | {
+      /** A registered change listener threw while being dispatched (post-commit). */
+      phase: 'listener';
+      info: ChangeInfo;
+    }
+  | {
+      /**
+       * An `add` targeted an id that already exists. The store refuses it rather than silently
+       * clobbering the live record (which would be data loss — e.g. a regenerated `makeId` colliding
+       * with a loaded node). The change is skipped and surfaced here.
+       */
+      phase: 'duplicate-add';
+      id: Id;
+    };
 
 export interface StoreOptions {
   /**
@@ -46,7 +56,17 @@ export interface StoreOptions {
 
 export class Store {
   private readonly atoms = new Map<Id, Atom<NodusRecord>>();
-  private readonly idsAtom: Atom<ReadonlySet<Id>> = atom<ReadonlySet<Id>>(new Set());
+  /**
+   * Canonical membership, mutated **incrementally** (O(1) per add/remove). The immutable snapshot
+   * exposed by `ids()` is derived from it lazily and memoized, so a per-op `apply` never deep-clones
+   * the whole set (which made bulk per-op builds O(N²)). Structurally invisible to `transact`, so — like
+   * the `atoms` Map — it is hand-unwound on a mid-apply throw.
+   */
+  private readonly idSet = new Set<Id>();
+  /** Bumped whenever membership changes; the reactive dependency behind `ids()`. */
+  private readonly idsVersion: Atom<number> = atom(0);
+  /** Memoized immutable snapshot of `idSet` (stable ref between changes); nulled on every change. */
+  private idsSnapshot: ReadonlySet<Id> | null = null;
   /** Coarse "something changed" counter for consumers that want a single signal. */
   readonly sceneNonce: Atom<number> = atom(0);
   private readonly listeners = new Set<StoreListener>();
@@ -71,7 +91,8 @@ export class Store {
 
   /** Tracked membership signal (changes only on add/remove). */
   ids(): ReadonlySet<Id> {
-    return this.idsAtom.get();
+    this.idsVersion.get(); // subscribe: re-run dependents when membership changes
+    return (this.idsSnapshot ??= new Set(this.idSet));
   }
 
   allRecords(): NodusRecord[] {
@@ -103,13 +124,16 @@ export class Store {
 
   /**
    * Apply changes atomically. Returns the `ChangeInfo` (including computed inverse). Unknown
-   * updates/removes are skipped. Listeners are notified once, after the transaction commits.
+   * updates/removes are skipped; an `add` onto an already-existing id is *refused* (not a silent
+   * replace) and surfaced via `onError` — see `duplicate-add`. Listeners are notified once, after
+   * the transaction commits.
    *
    * Genuinely all-or-nothing: the mutation loop runs inside `transact`, so a throw partway rolls
    * back every atom value it wrote. Because `transact` only tracks atom *values*, the structural
-   * `atoms`-Map edits it can't see (a fresh atom created for an add, an atom removed) are unwound
-   * by hand in the catch — leaving the store, and therefore history and the scene index (which
-   * only ever sync via the listeners below, never reached on throw), exactly as they were.
+   * edits it can't see — the `atoms` Map (a fresh atom created for an add, an atom removed) and the
+   * incremental `idSet` — are unwound by hand in the catch, leaving the store, and therefore history
+   * and the scene index (which only ever sync via the listeners below, never reached on throw),
+   * exactly as they were.
    */
   apply(changes: Change[], opts: ApplyOptions = {}): ChangeInfo {
     const source: ChangeSource = opts.source ?? 'user';
@@ -117,15 +141,11 @@ export class Store {
     const applied: Change[] = [];
     const inverse: Change[] = [];
     let idsChanged = false;
-    let nextIds: Set<Id> | null = null;
-    // Structural Map edits `transact` cannot roll back on its own — unwound by hand on throw.
+    // Structural edits `transact` cannot roll back on its own — unwound by hand on throw.
     const addedAtoms: Id[] = [];
     const removedAtoms: Array<[Id, Atom<NodusRecord>]> = [];
-
-    const ensureIds = (): Set<Id> => {
-      if (!nextIds) nextIds = new Set(this.idsAtom.peek());
-      return nextIds;
-    };
+    // Adds refused because their id already exists — surfaced via `onError` after commit.
+    const duplicateAdds: Id[] = [];
 
     try {
       transact(() => {
@@ -133,19 +153,17 @@ export class Store {
           if (c.op === 'add') {
             const rec = { ...c.record, version: c.record.version ?? 0 };
             if (this.atoms.has(rec.id)) {
-              // treat as replace
-              const prev = this.atoms.get(rec.id)!.peek();
-              this.atoms.get(rec.id)!.set(rec);
-              applied.push(c);
-              inverse.push({ op: 'add', record: prev });
-            } else {
-              this.atoms.set(rec.id, atom<NodusRecord>(rec));
-              addedAtoms.push(rec.id);
-              ensureIds().add(rec.id);
-              idsChanged = true;
-              applied.push({ op: 'add', record: rec });
-              inverse.push({ op: 'remove', id: rec.id });
+              // Refuse: overwriting a live record via `add` is data loss (e.g. a regenerated id
+              // colliding with a loaded node). Skip the change and report the collision post-commit.
+              duplicateAdds.push(rec.id);
+              continue;
             }
+            this.atoms.set(rec.id, atom<NodusRecord>(rec));
+            addedAtoms.push(rec.id);
+            this.idSet.add(rec.id);
+            idsChanged = true;
+            applied.push({ op: 'add', record: rec });
+            inverse.push({ op: 'remove', id: rec.id });
           } else if (c.op === 'update') {
             const a = this.atoms.get(c.id);
             if (!a) continue;
@@ -172,20 +190,38 @@ export class Store {
             const prev = a.peek();
             this.atoms.delete(c.id);
             removedAtoms.push([c.id, a]);
-            ensureIds().delete(c.id);
+            this.idSet.delete(c.id);
             idsChanged = true;
             applied.push(c);
             inverse.push({ op: 'add', record: prev });
           }
         }
-        if (idsChanged && nextIds) this.idsAtom.set(nextIds);
+        if (idsChanged) {
+          this.idsSnapshot = null;
+          this.idsVersion.update((v) => v + 1);
+        }
         if (applied.length > 0) this.sceneNonce.update((v) => v + 1);
       });
     } catch (err) {
-      // `transact` restored all atom values + `idsAtom`; undo the Map structural edits it can't see.
-      for (const id of addedAtoms) this.atoms.delete(id);
-      for (const [id, a] of removedAtoms) this.atoms.set(id, a);
+      // `transact` restored all atom values (incl. `idsVersion`); undo the structural edits it can't
+      // see — the `atoms` Map and the incremental `idSet` — so the store is exactly as it was.
+      for (const id of addedAtoms) {
+        this.atoms.delete(id);
+        this.idSet.delete(id);
+      }
+      for (const [id, a] of removedAtoms) {
+        this.atoms.set(id, a);
+        this.idSet.add(id);
+      }
+      this.idsSnapshot = null;
       throw err;
+    }
+
+    for (const id of duplicateAdds) {
+      this.opts.onError?.(
+        new Error(`Store.apply: refused to overwrite existing record "${id}" via 'add' (duplicate id)`),
+        { phase: 'duplicate-add', id },
+      );
     }
 
     const info: ChangeInfo = { changes: applied, inverse: inverse.reverse(), source, capture };
@@ -208,13 +244,17 @@ export class Store {
   load(records: NodusRecord[]): void {
     batch(() => {
       this.atoms.clear();
-      const ids = new Set<Id>();
+      this.idSet.clear();
       for (const r of records) {
         this.atoms.set(r.id, atom<NodusRecord>({ ...r, version: r.version ?? 0 }));
-        ids.add(r.id);
+        this.idSet.add(r.id);
       }
-      this.idsAtom.set(ids);
+      this.idsSnapshot = null;
+      this.idsVersion.update((v) => v + 1);
       this.sceneNonce.update((v) => v + 1);
     });
+    // Advance the id counter past every auto-generated id just loaded, so ids minted after this load
+    // can't collide with loaded records (a collision would be refused by `apply`, blocking the add).
+    seedIdCounter(this.idSet);
   }
 }

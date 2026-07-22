@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
-import { dagreLayout } from './index.js';
+import { Editor, type Id, type LayoutGraph } from '@nodus/core';
+import { dagreLayout, DAGRE_MAX_NODES } from './index.js';
+
+/** A directed chain of `n` nodes (n0 → n1 → … ), built as a raw LayoutGraph. */
+function chainGraph(n: number): LayoutGraph {
+  const nodes = Array.from({ length: n }, (_, i) => ({ id: `n:${i}` as Id, w: 40, h: 30 }));
+  const edges = Array.from({ length: Math.max(0, n - 1) }, (_, i) => ({
+    id: `e:${i}` as Id,
+    source: `n:${i}` as Id,
+    target: `n:${i + 1}` as Id,
+  }));
+  return { nodes, edges };
+}
 
 /**
  * A small acyclic graph laid out by every adapter test:
@@ -100,5 +111,16 @@ describe('dagre layout adapter', () => {
     expect(spread(ed)).toBeGreaterThan(50);
     ed.undo();
     expect(spread(ed)).toBeLessThan(1);
+  });
+
+  // Regression: dagre's internal recursion overflowed the call stack (a cryptic `RangeError`) around
+  // N≈2000 nodes. That recursion is inside the library, so the adapter fails fast above a safe
+  // ceiling with a clear, catchable error instead. The guard trips before dagre runs, so this stays
+  // fast even at the threshold.
+  it('rejects a graph above DAGRE_MAX_NODES with a clear error, not a raw RangeError', async () => {
+    const graph = chainGraph(DAGRE_MAX_NODES + 1);
+    await expect(dagreLayout.layout(graph)).rejects.toThrow(/dagre layout: graph too large/);
+    // names the actual limit so callers can act on it
+    await expect(dagreLayout.layout(graph)).rejects.toThrow(String(DAGRE_MAX_NODES));
   });
 });
