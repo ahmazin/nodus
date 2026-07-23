@@ -81,8 +81,10 @@ interface EdgeRecord extends BaseRecord<'edge'> {
 > a document with no `PageRecord` is a single implicit page and carries no `pageId` (so a pre-pages
 > diagram round-trips byte-identically); once any `PageRecord` exists, every node/edge is explicit, and
 > `restore()` backfills/repoints a missing or dangling `pageId` to the first page. Distinct from
-> `parentId` (a group/frame parent, never a page). The *editor / render* wiring — active page, per-page
-> culling, page CRUD — is a separate follow-on (see `docs/specs/page-membership.md`).
+> `parentId` (a group/frame parent, never a page). The editor/render wiring — an active-page atom,
+> per-page culling (one scene-index predicate behind render, hit-test and marquee), and page CRUD
+> (`createPage` / `moveToPage` / `deletePage`) — is implemented; a page-switcher UI is the remaining
+> layer. See `docs/specs/page-membership.md`.
 
 ## Supporting types
 

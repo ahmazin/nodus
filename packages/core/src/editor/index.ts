@@ -8,6 +8,7 @@ import { atom, batch, type Atom, type Dispose } from '../signals/index.js';
 import {
   isEdge,
   isNode,
+  isPage,
   makeId,
   type ApplyOptions,
   type Box,
@@ -19,6 +20,7 @@ import {
   type FlowSource,
   type FlowSpec,
   type Id,
+  type PageRecord,
   type NodeRecord,
   type NodusRecord,
   type Vec2,
@@ -271,6 +273,9 @@ export class Editor implements EngineHost {
   readonly createPreviewAtom: Atom<Box | null> = atom<Box | null>(null);
   readonly overlaysAtom: Atom<OverlayLayer[]> = atom<OverlayLayer[]>([]);
   readonly snapGuidesAtom: Atom<Guide[]> = atom<Guide[]>([]);
+  /** The page currently in view, or null for the single implicit page (no PageRecords yet). Ephemeral
+   *  session state — never serialized; mirrored into the scene index for render / hit-test culling. */
+  readonly activePageAtom: Atom<Id<'page'> | null> = atom<Id<'page'> | null>(null);
 
   /** Snapping config (mutate directly, e.g. `editor.snap.grid = 8`). */
   readonly snap: SnapConfig = { grid: 0, toObjects: true, threshold: 7 };
@@ -865,6 +870,102 @@ export class Editor implements EngineHost {
     sel.delete(id);
     this.selectedAtom.set(sel);
     this.emitSelection();
+  }
+
+  // ---- pages ----
+
+  /** All pages, sorted by fractional `index`. Empty ⇒ the document is a single implicit page. */
+  pages(): PageRecord[] {
+    return [...this.store.pages()].sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : 0));
+  }
+
+  /** The first page's id (lowest `index`), or null when there are no pages. */
+  firstPageId(): Id<'page'> | null {
+    const ps = this.pages();
+    return ps.length ? ps[0]!.id : null;
+  }
+
+  /** The page a record belongs to: its explicit `pageId`, else the first page, else null (implicit page). */
+  pageIdOf(rec: NodeRecord | EdgeRecord): Id<'page'> | null {
+    return rec.pageId ?? this.firstPageId();
+  }
+
+  /** The page currently in view (null = the single implicit page). */
+  activePageId(): Id<'page'> | null {
+    return this.activePageAtom.peek();
+  }
+
+  /** Switch the viewed page. Mirrors into the scene index so render / hit-test / marquee cull to it. */
+  setActivePage(pageId: Id<'page'> | null): void {
+    this.activePageAtom.set(pageId);
+    this.sceneIndex.setActivePage(pageId);
+  }
+
+  /** Next fractional page index: strictly greater than the current max, collision-free. */
+  private nextPageIndex(): string {
+    const idxs = this.store.pages().map((p) => p.index);
+    if (idxs.length === 0) return 'a0';
+    return idxs.reduce((a, b) => (a >= b ? a : b)) + 'a';
+  }
+
+  /**
+   * Create a new page and switch to it. The FIRST page created for a single-page document materializes
+   * a "Page 1" for the existing content and stamps every node/edge with an explicit `pageId` — the one
+   * deliberate 0→≥1-page churn — then adds the requested page. Subsequent calls just append. Undoable.
+   */
+  createPage(name?: string, opts?: ApplyOptions): Id<'page'> {
+    const existing = this.store.pages();
+    const changes: Change[] = [];
+    let newId: Id<'page'>;
+    if (existing.length === 0) {
+      const first = makeId('page');
+      changes.push({ op: 'add', record: { id: first, typeName: 'page', version: 0, name: 'Page 1', index: 'a0' } });
+      for (const r of this.store.allRecords()) {
+        if (isNode(r) || isEdge(r)) changes.push({ op: 'update', id: r.id, patch: { pageId: first } });
+      }
+      newId = makeId('page');
+      changes.push({ op: 'add', record: { id: newId, typeName: 'page', version: 0, name: name ?? 'Page 2', index: 'a0a' } });
+    } else {
+      newId = makeId('page');
+      changes.push({ op: 'add', record: { id: newId, typeName: 'page', version: 0, name: name ?? `Page ${existing.length + 1}`, index: this.nextPageIndex() } });
+    }
+    this.store.apply(changes, opts ?? { capture: 'immediately' });
+    this.setActivePage(newId);
+    return newId;
+  }
+
+  /** Rename a page. Undoable. */
+  renamePage(pageId: Id<'page'>, name: string, opts?: ApplyOptions): void {
+    const p = this.store.peek(pageId);
+    if (p && isPage(p)) this.store.apply([{ op: 'update', id: pageId, patch: { name } }], opts ?? { capture: 'immediately' });
+  }
+
+  /** Move records onto `pageId` (sets their `pageId`). Callers should include incident edges so an edge
+   *  never spans pages. No-op if the target page doesn't exist. Undoable. */
+  moveToPage(ids: Id[], pageId: Id<'page'>, opts?: ApplyOptions): void {
+    if (!this.store.pages().some((p) => p.id === pageId)) return;
+    const changes: Change[] = [];
+    for (const id of ids) {
+      const r = this.store.peek(id);
+      if (r && (isNode(r) || isEdge(r))) changes.push({ op: 'update', id, patch: { pageId } });
+    }
+    if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+  }
+
+  /**
+   * Delete a page and everything on it (cascade). Refuses to delete the last remaining page (returns
+   * false). If the active page was deleted, switches to the new first page. Undoable (one entry).
+   */
+  deletePage(pageId: Id<'page'>, opts?: ApplyOptions): boolean {
+    const ps = this.store.pages();
+    if (ps.length <= 1 || !ps.some((p) => p.id === pageId)) return false;
+    const changes: Change[] = [{ op: 'remove', id: pageId }];
+    for (const r of this.store.allRecords()) {
+      if ((isNode(r) || isEdge(r)) && r.pageId === pageId) changes.push({ op: 'remove', id: r.id });
+    }
+    this.store.apply(changes, opts ?? { capture: 'immediately' });
+    if (this.activePageId() === pageId) this.setActivePage(this.firstPageId());
+    return true;
   }
 
   // ---- clipboard ----
@@ -1523,6 +1624,8 @@ export class Editor implements EngineHost {
       this.rebuildFlowIndex();
       this.selectedAtom.set(new Set());
       this.editingAtom.set(null);
+      // multi-page docs open on the first page; single-page docs show everything (null active page)
+      this.setActivePage(this.firstPageId());
     });
     // seed the z counter past the largest loaded z so new nodes paint on top (records.length is not
     // a reliable proxy — z is an absolute counter, unaffected by deletions)

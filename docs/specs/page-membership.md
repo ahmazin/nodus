@@ -1,8 +1,8 @@
 # Spec: page membership (`pageId`)
 
-**Status:** model + serialization + load migration **implemented** (with tests); editor/render wiring is a follow-on (not yet built).
+**Status:** model + serialization + migration **and** editor/render wiring **implemented** (with tests). Remaining: a page-switcher UI in the example app, and the deferred repair refinements below.
 **Date:** 2026-07-22
-**Area:** `@nodus/core` — `model.ts`, `serialization/index.ts`
+**Area:** `@nodus/core` — `model.ts`, `serialization/index.ts`, `scene-index/index.ts`, `editor/index.ts`
 
 ## Problem
 
@@ -63,18 +63,36 @@ Byte-stability of page-less docs (re-serialize == input, no `pageId` in bytes); 
 backfill of a missing `pageId` to the lowest-index page; repoint of a dangling `pageId`; strip of a
 stray `pageId` when no pages exist; reorder safety. Full suite: **728 passing**.
 
-## Follow-on (NOT in this change)
+## Implemented — editor / render wiring
 
-Making pages *usable* is separate work in `editor/` + `renderer/` + `scene-index/`:
+- `SceneIndex`: the visibility predicate `isHiddenItem` was renamed/broadened to `isExcludedItem`,
+  which now also excludes records off the active page. Because it's the **single** gate behind
+  `visible` / `paintOrder` / `hitTest` / `enclosedNodes`, render (`paintRegion` iterates `paintOrder`),
+  hit-testing and marquee all honor pages for free. `SceneIndex.setActivePage(id)` bumps `version` to
+  repaint.
+- `Editor`:
+  - `activePageAtom: Atom<Id<'page'> | null>` — ephemeral (null = implicit page); `loadSnapshot` sets
+    it to the first page (or null for a page-less doc).
+  - `pages()`, `firstPageId()`, `pageIdOf(rec)`, `activePageId()`, `setActivePage(id)` (mirrors into
+    the scene index).
+  - `createPage(name?)` — first call materializes "Page 1" for the existing content (stamping every
+    node/edge with an explicit `pageId` — the one deliberate 0→≥1-page churn), then adds & switches to
+    the new page; later calls append.
+  - `moveToPage(ids, pageId)`, `renamePage(id, name)`, `deletePage(id)` (cascades members; refuses the
+    last page; switches active if the deleted page was active).
+- **Tests** (`editor/pages.test.ts`, 5): byte-stability (single-page ⇒ no page records / no `pageId`),
+  createPage materialize+append, moveToPage, deletePage cascade + last-page guard, and scene-index page
+  culling (`paintOrder`/`enclosedNodes`). Full suite: **733 passing**.
 
-- `editor.activePageId: Atom<Id<'page'> | null>` — ephemeral (null = implicit page).
-- `editor.pageIdOf(rec) = rec.pageId ?? firstPageId() ?? null`.
-- `editor.createPage(name?)` — **first** call materializes a `PageRecord` for the existing content
-  ("Page 1", assigning its records an explicit `pageId` — the single, deliberate one-time churn where
-  0→≥1 pages happens), then creates the new page.
-- `editor.movePage(ids, toPageId)` — set `pageId`; enforce edge↔endpoint page coherence.
-- `editor.deletePage(id)` — reassign or delete members; refuse to delete the last page.
-- Renderer / scene-index: cull to `pageIdOf(rec) === activePageId`.
+## Remaining
+
+- **Page-switcher UI** in the example app (`examples/browser`): page tabs, new/rename/delete, drag
+  records between pages. The engine API above is what it drives.
+- **Edge-from-endpoint repair** on load (vs default-to-first-page).
+- **Group-member page coherence** (a node's page should match its group's).
+- **Demote back to implicit** when the last extra page is deleted (restore byte-identical single-page
+  form), if desired.
+- **Persist last-active page** via a `Snapshot.meta` exception, if wanted.
 
 ## Deferred refinements
 

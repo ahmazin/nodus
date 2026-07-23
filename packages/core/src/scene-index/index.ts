@@ -84,17 +84,34 @@ export class SceneIndex {
     this.deps.onError?.(err, ctx);
   }
 
+  /** The active page, or null for the single implicit page (no page filtering). The editor sets this
+   *  when the viewed page changes; it bumps `version` so the scene repaints. */
+  private activePageId: Id<'page'> | null = null;
+
+  setActivePage(pageId: Id<'page'> | null): void {
+    if (this.activePageId === pageId) return;
+    this.activePageId = pageId;
+    this.version.update((v) => v + 1); // the visible / pickable set changed
+  }
+
   /**
-   * Whether a render item must be EXCLUDED from painting / hit-testing / marquee because it is a hidden
-   * node, or an edge with an endpoint bound to a hidden node (so hiding a node also drops its dangling
-   * connectors). This is the single place the visibility rule lives: hidden records STAY in the R-tree
-   * (edges still route through them, bounds still compute) and are filtered only at the query layer —
-   * `visible`, `paintOrder`, `hitTest`, `enclosedNodes` — never removed from the index.
+   * Whether a render item must be EXCLUDED from painting / hit-testing / marquee. Two rules, both
+   * applied only at the query layer (`visible`, `paintOrder`, `hitTest`, `enclosedNodes`) — excluded
+   * records STAY in the R-tree, so edges still route through them and bounds still compute:
+   *   1. **hidden** — a hidden node, or an edge with an endpoint bound to a hidden node (so hiding a
+   *      node also drops its dangling connectors);
+   *   2. **off the active page** — when a page is active, any record not on it. Records are explicit
+   *      once pages exist (the `pageId` invariant), so a direct comparison suffices.
    */
-  private isHiddenItem(item: RenderItem): boolean {
-    if (item.kind === 'node') return (item.record as NodeRecord).hidden === true;
-    const e = item.record as EdgeRecord;
-    return this.endpointHidden(e.from) || this.endpointHidden(e.to);
+  private isExcludedItem(item: RenderItem): boolean {
+    if (item.kind === 'node') {
+      if ((item.record as NodeRecord).hidden === true) return true;
+    } else {
+      const e = item.record as EdgeRecord;
+      if (this.endpointHidden(e.from) || this.endpointHidden(e.to)) return true;
+    }
+    if (this.activePageId !== null && (item.record as NodeRecord | EdgeRecord).pageId !== this.activePageId) return true;
+    return false;
   }
 
   private endpointHidden(ep: Endpoint): boolean {
@@ -124,7 +141,7 @@ export class SceneIndex {
     const out: RenderItem[] = [];
     for (const e of hits) {
       const item = this.items.get(e.id);
-      if (item && !this.isHiddenItem(item)) out.push(item);
+      if (item && !this.isExcludedItem(item)) out.push(item);
     }
     return out.sort(comparePaint);
   }
@@ -132,7 +149,7 @@ export class SceneIndex {
   /** All items in paint order (edges first, then nodes by z). Hidden nodes (and edges to them) omitted. */
   paintOrder(): RenderItem[] {
     return this.all()
-      .filter((it) => !this.isHiddenItem(it))
+      .filter((it) => !this.isExcludedItem(it))
       .sort(comparePaint);
   }
 
@@ -143,7 +160,7 @@ export class SceneIndex {
     let best: RenderItem | null = null;
     for (const e of hits) {
       const item = this.items.get(e.id);
-      if (!item || this.isHiddenItem(item)) continue; // hidden nodes/edges are not pickable
+      if (!item || this.isExcludedItem(item)) continue; // hidden nodes/edges are not pickable
       // A rotated node's geometry is still axis-aligned, so map the pointer into the node's local
       // (un-rotated) frame before the narrow phase. Rotation is rigid, so `tolerance` stays world-unit.
       if (item.geometry.hitPoint(localHitPoint(item, p), tolerance)) {
@@ -159,7 +176,7 @@ export class SceneIndex {
     const out: Id[] = [];
     for (const e of hits) {
       const item = this.items.get(e.id);
-      if (!item || item.kind !== 'node' || this.isHiddenItem(item)) continue; // hidden nodes not marquee-selectable
+      if (!item || item.kind !== 'node' || this.isExcludedItem(item)) continue; // hidden nodes not marquee-selectable
       const a = item.aabb;
       if (a.x >= box.x && a.y >= box.y && a.x + a.w <= box.x + box.w && a.y + a.h <= box.y + box.h) {
         out.push(item.id);
@@ -397,7 +414,7 @@ export class SceneIndex {
     for (const e of hits) {
       if (e.id === fromId || e.id === toId) continue; // never treat an endpoint as an obstacle
       const item = this.items.get(e.id);
-      if (!item || item.kind !== 'node' || this.isHiddenItem(item)) continue;
+      if (!item || item.kind !== 'node' || this.isExcludedItem(item)) continue;
       out.push(padBox(item.aabb, OBSTACLE_MARGIN));
       if (out.length >= MAX_OBSTACLES) break; // perf cap — the router degrades gracefully anyway
     }
