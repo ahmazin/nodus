@@ -1,8 +1,8 @@
 # Spec: page membership (`pageId`)
 
-**Status:** model + serialization + migration **and** editor/render wiring **implemented** (with tests). Remaining: a page-switcher UI in the example app, and the deferred repair refinements below.
+**Status:** model + serialization + migration, editor/render wiring, **and** the example-app page-switcher UI **implemented** (with tests + a browser drive). Remaining: the deferred repair refinements below.
 **Date:** 2026-07-22
-**Area:** `@nodus/core` — `model.ts`, `serialization/index.ts`, `scene-index/index.ts`, `editor/index.ts`
+**Area:** `@nodus/core` — `model.ts`, `serialization/index.ts`, `scene-index/index.ts`, `editor/index.ts`; example: `examples/browser/src/page-bar.tsx`
 
 ## Problem
 
@@ -84,10 +84,19 @@ stray `pageId` when no pages exist; reorder safety. Full suite: **728 passing**.
   createPage materialize+append, moveToPage, deletePage cascade + last-page guard, and scene-index page
   culling (`paintOrder`/`enclosedNodes`). Full suite: **733 passing**.
 
+## Implemented — example UI
+
+`examples/browser/src/page-bar.tsx`: a bottom-center **page switcher** (glass chrome, alongside the
+zoom/minimap overlays). A tab per page — click to switch, double-click to rename, `×` to delete — plus
+a `＋` to add, and a synthetic "Page 1" for the implicit single page (so `＋` from a fresh doc
+materializes real pages). Reactive via `sceneIndex.version` + `activePageAtom` (reads the pages array in
+render, not through `useValue` — `useValue` is `useSyncExternalStore`, whose snapshot must be stable).
+Browser-verified with `playwright-core`: add materializes + switches to the empty page, switching back
+repaints Page 1's items (culling), inline rename, delete-cascade; **0 console errors**.
+
 ## Remaining
 
-- **Page-switcher UI** in the example app (`examples/browser`): page tabs, new/rename/delete, drag
-  records between pages. The engine API above is what it drives.
+- **Drag records between pages** in the UI (`editor.moveToPage` exists; no drag affordance yet).
 - **Edge-from-endpoint repair** on load (vs default-to-first-page).
 - **Group-member page coherence** (a node's page should match its group's).
 - **Demote back to implicit** when the last extra page is deleted (restore byte-identical single-page

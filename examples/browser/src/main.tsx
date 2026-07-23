@@ -27,6 +27,7 @@ import { EmptyState } from './empty-state';
 import { SyncInfra } from './sync-infra';
 import { ImportEditor } from './import-editor';
 import { StatusBar } from './status-bar';
+import { PageBar } from './page-bar';
 import { analyzeImport, detectImportFormat, type ImportAnalysis, type ImportFormat } from './import-analyze';
 import {
   ArrowIcon,
@@ -1398,6 +1399,10 @@ function App(): ReactElement {
               }}
             >
               <Minimap editor={editor} width={200} height={130} />
+            </div>
+
+            <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', bottom: 14, zIndex: 15 }}>
+              <PageBar editor={editor} />
             </div>
           </div>
 
