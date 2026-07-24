@@ -14,7 +14,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/icons-cloud"
   },
   "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Bundles derived provider architecture-icon artwork under each provider's icon terms — see LICENSE, NOTICE, and LICENSES/. Not published to npm pending a redistribution-terms review.",
   "type": "module",
@@ -36,16 +37,15 @@
     "./gcp": {
       "types": "./src/gcp.ts",
       "default": "./src/gcp.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
-  "dependencies": {
-    "@nodus/core": "workspace:*"
-  },
   "devDependencies": {
     "@nodus/preset-diagrams": "workspace:*",
     "svgpath": "^2.6.0",
-    "svgson": "^5.3.1"
+    "svgson": "^5.3.1",
+    "@nodus/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -57,25 +57,56 @@
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
       },
       "./aws": {
-        "types": "./dist/aws.d.ts",
-        "import": "./dist/aws.js",
-        "require": "./dist/aws.cjs"
+        "import": {
+          "types": "./dist/aws.d.ts",
+          "default": "./dist/aws.js"
+        },
+        "require": {
+          "types": "./dist/aws.d.cts",
+          "default": "./dist/aws.cjs"
+        }
       },
       "./azure": {
-        "types": "./dist/azure.d.ts",
-        "import": "./dist/azure.js",
-        "require": "./dist/azure.cjs"
+        "import": {
+          "types": "./dist/azure.d.ts",
+          "default": "./dist/azure.js"
+        },
+        "require": {
+          "types": "./dist/azure.d.cts",
+          "default": "./dist/azure.cjs"
+        }
       },
       "./gcp": {
-        "types": "./dist/gcp.d.ts",
-        "import": "./dist/gcp.js",
-        "require": "./dist/gcp.cjs"
-      }
+        "import": {
+          "types": "./dist/gcp.d.ts",
+          "default": "./dist/gcp.js"
+        },
+        "require": {
+          "types": "./dist/gcp.d.cts",
+          "default": "./dist/gcp.cjs"
+        }
+      },
+      "./package.json": "./package.json"
     }
+  },
+  "peerDependencies": {
+    "@nodus/core": "workspace:^"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/icons-cloud#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

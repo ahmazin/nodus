@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, toCanonicalString, type NodeUtil, type Snapshot } from '../index.js';
+import { Editor, isNodusError, toCanonicalString, type NodeUtil, type NodusError, type Snapshot } from '../index.js';
 
 // A custom node type at version 2: v0 {r} -> {radius}; v1 doubles radius.
 const boxUtil: NodeUtil = {
@@ -7,7 +7,10 @@ const boxUtil: NodeUtil = {
   getDefaultProps: () => ({ radius: 1 }),
   getGeometry: (n) => ({ bounds: () => ({ x: n.x, y: n.y, w: n.w, h: n.h }) }) as never,
   draw: () => {},
-  migrations: [(p) => ({ radius: p.r }), (p) => ({ radius: (p.radius as number) * 2 })],
+  migrations: [
+    { id: 'r-to-radius', migrate: (p) => ({ radius: p.r }) },
+    { id: 'double-radius', migrate: (p) => ({ radius: (p.radius as number) * 2 }) },
+  ],
 };
 
 function oldDoc(props: Record<string, unknown>, typeVersions?: Record<string, number>): Snapshot {
@@ -45,6 +48,18 @@ describe('Editor migration integration', () => {
     // kept raw, and re-stamped at 5 (not downgraded to 2)
     expect(ed.toJSON().typeVersions).toEqual({ box: 5 });
     expect((ed.store.nodes()[0] as unknown as { props: { radius: number } }).props.radius).toBe(999);
+  });
+
+  it('loadSnapshot propagates schema-too-new for a well-formed newer-schema file (A5)', () => {
+    const ed = new Editor();
+    let err: unknown;
+    try {
+      ed.loadSnapshot({ schemaVersion: 999, document: { records: [] } } as unknown as Snapshot);
+    } catch (e) {
+      err = e;
+    }
+    expect(isNodusError(err)).toBe(true);
+    expect((err as NodusError).code).toBe('schema-too-new');
   });
 
   it('omits typeVersions for types with no migrations', () => {

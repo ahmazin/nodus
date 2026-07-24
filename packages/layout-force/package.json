@@ -6,22 +6,59 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/layout-force"
   },
   "license": "MIT",
   "description": "Force-directed layout adapter for Nodus (d3-force with rectangular collision).",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "sideEffects": false,
-  "dependencies": { "@nodus/core": "workspace:*", "d3-force": "^3.0.0" },
-  "devDependencies": { "@types/d3-force": "^3.0.10" },
-  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "dependencies": {
+    "d3-force": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/d3-force": "^3.0.10",
+    "@nodus/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "peerDependencies": {
+    "@nodus/core": "workspace:^"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/layout-force#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

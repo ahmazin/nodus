@@ -6,7 +6,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/react"
   },
   "license": "MIT",
   "description": "Thin React binding for Nodus: <Nodus> canvas host, hooks, and inline text-edit overlay.",
@@ -17,23 +18,29 @@
     ".": {
       "types": "./src/index.tsx",
       "default": "./src/index.tsx"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "peerDependencies": {
-    "@nodus/core": "workspace:*",
-    "@nodus/stencils": "workspace:*",
+    "@nodus/core": "workspace:^",
+    "@nodus/stencils": "workspace:^",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "@nodus/stencils": { "optional": true }
+    "@nodus/stencils": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@nodus/core": "workspace:*",
+    "@nodus/stencils": "workspace:*",
+    "gifenc": "^1.0.3"
   },
   "scripts": {
     "build": "tsup",
@@ -45,13 +52,23 @@
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
     }
   },
-  "dependencies": {
-    "gifenc": "^1.0.3"
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/react#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

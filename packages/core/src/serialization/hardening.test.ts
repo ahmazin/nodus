@@ -15,6 +15,7 @@ import {
   type SerializationIssue,
   type Snapshot,
 } from './index.js';
+import { isNodusError, type NodusError } from '../errors/index.js';
 
 function nodeRec(id: string, over: Record<string, unknown> = {}, props: Record<string, unknown> = {}): NodusRecord {
   return { id, typeName: 'node', version: 0, type: 'rect', x: 0, y: 0, w: 10, h: 10, z: 'a0', visual: { state: 'solid' }, props, ...over } as NodusRecord;
@@ -108,15 +109,36 @@ describe('4. restore — duplicate id dedupe (last wins)', () => {
   });
 });
 
-describe('5. restore — schemaVersion range validation', () => {
-  it('reports an out-of-range / non-integer schemaVersion but still best-effort loads', () => {
-    for (const bad of [999, -1, 1.5, Number.NaN, 'nope' as unknown as number]) {
+describe('5. restore — schemaVersion handling (A5, user-locked)', () => {
+  it('THROWS NodusError("schema-too-new") for a well-formed newer schemaVersion (hard refuse)', () => {
+    let err: unknown;
+    try {
+      restore({ schemaVersion: 999, document: { records: [nodeRec('n1')] } } as unknown as Snapshot);
+    } catch (e) {
+      err = e;
+    }
+    expect(isNodusError(err)).toBe(true);
+    expect((err as NodusError).code).toBe('schema-too-new');
+    expect((err as NodusError).context).toMatchObject({ fileSchema: 999, supported: 1 });
+  });
+
+  it('still best-effort loads a MALFORMED schemaVersion (-1 / 1.5 / NaN / string) with a bad-schema-version issue', () => {
+    for (const bad of [-1, 1.5, Number.NaN, 'nope' as unknown as number]) {
       const issues: SerializationIssue[] = [];
       const res = restore({ schemaVersion: bad, document: { records: [nodeRec('n1')] } } as unknown as Snapshot, {
         onError: (i) => issues.push(i),
       });
       expect(issues.some((i) => i.code === 'bad-schema-version')).toBe(true);
-      expect(res.records.map((r) => r.id)).toEqual(['n1']);
+      expect(res.records.map((r) => r.id)).toEqual(['n1']); // repaired + loaded, never thrown
+    }
+  });
+
+  it('null / non-object input yields an invalid-snapshot issue and an empty result (no raw TypeError)', () => {
+    for (const bad of [null, 42, 'x', undefined]) {
+      const issues: SerializationIssue[] = [];
+      const res = restore(bad as unknown as Snapshot, { onError: (i) => issues.push(i) });
+      expect(res.records).toEqual([]);
+      expect(issues.some((i) => i.code === 'invalid-snapshot')).toBe(true);
     }
   });
 

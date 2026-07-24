@@ -9,7 +9,6 @@ import {
   isEdge,
   isNode,
   isPage,
-  makeId,
   type ApplyOptions,
   type Box,
   type Camera,
@@ -36,10 +35,18 @@ import {
 } from '../camera/index.js';
 import { boxEncloses, dist, padBox, unionBox } from '../geometry/index.js';
 import { defaultTheme, type ResolvedTokens, type StateTokens, type Theme } from '../theme/index.js';
-import { Store, type ChangeInfo, type StoreListener } from '../store/index.js';
+import { Store, type ChangeInfo, type StoreListener, type BeforeApply } from '../store/index.js';
+import { CommandRegistry, installDefaultCommands, type Command } from '../commands/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
 import { History } from '../history/index.js';
-import { EventBus, type NodusEvent } from '../events/index.js';
+import {
+  EventBus,
+  type NodusEvent,
+  type NodusEventMap,
+  type NodusEventOf,
+  type NodusCustomEvent,
+  type ErrorEventContext,
+} from '../events/index.js';
 import {
   Registry,
   validateNodeUtil,
@@ -69,6 +76,8 @@ import { formatRate } from '../flow-format.js';
 import { mix, parseHex } from '../renderer/color.js';
 import type { Ctx2D } from '../renderer/context.js';
 import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
+import { NodusError } from '../errors/index.js';
+import { sessionIdFactory, type IdFactory } from '../ids/index.js';
 import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
 
 /** Edge/center a multi-selection aligns to (see `Editor.align`). */
@@ -145,6 +154,9 @@ export interface EditorOptions {
   builtins?: boolean;
   camera?: Camera;
   viewport?: { w: number; h: number };
+  /** Id generator for this editor (default: a fresh {@link sessionIdFactory}). Two editors with the
+   *  default factory mint disjoint ids; pass `deterministicIdFactory()` for reproducible fixtures. */
+  idFactory?: IdFactory;
 }
 
 export interface PointerMods {
@@ -234,12 +246,14 @@ function endpointNodeId(ep: Endpoint): Id<'node'> | undefined {
 }
 
 export class Editor implements EngineHost {
+  /** This editor's instance id generator (see {@link EditorOptions.idFactory}). Assigned first in the
+   *  constructor so the store — which advances it on load — can be handed the same instance. */
+  readonly ids: IdFactory;
   // Route errors caught inside the store's listener dispatch (a throwing third-party change listener)
   // to the EventBus, so hosts can observe them instead of them being swallowed. The closure reads
-  // `this.events` lazily (only when an error fires), so field-init order is not a problem.
-  readonly store = new Store({
-    onError: (error, context) => this.events.emit({ type: 'error', error, context }),
-  });
+  // `this.events` lazily (only when an error fires), so field-init order is not a problem. Constructed
+  // in the constructor body (not an initializer) so it can receive `this.ids`, which needs `opts`.
+  readonly store: Store;
   // Registries validate at registration (fail fast on a malformed util) and route a re-registration
   // override through the same observable `error` channel as isolated store/index faults. The
   // `onOverride` closure reads `this` lazily (only when an override fires, well after construction),
@@ -259,6 +273,7 @@ export class Editor implements EngineHost {
   readonly events = new EventBus();
   readonly layouts = new Map<string, LayoutEngine>();
   readonly routers = new RouterRegistry();
+  readonly commands = new CommandRegistry();
   readonly toolManager: ToolManager;
 
   // reactive state
@@ -284,8 +299,123 @@ export class Editor implements EngineHost {
   /** typeVersions from the most recently loaded snapshot — merged with current utils on save. */
   private loadedTypeVersions: Record<string, number> = {};
   private readonly disposers: Dispose[] = [];
+  private _disposed = false;
+  /** Captured from store.onReset during a load; emitted as `document:load` once the scene is rebuilt. */
+  private pendingReset: { source: 'load'; recordCount: number } | null = null;
+
+  /** True once {@link dispose} has run. A disposed editor rejects further interaction/load/history/
+   *  paint entry points (see {@link assertLive}); the ~30 programmatic helpers stay unguarded. */
+  get disposed(): boolean {
+    return this._disposed;
+  }
+
+  /** Throw `NodusError('editor-disposed')` if this editor has been disposed. Guards the entry points a
+   *  host wires to input, loading, history, and painting — using one after teardown is a programmer bug. */
+  private assertLive(): void {
+    if (this._disposed) {
+      throw new NodusError('editor-disposed', 'This editor has been disposed and can no longer be used.');
+    }
+  }
+
+  /** Emit a captured `document:load` (from store.onReset) now that the scene index is rebuilt. */
+  private flushDocumentLoad(): void {
+    if (!this.pendingReset) return;
+    const { source, recordCount } = this.pendingReset;
+    this.pendingReset = null;
+    this.events.emit({ type: 'document:load', source, recordCount });
+  }
+
+  /** The registered node/edge util for a typed record, or undefined for pages / unknown types. */
+  private utilFor(rec: { typeName: string; type?: string }): NodeUtil | EdgeUtil | undefined {
+    if (rec.typeName === 'node') return this.nodes.get(rec.type ?? '');
+    if (rec.typeName === 'edge') return this.edges.get(rec.type ?? '');
+    return undefined;
+  }
+
+  /** Run a util's `validateProps` (normalize-or-throw) for the FAÇADE path: any throw becomes a typed
+   *  `NodusError('invalid-props')`. Returns the normalized props (or the input when there's no util /
+   *  no validateProps). */
+  private validatePropsOrThrow(
+    util: { validateProps?(props: Record<string, unknown>): Record<string, unknown> } | undefined,
+    props: Record<string, unknown>,
+    type: string,
+  ): Record<string, unknown> {
+    if (!util?.validateProps) return props;
+    try {
+      return util.validateProps(props);
+    } catch (err) {
+      throw new NodusError('invalid-props', `Invalid props for type "${type}": ${err instanceof Error ? err.message : String(err)}`, {
+        context: { type },
+        cause: err,
+      });
+    }
+  }
+
+  /** Run a util's `validateProps` for the RAW path: on success return the normalized props; on a throw
+   *  surface it on the error channel (raw-path faults are third-party) and return `null` to signal veto.
+   *  `validateProps` returns an object, so `null` is an unambiguous failure sentinel. */
+  private tryValidateProps(
+    util: { validateProps?(props: Record<string, unknown>): Record<string, unknown> },
+    props: Record<string, unknown>,
+    type: string,
+  ): Record<string, unknown> | null {
+    try {
+      return util.validateProps!(props);
+    } catch (err) {
+      this.events.emit({
+        type: 'error',
+        error: err,
+        context: { phase: 'before-apply', reason: 'invalid-props', type },
+        severity: 'error',
+      });
+      return null;
+    }
+  }
+
+  /** Built-in before-apply guard: normalize (or veto) typed props on RAW store writes. For each add /
+   *  props-touching update against a typed record whose util has `validateProps`, run it — success
+   *  replaces the props with the normalized result; a throw vetoes the whole apply and surfaces the
+   *  fault on the error channel (raw-path faults are third-party, so reported, not thrown). */
+  private validatePropsInterceptor(changes: readonly Change[]): Change[] | null | undefined {
+    let transformed = false;
+    const out: Change[] = [];
+    for (const c of changes) {
+      if (c.op === 'add' && (c.record.typeName === 'node' || c.record.typeName === 'edge')) {
+        const util = this.utilFor(c.record);
+        if (util?.validateProps) {
+          const normalized = this.tryValidateProps(util, c.record.props, c.record.type);
+          if (normalized === null) return null; // veto — an invalid raw write commits nothing
+          out.push({ ...c, record: { ...c.record, props: normalized } });
+          transformed = true;
+          continue;
+        }
+      } else if (c.op === 'update' && c.patch.props && typeof c.patch.props === 'object') {
+        const rec = this.store.peek(c.id);
+        if (rec && (rec.typeName === 'node' || rec.typeName === 'edge')) {
+          const util = this.utilFor(rec);
+          if (util?.validateProps) {
+            const normalized = this.tryValidateProps(util, c.patch.props as Record<string, unknown>, rec.type);
+            if (normalized === null) return null;
+            out.push({ ...c, patch: { ...c.patch, props: normalized } });
+            transformed = true;
+            continue;
+          }
+        }
+      }
+      out.push(c);
+    }
+    return transformed ? out : undefined; // undefined = passthrough when nothing needed normalizing
+  }
 
   constructor(opts: EditorOptions = {}) {
+    // Id factory + store first: the store advances this factory on load, so both must share the one
+    // instance. `this.events` (a field initializer) is already set, so the store's onError closure is safe.
+    this.ids = opts.idFactory ?? sessionIdFactory();
+    this.store = new Store({
+      onError: (error, context) => this.events.emit({ type: 'error', error, context, severity: 'error' }),
+      idFactory: this.ids,
+    });
+
     this.themeAtom = atom<Theme>(opts.theme ?? defaultTheme);
     this.cameraAtom = atom<Camera>(opts.camera ?? DEFAULT_CAMERA);
     this.viewportAtom = atom(opts.viewport ?? { w: 800, h: 600 });
@@ -296,8 +426,16 @@ export class Editor implements EngineHost {
       nodes: this.nodes,
       edges: this.edges,
       routers: this.routers,
-      // a throwing third-party getGeometry/getRoute leaves the record unindexed and surfaces here
-      onError: (error, context) => this.events.emit({ type: 'error', error, context }),
+      // a throwing third-party getGeometry/getRoute leaves the record unindexed and surfaces here.
+      // SceneIndexErrorContext's phases ('build'|'non-finite') are all valid ErrorEventContext phases;
+      // the widen is only for its missing (nominal) index signature.
+      onError: (error, context) =>
+        this.events.emit({
+          type: 'error',
+          error,
+          context: context as unknown as ErrorEventContext,
+          severity: 'error',
+        }),
     });
     this.history = new History((changes, o) => this.store.apply(changes, o));
     this.toolManager = new ToolManager(this, defaultTools());
@@ -306,6 +444,7 @@ export class Editor implements EngineHost {
       this.nodes.register(rectNodeUtil);
       this.nodes.register(groupNodeUtil);
       this.edges.register(lineEdgeUtil);
+      installDefaultCommands(this);
     }
     for (const u of opts.nodeTypes ?? []) this.nodes.register(u);
     for (const u of opts.edgeTypes ?? []) this.edges.register(u);
@@ -319,6 +458,19 @@ export class Editor implements EngineHost {
         this.events.emit({ type: 'change', info });
       }),
     );
+
+    // Bridge wholesale store resets to the bus. `load()` fires onReset mid-load (before the scene
+    // rebuild), so capture it and emit `document:load` only AFTER the rebuild (see flushDocumentLoad).
+    this.disposers.push(
+      this.store.onReset((info) => {
+        this.pendingReset = { source: info.reason, recordCount: info.records.length };
+      }),
+    );
+
+    // Built-in guard: run each typed record's `validateProps` on RAW store writes (writes that bypass
+    // the façade). Invalid props are a third-party fault on the raw path, so — per the façade
+    // convention — the change is vetoed and surfaced on the error channel, never thrown.
+    this.disposers.push(this.store.registerBeforeApply((changes) => this.validatePropsInterceptor(changes)));
 
     // flow data sources: auto-unbind a source whose edge is gone (delete/undo), and tear down all on dispose
     this.disposers.push(
@@ -334,6 +486,7 @@ export class Editor implements EngineHost {
       this.store.load(opts.records);
       this.sceneIndex.rebuild(this.store.allRecords());
       this.rebuildFlowIndex();
+      this.flushDocumentLoad();
     }
   }
 
@@ -377,11 +530,33 @@ export class Editor implements EngineHost {
     this.overlaysAtom.update((a) => [...a, overlay]);
     return () => this.overlaysAtom.update((a) => a.filter((o) => o !== overlay));
   }
-  on(type: string, handler: (event: NodusEvent) => void): Dispose {
-    return this.events.on(type, handler);
+  /** Subscribe to an engine event; the handler payload is narrowed by key. `'*'` receives every
+   *  event; a `custom:${string}` key its custom arm. The trailing `string` overload exists so
+   *  forwarders that carry an untyped event name (e.g. the preset façades) still type-check. */
+  on<K extends keyof NodusEventMap>(type: K, handler: (event: NodusEventOf<K>) => void): Dispose;
+  on(type: `custom:${string}`, handler: (event: NodusCustomEvent) => void): Dispose;
+  on(type: '*', handler: (event: NodusEvent) => void): Dispose;
+  on(type: string, handler: (event: NodusEvent) => void): Dispose;
+  on(type: string, handler: (event: never) => void): Dispose {
+    // The runtime event name is the real string; cast past the strict overloads to the bus impl.
+    return this.events.on(type as '*', handler as (event: NodusEvent) => void);
   }
   onChange(handler: StoreListener): Dispose {
     return this.store.listen(handler);
+  }
+  /** Register a before-apply interceptor (transform / veto changes before they commit). Delegates to
+   *  the store; see {@link BeforeApply}. Returns a disposer. */
+  onBeforeChange(fn: BeforeApply): Dispose {
+    return this.store.registerBeforeApply(fn);
+  }
+  /** Register a {@link Command}. Returns a disposer that unregisters it. */
+  registerCommand(cmd: Command): Dispose {
+    return this.commands.register(cmd);
+  }
+  /** Run a registered command by id (unknown id throws `NodusError('unknown-command')`; a disabled
+   *  command is a no-op). */
+  execute(id: string, args?: unknown): void | Promise<void> {
+    return this.commands.execute(id, this, args);
   }
   use(plugin: Plugin): Dispose {
     // Isolate a throwing plugin: surface the failure on the observable `error` channel, then rethrow
@@ -394,7 +569,7 @@ export class Editor implements EngineHost {
     } catch (err) {
       const id = (plugin as { id?: unknown } | null | undefined)?.id;
       const label = typeof id === 'string' && id.length > 0 ? JSON.stringify(id) : '<unknown>';
-      this.events.emit({ type: 'error', error: err, context: { phase: 'plugin', pluginId: id } });
+      this.events.emit({ type: 'error', error: err, context: { phase: 'plugin', pluginId: id }, severity: 'error' });
       throw new Error(`Plugin ${label} failed to install: ${err instanceof Error ? err.message : String(err)}`, {
         cause: err,
       });
@@ -412,6 +587,7 @@ export class Editor implements EngineHost {
       type: 'error',
       error: new Error(`Overriding an already-registered ${kind} '${type}'.`),
       context: { phase: 'register', kind, type },
+      severity: 'warning',
     });
   }
 
@@ -433,10 +609,20 @@ export class Editor implements EngineHost {
   createNode(partial: Partial<NodeRecord> & { type?: string }, opts?: ApplyOptions): Id<'node'> {
     const type = partial.type ?? 'rect';
     const util = this.nodes.get(type);
-    const props = partial.props ?? util?.getDefaultProps?.() ?? {};
-    const size = util?.getDefaultSize?.(props) ?? { w: 120, h: 56 };
+    // A node with an unregistered type has no geometry, so the scene index silently drops it — an
+    // invisible, undebuggable "success". Refuse it: an unknown type is a programmer error.
+    if (!util) {
+      throw new NodusError('unknown-node-type', `createNode: node type "${type}" is not registered.`, {
+        context: { type },
+      });
+    }
+    // Merge defaults UNDER the caller's partial props: a partial `{ color }` keeps every other default
+    // rather than replacing the whole props object. Then validate/normalize (throws 'invalid-props').
+    const merged = { ...(util.getDefaultProps?.() ?? {}), ...(partial.props ?? {}) };
+    const props = this.validatePropsOrThrow(util, merged, type);
+    const size = util.getDefaultSize?.(props) ?? { w: 120, h: 56 };
     const node: NodeRecord = {
-      id: (partial.id as Id<'node'>) ?? makeId('node'),
+      id: (partial.id as Id<'node'>) ?? this.ids.make('node'),
       typeName: 'node',
       version: 0,
       type,
@@ -476,37 +662,56 @@ export class Editor implements EngineHost {
   }
 
   updateNode(id: Id, patch: Partial<NodeRecord>, opts?: ApplyOptions): void {
-    this.store.apply([{ op: 'update', id, patch: patch as Record<string, unknown> }], opts ?? {});
+    this.updateRecord(id, patch as Record<string, unknown>, opts);
   }
 
-  /** Generic update for any record (node/edge/page). */
+  /** Generic update for any record (node/edge/page). When the patch touches `props` of a typed record,
+   *  its util's `validateProps` runs synchronously (throws `NodusError('invalid-props')`; the normalized
+   *  result is what commits). */
   updateRecord(id: Id, patch: Record<string, unknown>, opts?: ApplyOptions): void {
-    this.store.apply([{ op: 'update', id, patch }], opts ?? {});
+    let effective = patch;
+    if (patch.props && typeof patch.props === 'object') {
+      const rec = this.store.peek(id);
+      const util = rec ? this.utilFor(rec) : undefined;
+      if (util?.validateProps) {
+        const type = (rec as { type?: string }).type ?? '';
+        effective = { ...patch, props: this.validatePropsOrThrow(util, patch.props as Record<string, unknown>, type) };
+      }
+    }
+    this.store.apply([{ op: 'update', id, patch: effective }], opts ?? {});
   }
 
   // ---- edge helpers ----
 
-  setEdgeRouter(id: Id, routerId: string, opts?: ApplyOptions): void {
+  /** Set the edge's router. Returns `false` if `id` is stale/not an edge (a runtime reality from
+   *  async UI, not a programmer error), `true` if applied. */
+  setEdgeRouter(id: Id, routerId: string, opts?: ApplyOptions): boolean {
     const e = this.store.peek(id);
-    if (e && isEdge(e)) {
-      this.updateRecord(id, { props: { ...e.props, router: routerId } }, opts ?? { capture: 'immediately' });
-    }
+    if (!e || !isEdge(e)) return false;
+    this.updateRecord(id, { props: { ...e.props, router: routerId } }, opts ?? { capture: 'immediately' });
+    return true;
   }
-  setEdgeLabel(id: Id, label: string, opts?: ApplyOptions): void {
+  /** Set the edge's label. Returns `false` if `id` is stale/not an edge, `true` if applied. */
+  setEdgeLabel(id: Id, label: string, opts?: ApplyOptions): boolean {
+    const e = this.store.peek(id);
+    if (!e || !isEdge(e)) return false;
     this.updateRecord(id, { label }, opts ?? { capture: 'immediately' });
+    return true;
   }
-  addWaypoint(id: Id, point: Vec2, opts?: ApplyOptions): void {
+  /** Append a waypoint to the edge. Returns `false` if `id` is stale/not an edge, `true` if applied. */
+  addWaypoint(id: Id, point: Vec2, opts?: ApplyOptions): boolean {
     const e = this.store.peek(id);
-    if (e && isEdge(e)) {
-      const wps = [...((e.props.waypoints as Vec2[]) ?? []), point];
-      this.updateRecord(id, { props: { ...e.props, waypoints: wps } }, opts ?? { capture: 'immediately' });
-    }
+    if (!e || !isEdge(e)) return false;
+    const wps = [...((e.props.waypoints as Vec2[]) ?? []), point];
+    this.updateRecord(id, { props: { ...e.props, waypoints: wps } }, opts ?? { capture: 'immediately' });
+    return true;
   }
-  setWaypoints(id: Id, waypoints: Vec2[], opts?: ApplyOptions): void {
+  /** Replace the edge's waypoints. Returns `false` if `id` is stale/not an edge, `true` if applied. */
+  setWaypoints(id: Id, waypoints: Vec2[], opts?: ApplyOptions): boolean {
     const e = this.store.peek(id);
-    if (e && isEdge(e)) {
-      this.updateRecord(id, { props: { ...e.props, waypoints } }, opts ?? { capture: 'immediately' });
-    }
+    if (!e || !isEdge(e)) return false;
+    this.updateRecord(id, { props: { ...e.props, waypoints } }, opts ?? { capture: 'immediately' });
+    return true;
   }
 
   // ---- per-element style ----
@@ -829,7 +1034,7 @@ export class Editor implements EngineHost {
     if (!b) return null;
     const pad = 18;
     const frame = { x: b.x - pad, y: b.y - pad - 14, w: b.w + pad * 2, h: b.h + pad * 2 + 14 };
-    const gid = makeId('node');
+    const gid = this.ids.make('node');
     const changes: Change[] = [
       {
         op: 'add',
@@ -918,15 +1123,15 @@ export class Editor implements EngineHost {
     const changes: Change[] = [];
     let newId: Id<'page'>;
     if (existing.length === 0) {
-      const first = makeId('page');
+      const first = this.ids.make('page');
       changes.push({ op: 'add', record: { id: first, typeName: 'page', version: 0, name: 'Page 1', index: 'a0' } });
       for (const r of this.store.allRecords()) {
         if (isNode(r) || isEdge(r)) changes.push({ op: 'update', id: r.id, patch: { pageId: first } });
       }
-      newId = makeId('page');
+      newId = this.ids.make('page');
       changes.push({ op: 'add', record: { id: newId, typeName: 'page', version: 0, name: name ?? 'Page 2', index: 'a0a' } });
     } else {
-      newId = makeId('page');
+      newId = this.ids.make('page');
       changes.push({ op: 'add', record: { id: newId, typeName: 'page', version: 0, name: name ?? `Page ${existing.length + 1}`, index: this.nextPageIndex() } });
     }
     this.store.apply(changes, opts ?? { capture: 'immediately' });
@@ -934,22 +1139,26 @@ export class Editor implements EngineHost {
     return newId;
   }
 
-  /** Rename a page. Undoable. */
-  renamePage(pageId: Id<'page'>, name: string, opts?: ApplyOptions): void {
+  /** Rename a page. Returns `false` if `pageId` is stale/not a page, `true` if applied. Undoable. */
+  renamePage(pageId: Id<'page'>, name: string, opts?: ApplyOptions): boolean {
     const p = this.store.peek(pageId);
-    if (p && isPage(p)) this.store.apply([{ op: 'update', id: pageId, patch: { name } }], opts ?? { capture: 'immediately' });
+    if (!p || !isPage(p)) return false;
+    this.store.apply([{ op: 'update', id: pageId, patch: { name } }], opts ?? { capture: 'immediately' });
+    return true;
   }
 
   /** Move records onto `pageId` (sets their `pageId`). Callers should include incident edges so an edge
-   *  never spans pages. No-op if the target page doesn't exist. Undoable. */
-  moveToPage(ids: Id[], pageId: Id<'page'>, opts?: ApplyOptions): void {
-    if (!this.store.pages().some((p) => p.id === pageId)) return;
+   *  never spans pages. Returns `false` if the target page doesn't exist (a stale target id from async
+   *  UI), `true` otherwise (even if no records matched). Undoable. */
+  moveToPage(ids: Id[], pageId: Id<'page'>, opts?: ApplyOptions): boolean {
+    if (!this.store.pages().some((p) => p.id === pageId)) return false;
     const changes: Change[] = [];
     for (const id of ids) {
       const r = this.store.peek(id);
       if (r && (isNode(r) || isEdge(r))) changes.push({ op: 'update', id, patch: { pageId } });
     }
     if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
+    return true;
   }
 
   /**
@@ -1004,16 +1213,18 @@ export class Editor implements EngineHost {
     return this.clipboard.length > 0;
   }
 
-  /** Paste the clipboard with fresh ids, offset, and remapped endpoints. Returns the new ids. */
+  /** Paste the clipboard with fresh ids, offset, and remapped endpoints. Returns the new ids
+   *  (nodes AND edges). */
   paste(offset: Vec2 = { x: 24, y: 24 }): Id[] {
     return this.pasteRecords(this.clipboard, offset);
   }
 
-  /** Insert a set of copied records with fresh ids/endpoints at an offset. Returns the new node ids. */
+  /** Insert a set of copied records with fresh ids/endpoints at an offset. Returns every new record
+   *  id — nodes and edges alike (pasted edges were silently dropped from the return before). */
   private pasteRecords(records: NodusRecord[], offset: Vec2): Id[] {
     if (records.length === 0) return [];
     const idMap = new Map<Id, Id<'node'>>();
-    for (const r of records) if (isNode(r)) idMap.set(r.id, makeId('node'));
+    for (const r of records) if (isNode(r)) idMap.set(r.id, this.ids.make('node'));
     const changes: Change[] = [];
     const newIds: Id[] = [];
     for (const r of records) {
@@ -1030,10 +1241,11 @@ export class Editor implements EngineHost {
         newIds.push(nid);
       } else if (isEdge(r)) {
         const rec = structuredClone(r) as EdgeRecord;
-        rec.id = makeId('edge');
+        rec.id = this.ids.make('edge');
         rec.version = 0;
         this.remapRefs(rec, idMap);
         changes.push({ op: 'add', record: rec });
+        newIds.push(rec.id);
       }
     }
     this.store.apply(changes, { capture: 'immediately' });
@@ -1063,8 +1275,8 @@ export class Editor implements EngineHost {
     let ni = 0;
     let ei = 0;
     for (const r of [...recs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-      if (isNode(r)) nodeMap.set(r.id, makeId('node', `n${ni++}`));
-      else if (isEdge(r)) edgeMap.set(r.id, makeId('edge', `e${ei++}`));
+      if (isNode(r)) nodeMap.set(r.id, this.ids.make('node', `n${ni++}`));
+      else if (isEdge(r)) edgeMap.set(r.id, this.ids.make('edge', `e${ei++}`));
     }
 
     // (2) rewrite each record's own id + cross-references, and zero the churny `version` counter so a
@@ -1096,7 +1308,7 @@ export class Editor implements EngineHost {
   /**
    * Drop a captured stencil fragment into the document at world point `at`, cloned with fresh ids as
    * ONE undo entry. A fragment's origin is `(0,0)`, so `at` becomes its top-left. Returns (and selects)
-   * the new node ids.
+   * every new record id — nodes and edges alike.
    */
   placeStencil(records: NodusRecord[], at: Vec2): Id[] {
     return this.pasteRecords(records, at);
@@ -1123,11 +1335,15 @@ export class Editor implements EngineHost {
     }
   }
 
-  connect(from: Endpoint, to: Endpoint, type?: string, opts?: ApplyOptions): Id<'edge'> | null {
+  connect(from: Endpoint, to: Endpoint, type?: string, opts?: ApplyOptions): Id<'edge'> {
     const edgeType = type ?? this.edges.list()[0]?.type ?? 'line';
-    if (!this.edges.has(edgeType)) return null;
+    if (!this.edges.has(edgeType)) {
+      throw new NodusError('unknown-edge-type', `connect: edge type "${edgeType}" is not registered.`, {
+        context: { type: edgeType },
+      });
+    }
     const edge: EdgeRecord = {
-      id: makeId('edge'),
+      id: this.ids.make('edge'),
       typeName: 'edge',
       version: 0,
       type: edgeType,
@@ -1504,15 +1720,41 @@ export class Editor implements EngineHost {
   // ==========================================================================
 
   mark(): void {
+    this.assertLive();
     this.history.mark();
   }
-  undo(): void {
-    this.history.undo();
+  /** Undo the most recent action. Returns `true` if something was undone, `false` on an empty stack. */
+  undo(): boolean {
+    this.assertLive();
+    const did = this.history.undo();
     this.pruneSelection();
+    return did;
   }
-  redo(): void {
-    this.history.redo();
+  /** Redo the most recently undone action. Returns `true` if something was redone, else `false`. */
+  redo(): boolean {
+    this.assertLive();
+    const did = this.history.redo();
     this.pruneSelection();
+    return did;
+  }
+  /** Reactive: whether an undo is available. Reads the history version signal, so
+   *  `useValue(() => editor.canUndo())` re-renders when the stack changes. */
+  canUndo(): boolean {
+    this.history.version.get();
+    return this.history.canUndo();
+  }
+  /** Reactive: whether a redo is available (see {@link canUndo}). */
+  canRedo(): boolean {
+    this.history.version.get();
+    return this.history.canRedo();
+  }
+  /**
+   * Apply changes originating from a remote peer: `source: 'remote'`, `capture: 'never'` (not local
+   * undo history), and `intercept: false` (the peer already validated/transformed them; re-running
+   * local interceptors would double-apply). Returns the `ChangeInfo`.
+   */
+  applyRemote(changes: Change[]): ChangeInfo {
+    return this.store.apply(changes, { source: 'remote', capture: 'never', intercept: false });
   }
   private pruneSelection(): void {
     const sel = new Set([...this.selectedAtom.peek()].filter((id) => this.store.has(id)));
@@ -1528,7 +1770,11 @@ export class Editor implements EngineHost {
 
   async layout(engineId: string, opts?: LayoutOptions): Promise<void> {
     const engine = this.layouts.get(engineId);
-    if (!engine) throw new Error(`No layout engine "${engineId}" registered`);
+    if (!engine) {
+      throw new NodusError('unknown-layout', `layout: no layout engine "${engineId}" is registered.`, {
+        context: { engineId },
+      });
+    }
     const nodes = this.store.nodes();
     const edges = this.store.edges();
     const graph: LayoutGraph = {
@@ -1615,7 +1861,13 @@ export class Editor implements EngineHost {
       typeVersions: this.computeTypeVersions(),
     });
   }
+  /**
+   * Load a snapshot, migrating and repairing records defensively. A well-formed but NEWER
+   * `schemaVersion` is refused: `restore()` throws `NodusError('schema-too-new')`, which propagates
+   * here (the host should surface "upgrade to open this diagram") rather than silently mangling it.
+   */
   loadSnapshot(snap: Snapshot, opts?: { fit?: boolean }): void {
+    this.assertLive();
     this.loadedTypeVersions = snap.typeVersions ?? {};
     const { records } = restore(snap, { resolveMigrations: this.resolveMigrations });
     batch(() => {
@@ -1639,6 +1891,8 @@ export class Editor implements EngineHost {
     this.zCounter = Math.max(this.zCounter, maxZ + 1);
     this.history.clear();
     if (opts?.fit) this.zoomToFit();
+    // scene index + flow are rebuilt above; now surface `document:load` to observers.
+    this.flushDocumentLoad();
   }
 
   // ==========================================================================
@@ -2506,6 +2760,7 @@ export class Editor implements EngineHost {
     pixelRatio: number,
     opts: { background?: boolean; grid?: boolean; flow?: boolean; time?: number } = {},
   ): void {
+    this.assertLive();
     const theme = this.themeAtom.peek();
     const dw = Math.ceil(region.w * pixelRatio);
     const dh = Math.ceil(region.h * pixelRatio);
@@ -2577,20 +2832,25 @@ export class Editor implements EngineHost {
     };
   }
   pointerDown(screen: Vec2, mods: PointerMods = {}): void {
+    this.assertLive();
     this.toolManager.pointerDown(this.pointerInfo(screen, mods));
   }
   pointerMove(screen: Vec2, mods: PointerMods = {}): void {
+    this.assertLive();
     const info = this.pointerInfo(screen, mods);
-    this.hoveredAtom.set(info.target?.id ?? null);
+    this.updateHover(info.target?.id ?? null);
     this.toolManager.pointerMove(info);
   }
   pointerUp(screen: Vec2, mods: PointerMods = {}): void {
+    this.assertLive();
     this.toolManager.pointerUp(this.pointerInfo(screen, mods));
   }
   doubleClick(screen: Vec2, mods: PointerMods = {}): void {
+    this.assertLive();
     this.toolManager.doubleClick(this.pointerInfo(screen, mods));
   }
   keyDown(k: KeyInfo): void {
+    this.assertLive();
     this.toolManager.keyDown(k);
   }
 
@@ -2663,11 +2923,27 @@ export class Editor implements EngineHost {
     this.createPreviewAtom.set(box);
   }
   setHover(id: Id | null): void {
+    this.updateHover(id);
+  }
+
+  /** Single hover setter for both the pointer path and programmatic `setHover`. Emits `hover` only
+   *  when the hovered id ACTUALLY changes — not on every pointer-move that lands on the same target. */
+  private updateHover(id: Id | null): void {
+    if (this.hoveredAtom.peek() === id) return;
     this.hoveredAtom.set(id);
+    this.events.emit({ type: 'hover', id });
   }
 
   dispose(): void {
-    for (const d of this.disposers) d();
+    if (this._disposed) return; // idempotent — a second dispose() is a no-op
+    this._disposed = true;
+    this.cancelPanMomentum(); // stop a still-gliding momentum-pan tween
+    this.animClock.clear(); // drop in-flight tweens without firing their onDone (would touch dead state)
+    this.toolManager.exitActiveTool(); // release any mid-gesture tool state
+    this.setOffscreenFactory(null); // free the offscreen static-layer cache
+    // Run disposers in REVERSE registration order — teardown unwinds setup, so later-registered
+    // hooks (which may depend on earlier ones) come down first.
+    for (let i = this.disposers.length - 1; i >= 0; i--) this.disposers[i]!();
     this.disposers.length = 0;
   }
 }

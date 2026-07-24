@@ -8,6 +8,12 @@ export * from './model.js';
 // data-driven flow
 export { resolveFlow, colorForValue } from './flow.js';
 
+// errors
+export { NodusError, isNodusError, type NodusErrorCode } from './errors/index.js';
+
+// ids
+export { sessionIdFactory, deterministicIdFactory, type IdFactory } from './ids/index.js';
+
 // reactivity
 export {
   atom,
@@ -17,10 +23,12 @@ export {
   batch,
   transact,
   untrack,
+  setEffectErrorHandler,
   type Atom,
   type Computed,
   type Dispose,
   type Eq,
+  type EffectErrorHandler,
 } from './signals/index.js';
 
 // geometry
@@ -94,7 +102,10 @@ export {
 } from './routing/index.js';
 
 // store
-export { Store, type ChangeInfo, type StoreListener } from './store/index.js';
+export { Store, type ChangeInfo, type StoreListener, type BeforeApply } from './store/index.js';
+
+// commands
+export { CommandRegistry, installDefaultCommands, type Command } from './commands/index.js';
 
 // scene index
 export { SceneIndex, type RenderItem, type SceneIndexDeps } from './scene-index/index.js';
@@ -123,7 +134,16 @@ export { diff, type DiffResult, type RecordChange } from './diff/index.js';
 export { History, type ApplyFn } from './history/index.js';
 
 // events
-export { EventBus, type NodusEvent } from './events/index.js';
+export {
+  EventBus,
+  type NodusEvent,
+  type NodusEventMap,
+  type NodusEventOf,
+  type NodusCustomEvent,
+  type NodusErrorEvent,
+  type ErrorEventContext,
+  type EventBusOptions,
+} from './events/index.js';
 
 // layout
 export type {

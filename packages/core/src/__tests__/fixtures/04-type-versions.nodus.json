@@ -1,0 +1,5 @@
+{"schemaVersion":1,"typeVersions":{"flow":3,"infra.cache":1,"infra.db":2},"document":{"records":[
+{"h":60,"id":"node:m1","props":{"engine":"postgres","major":16},"type":"infra.db","typeName":"node","visual":{"state":"solid"},"w":120,"x":40,"y":40,"z":"a0"},
+{"h":60,"id":"node:m2","props":{"ttl":300},"type":"infra.cache","typeName":"node","visual":{"state":"solid"},"w":120,"x":240,"y":40,"z":"a1"},
+{"from":{"kind":"node","nodeId":"node:m1"},"id":"edge:md","props":{},"to":{"kind":"node","nodeId":"node:m2"},"type":"flow","typeName":"edge","visual":{"state":"solid"}}
+]}}

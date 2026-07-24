@@ -106,19 +106,19 @@ importers:
         specifier: ^0.1.60
         version: 0.1.100
       '@nodus/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@nodus/import-infra':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../import-infra
       '@nodus/preset-diagrams':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-diagrams
       '@nodus/preset-draw':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-draw
       '@nodus/preset-infra':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-infra
 
   packages/core:
@@ -133,23 +133,22 @@ importers:
 
   packages/from-mermaid:
     dependencies:
+      '@nodus/preset-diagrams':
+        specifier: workspace:^
+        version: link:../preset-diagrams
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/preset-diagrams':
-        specifier: workspace:*
-        version: link:../preset-diagrams
-    devDependencies:
       '@nodus/layout-elk':
         specifier: workspace:*
         version: link:../layout-elk
 
   packages/icons-cloud:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@nodus/preset-diagrams':
         specifier: workspace:*
         version: link:../preset-diagrams
@@ -162,34 +161,36 @@ importers:
 
   packages/import-infra:
     dependencies:
-      '@nodus/core':
-        specifier: workspace:*
-        version: link:../core
       '@nodus/preset-infra':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-infra
       yaml:
         specifier: ^2.4.2
         version: 2.9.0
+    devDependencies:
+      '@nodus/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/layout-dagre:
     dependencies:
       '@dagrejs/dagre':
         specifier: ^1.1.4
         version: 1.1.8
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/layout-elk:
     dependencies:
-      '@nodus/core':
-        specifier: workspace:*
-        version: link:../core
       elkjs:
         specifier: ^0.9.3
         version: 0.9.3
     devDependencies:
+      '@nodus/core':
+        specifier: workspace:*
+        version: link:../core
       '@nodus/layout-force':
         specifier: workspace:*
         version: link:../layout-force
@@ -199,19 +200,19 @@ importers:
 
   packages/layout-force:
     dependencies:
-      '@nodus/core':
-        specifier: workspace:*
-        version: link:../core
       d3-force:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
+      '@nodus/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/d3-force':
         specifier: ^3.0.10
         version: 3.0.10
 
   packages/layout-tree:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
@@ -222,75 +223,74 @@ importers:
         specifier: ^0.1.60
         version: 0.1.100
       '@nodus/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@nodus/from-mermaid':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../from-mermaid
       '@nodus/layout-dagre':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../layout-dagre
       '@nodus/layout-elk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../layout-elk
       '@nodus/preset-diagrams':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-diagrams
       '@nodus/preset-draw':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-draw
       '@nodus/preset-infra':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../preset-infra
 
   packages/persistence:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/plugin-freehand:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-diagrams:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-draw:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-infra:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/react:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
       '@nodus/stencils':
         specifier: workspace:*
         version: link:../stencils
-      gifenc:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.31
       '@types/react-dom':
         specifier: ^18.3.1
         version: 18.3.7(@types/react@18.3.31)
+      gifenc:
+        specifier: ^1.0.3
+        version: 1.0.3
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -299,19 +299,20 @@ importers:
         version: 18.3.1(react@18.3.1)
 
   packages/stencils:
-    dependencies:
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
 
   packages/text-to-diagram:
     dependencies:
+      '@nodus/preset-infra':
+        specifier: workspace:^
+        version: link:../preset-infra
+    devDependencies:
       '@nodus/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/preset-infra':
-        specifier: workspace:*
-        version: link:../preset-infra
 
 packages:
 

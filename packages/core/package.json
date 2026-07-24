@@ -6,7 +6,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/core"
   },
   "license": "MIT",
   "description": "Headless, framework-agnostic, extensible diagram engine (Canvas-2D).",
@@ -17,7 +18,8 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "dependencies": {
@@ -36,10 +38,23 @@
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
     }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

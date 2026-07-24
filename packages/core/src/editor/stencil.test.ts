@@ -69,9 +69,10 @@ describe('placeStencil', () => {
     const frag = ed.captureStencil([a, b]);
 
     const newIds = ed.placeStencil(frag, { x: 200, y: 120 });
-    expect(newIds).toHaveLength(2);
+    const newNodeIds = newIds.filter((id) => id.startsWith('node:'));
+    expect(newNodeIds).toHaveLength(2); // placeStencil now also returns the placed edge id
 
-    // fresh ids — neither the normalized fragment ids nor any pre-existing id
+    // fresh ids — neither the normalized fragment ids nor any pre-existing id (checks edges too)
     const preIds = new Set<Id>([a, b]);
     for (const id of newIds) {
       expect(['node:n0', 'node:n1']).not.toContain(id);
@@ -81,12 +82,12 @@ describe('placeStencil', () => {
     expect(ed.store.edges()).toHaveLength(2);
 
     // fragment origin (0,0) lands the top-left node at the target point
-    const placed = newIds.map((id) => ed.store.peek(id) as NodeRecord);
+    const placed = newNodeIds.map((id) => ed.store.peek(id) as NodeRecord);
     expect(Math.min(...placed.map((n) => n.x))).toBe(200);
     expect(Math.min(...placed.map((n) => n.y))).toBe(120);
 
     // the placed edge is rewired to the new nodes, not the originals
-    const newSet = new Set<Id>(newIds);
+    const newSet = new Set<Id>(newNodeIds);
     const placedEdge = ed.store.edges().find((e) => {
       const f = epNodeId(e.from);
       return f !== null && newSet.has(f);
@@ -111,9 +112,10 @@ describe('placeStencil', () => {
 
     const frag = ed.captureStencil([a, b, c]);
     const newIds = ed.placeStencil(frag, { x: 500, y: 500 });
-    expect(newIds).toHaveLength(3); // same node count
+    const newNodeIds = newIds.filter((id) => id.startsWith('node:'));
+    expect(newNodeIds).toHaveLength(3); // same node count (placeStencil now also returns edge ids)
 
-    const newSet = new Set<Id>(newIds);
+    const newSet = new Set<Id>(newNodeIds);
     const placedEdges = ed.store.edges().filter((e) => {
       const f = epNodeId(e.from);
       const t = epNodeId(e.to);
@@ -132,7 +134,7 @@ describe('placeStencil', () => {
     expect([...deg.values()].sort()).toEqual([1, 1, 2]);
 
     // the copy sits at the new location
-    const placed = newIds.map((id) => ed.store.peek(id) as NodeRecord);
+    const placed = newNodeIds.map((id) => ed.store.peek(id) as NodeRecord);
     expect(Math.min(...placed.map((n) => n.x))).toBe(500);
     expect(Math.min(...placed.map((n) => n.y))).toBe(500);
   });

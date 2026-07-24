@@ -18,6 +18,8 @@ import type {
   PageRecord,
 } from '../model.js';
 import { isEdge, isNode, isPage, seedIdCounter } from '../model.js';
+import type { IdFactory } from '../ids/index.js';
+import { NodusError } from '../errors/index.js';
 
 export interface ChangeInfo {
   changes: Change[];
@@ -25,6 +27,19 @@ export interface ChangeInfo {
   source: ChangeSource;
   capture: CapturePolicy;
 }
+
+/**
+ * A before-apply interceptor: given the changes about to be applied (and their source), return a
+ * REPLACEMENT change set (transform), `null` to VETO the whole apply (commit nothing), or `void` to
+ * pass the changes through unchanged. Registered interceptors run as a registration-order fold — each
+ * sees the previous one's output — at the very top of `apply()`, before the transaction, so the
+ * inverse is computed from the FINAL change set. Throwing is isolated: the interceptor is skipped
+ * (passthrough) and the error routed to `onError` (`phase: 'before-apply'`); the apply is not aborted.
+ */
+export type BeforeApply = (
+  changes: readonly Change[],
+  ctx: { source: ChangeSource },
+) => Change[] | null | void;
 
 export type StoreListener = (info: ChangeInfo) => void;
 
@@ -43,6 +58,11 @@ export type StoreErrorContext =
        */
       phase: 'duplicate-add';
       id: Id;
+    }
+  | {
+      /** A registered before-apply interceptor threw. It is skipped (its transform ignored, the
+       *  changes pass through) and the apply proceeds; the error surfaces here, never swallowed. */
+      phase: 'before-apply';
     };
 
 export interface StoreOptions {
@@ -52,6 +72,12 @@ export interface StoreOptions {
    * here so it stays observable. Default: a safe no-op; wire this to the EventBus for visibility.
    */
   onError?: (err: unknown, ctx: StoreErrorContext) => void;
+  /**
+   * The editor's instance {@link IdFactory}. `load()` advances it past the ids just loaded so an id
+   * minted afterward can't collide with a loaded record. When absent (a standalone `Store`), `load()`
+   * falls back to advancing the module-global counter (legacy `seedIdCounter`).
+   */
+  idFactory?: IdFactory;
 }
 
 export class Store {
@@ -70,6 +96,14 @@ export class Store {
   /** Coarse "something changed" counter for consumers that want a single signal. */
   readonly sceneNonce: Atom<number> = atom(0);
   private readonly listeners = new Set<StoreListener>();
+  /** Wholesale-reset listeners (a `load()` replaces the entire document). `load` bypasses the per-change
+   *  `listen` path, so a sync consumer that needs to re-mirror the whole store subscribes here. */
+  private readonly resetListeners = new Set<(info: { records: NodusRecord[]; reason: 'load' }) => void>();
+  /** Before-apply interceptors, in registration order (the fold order). */
+  private readonly beforeApply: BeforeApply[] = [];
+  /** True only while the interceptor pipeline is running — reentrant `apply()` from an interceptor
+   *  is a programmer error (it would recurse into interception), so it throws `reentrant-apply`. */
+  private runningInterceptors = false;
 
   constructor(private readonly opts: StoreOptions = {}) {}
 
@@ -122,6 +156,47 @@ export class Store {
     return () => this.listeners.delete(fn);
   }
 
+  /** Subscribe to wholesale document resets (`load()`), which bypass the per-change `listen` path.
+   *  The handler receives the newly-loaded records. Returns a disposer. */
+  onReset(fn: (info: { records: NodusRecord[]; reason: 'load' }) => void): Dispose {
+    this.resetListeners.add(fn);
+    return () => this.resetListeners.delete(fn);
+  }
+
+  /** Register a {@link BeforeApply} interceptor. Interceptors run as a registration-order fold at the
+   *  top of every intercepted `apply()`. Returns a disposer that unregisters it. */
+  registerBeforeApply(fn: BeforeApply): Dispose {
+    this.beforeApply.push(fn);
+    return () => {
+      const i = this.beforeApply.indexOf(fn);
+      if (i >= 0) this.beforeApply.splice(i, 1);
+    };
+  }
+
+  /** Run the before-apply fold: each interceptor sees the prior output; the first `null` vetoes the
+   *  whole apply (returns `null` here → commit nothing); `void` passes through; a throw is isolated
+   *  (skipped + reported). Guarded so a reentrant `apply()` from inside an interceptor throws. */
+  private runBeforeApply(changes: Change[], source: ChangeSource): Change[] | null {
+    this.runningInterceptors = true;
+    try {
+      let current: readonly Change[] = changes;
+      for (const fn of this.beforeApply) {
+        let out: Change[] | null | void;
+        try {
+          out = fn(current, { source });
+        } catch (err) {
+          this.opts.onError?.(err, { phase: 'before-apply' }); // skip this interceptor, keep `current`
+          continue;
+        }
+        if (out === null) return null; // veto — short-circuit the fold
+        if (out !== undefined) current = out; // transform; `void` = passthrough
+      }
+      return current as Change[];
+    } finally {
+      this.runningInterceptors = false;
+    }
+  }
+
   /**
    * Apply changes atomically. Returns the `ChangeInfo` (including computed inverse). Unknown
    * updates/removes are skipped; an `add` onto an already-existing id is *refused* (not a silent
@@ -138,6 +213,21 @@ export class Store {
   apply(changes: Change[], opts: ApplyOptions = {}): ChangeInfo {
     const source: ChangeSource = opts.source ?? 'user';
     const capture: CapturePolicy = opts.capture ?? 'immediately';
+
+    // Reentrant apply from within an interceptor would recurse into the pipeline — a programmer error.
+    if (this.runningInterceptors) {
+      throw new NodusError('reentrant-apply', 'store.apply() was called from within a before-apply interceptor.');
+    }
+
+    // Before-apply interception runs BEFORE the transaction so the inverse is computed from the final
+    // change set. undo/redo/remote pass `intercept: false` to replay recorded deltas verbatim.
+    let effective = changes;
+    if (opts.intercept !== false && this.beforeApply.length > 0) {
+      const out = this.runBeforeApply(changes, source);
+      if (out === null) return { changes: [], inverse: [], source, capture }; // vetoed — commit nothing
+      effective = out;
+    }
+
     const applied: Change[] = [];
     const inverse: Change[] = [];
     let idsChanged = false;
@@ -149,7 +239,7 @@ export class Store {
 
     try {
       transact(() => {
-        for (const c of changes) {
+        for (const c of effective) {
           if (c.op === 'add') {
             const rec = { ...c.record, version: c.record.version ?? 0 };
             if (this.atoms.has(rec.id)) {
@@ -253,8 +343,20 @@ export class Store {
       this.idsVersion.update((v) => v + 1);
       this.sceneNonce.update((v) => v + 1);
     });
-    // Advance the id counter past every auto-generated id just loaded, so ids minted after this load
-    // can't collide with loaded records (a collision would be refused by `apply`, blocking the add).
-    seedIdCounter(this.idSet);
+    // Advance the id factory past every id just loaded, so ids minted after this load can't collide
+    // with loaded records (a collision would be refused by `apply`, blocking the add). Prefer the
+    // editor's injected instance factory; fall back to the module-global counter for a standalone Store.
+    if (this.opts.idFactory) this.opts.idFactory.seed(this.idSet);
+    else seedIdCounter(this.idSet);
+
+    // Notify reset listeners (load bypasses `listen`). A throwing listener is isolated + surfaced,
+    // mirroring change-listener dispatch, so one bad sync consumer can't abort the load.
+    for (const l of [...this.resetListeners]) {
+      try {
+        l({ records, reason: 'load' });
+      } catch (err) {
+        this.opts.onError?.(err, { phase: 'listener', info: { changes: [], inverse: [], source: 'program', capture: 'never' } });
+      }
+    }
   }
 }

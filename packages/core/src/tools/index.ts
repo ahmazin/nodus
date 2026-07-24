@@ -787,6 +787,12 @@ export class ToolManager {
     tool.onEnter();
   }
 
+  /** Run the active tool's `onExit()` (releasing any mid-gesture state) without switching tools.
+   *  Called by `Editor.dispose()` so a tool torn down mid-drag doesn't leave dangling handlers. */
+  exitActiveTool(): void {
+    this.current.onExit();
+  }
+
   pointerDown(p: PointerInfo): void {
     this.current.onPointerDown(p);
   }

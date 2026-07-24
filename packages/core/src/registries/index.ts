@@ -9,6 +9,7 @@ import type { Geometry2d } from '../geometry/index.js';
 import type { Box, EdgeRecord, Endpoint, NodeRecord, Vec2 } from '../model.js';
 import type { Router } from '../routing/index.js';
 import type { ResolvedTokens, Theme } from '../theme/index.js';
+import { NodusError } from '../errors/index.js';
 
 export interface Port {
   id: string;
@@ -36,11 +37,17 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
 };
 
 /**
- * An ordered, up-only, pure props transform. A type with `migrations = [m1, m2]` is at version 2;
- * a record stored at version `v` runs steps `v … length-1` to reach `length`. See the migration
+ * An ordered, up-only, pure props transform carrying a stable `id`. A type with `migrations = [m1, m2]`
+ * is at version 2; a record stored at version `v` runs steps `v … length-1` (`.migrate`) to reach
+ * `length`. The `id` sequence is APPEND-ONLY across re-registration — a step's id may never change or
+ * reorder, or a record migrated one way on save would migrate differently on load. See the migration
  * design spec.
  */
-export type Migration<P extends Record<string, unknown> = Record<string, unknown>> = (props: P) => P;
+export interface Migration<P extends Record<string, unknown> = Record<string, unknown>> {
+  /** Stable, unique-within-the-type identifier for this step. Append-only across re-registration. */
+  id: string;
+  migrate(props: P): P;
+}
 
 export interface NodeUtil<P extends Record<string, unknown> = Record<string, unknown>> {
   readonly type: string;
@@ -55,6 +62,12 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
   readonly capabilities?: Partial<NodeCapabilities>;
   /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
   readonly migrations?: Migration[];
+  /** Normalize-or-throw validation for this type's `props`, run synchronously by the façade
+   *  (createNode/updateNode/updateRecord) and by the built-in before-apply guard. Return the
+   *  normalized props, or THROW to reject the write (the façade surfaces it as
+   *  `NodusError('invalid-props')`; a raw store write is vetoed + reported). Must be PURE and
+   *  IDEMPOTENT (`f(f(x)) === f(x)`) — the façade and the guard may both run it on one write. */
+  validateProps?(props: P): P;
 }
 
 export interface EdgeRouteContext {
@@ -84,6 +97,8 @@ export interface EdgeUtil<P extends Record<string, unknown> = Record<string, unk
   draw(api: DrawApi, edge: EdgeRecord, tokens: ResolvedTokens, route: Vec2[]): void;
   /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
   readonly migrations?: Migration[];
+  /** Normalize-or-throw validation for this type's `props` (see {@link NodeUtil.validateProps}). */
+  validateProps?(props: P): P;
 }
 
 /** Render a value for an error message: strings quoted, everything else stringified. */
@@ -94,17 +109,45 @@ function describe(value: unknown): string {
 /** Throw if `util[method]` is not a function — the missing/invalid-method half of util validation. */
 function requireMethod(util: { readonly type: string }, label: string, method: string): void {
   if (typeof (util as unknown as Record<string, unknown>)[method] !== 'function') {
-    throw new Error(`Cannot register ${label} ${describe(util.type)}: '${method}' must be a function.`);
+    throw new NodusError('invalid-util', `Cannot register ${label} ${describe(util.type)}: '${method}' must be a function.`, {
+      context: { label, type: util.type, method },
+    });
   }
 }
 
-/** Throw if `util.migrations` is present but not an array of functions. */
+/** Read `m.id` when `m` is a `{ id: string }`-shaped step, else `undefined`. */
+function migrationId(m: unknown): string | undefined {
+  return m !== null && typeof m === 'object' && typeof (m as { id?: unknown }).id === 'string'
+    ? (m as { id: string }).id
+    : undefined;
+}
+
+/** Throw if `util.migrations` is present but not an array of `{ id: string; migrate(props) }` steps
+ *  with ids unique within the type. */
 function validateMigrations(util: { readonly type: string; migrations?: unknown }, label: string): void {
   const m = util.migrations;
   if (m === undefined) return;
-  if (!Array.isArray(m) || !m.every((fn) => typeof fn === 'function')) {
-    throw new Error(`Cannot register ${label} ${describe(util.type)}: 'migrations' must be an array of functions.`);
+  const bad = (reason: string): never => {
+    throw new NodusError('invalid-migrations', `Cannot register ${label} ${describe(util.type)}: ${reason}.`, {
+      context: { label, type: util.type },
+    });
+  };
+  if (!Array.isArray(m)) bad("'migrations' must be an array");
+  const seen = new Set<string>();
+  for (const step of m as unknown[]) {
+    const id = migrationId(step);
+    if (id === undefined || typeof (step as { migrate?: unknown }).migrate !== 'function') {
+      bad("'migrations' entries must each be a { id: string; migrate(props) } object");
+    }
+    if (seen.has(id!)) bad(`'migrations' has a duplicate migration id ${JSON.stringify(id)}`);
+    seen.add(id!);
   }
+}
+
+/** The ordered migration ids declared by a util (empty when it has none). */
+function migrationIds(util: { migrations?: unknown }): string[] {
+  const m = util.migrations;
+  return Array.isArray(m) ? (m as unknown[]).map((s) => migrationId(s) ?? '') : [];
 }
 
 /** Structural validator for a `NodeUtil` — the geometry + paint methods the engine will call. */
@@ -134,6 +177,8 @@ export interface RegistryOptions<T extends { readonly type: string }> {
 /** A generic type-keyed registry. */
 export class Registry<T extends { readonly type: string }> {
   private readonly map = new Map<string, T>();
+  /** Prior migration-id sequence per type, for the append-only check on re-registration. */
+  private readonly migrationSeqs = new Map<string, string[]>();
 
   constructor(private readonly opts: RegistryOptions<T> = {}) {}
 
@@ -147,17 +192,38 @@ export class Registry<T extends { readonly type: string }> {
     const label = this.opts.label ?? 'type';
     const candidate = util as unknown;
     if (candidate === null || typeof candidate !== 'object') {
-      throw new Error(
+      throw new NodusError(
+        'invalid-util',
         `Cannot register ${label}: expected a util object, but got ${candidate === null ? 'null' : typeof candidate}.`,
+        { context: { label, got: candidate === null ? 'null' : typeof candidate } },
       );
     }
     const type = (candidate as { type?: unknown }).type;
     if (typeof type !== 'string' || type.length === 0) {
-      throw new Error(`Cannot register ${label}: 'type' must be a non-empty string (got ${describe(type)}).`);
+      throw new NodusError('invalid-util', `Cannot register ${label}: 'type' must be a non-empty string (got ${describe(type)}).`, {
+        context: { label, type },
+      });
     }
     this.opts.validate?.(util);
+    // Migrations are APPEND-ONLY across re-registration: the prior id sequence for this type must be a
+    // PREFIX of the new one. Reordering or changing a step would migrate a record differently on load
+    // than on save (silent data corruption), so refuse it at registration time.
+    const nextIds = migrationIds(util as { migrations?: unknown });
+    const priorIds = this.migrationSeqs.get(type);
+    if (priorIds) {
+      for (let i = 0; i < priorIds.length; i++) {
+        if (nextIds[i] !== priorIds[i]) {
+          throw new NodusError(
+            'invalid-migrations',
+            `Cannot re-register ${label} ${describe(type)}: migration step ${i} changed from ${describe(priorIds[i])} to ${describe(nextIds[i])} (migrations are append-only).`,
+            { context: { label, type, step: i, was: priorIds[i], now: nextIds[i] } },
+          );
+        }
+      }
+    }
     if (this.map.has(type)) this.opts.onOverride?.(type);
     this.map.set(type, util);
+    this.migrationSeqs.set(type, nextIds);
   }
   unregister(type: string): void {
     this.map.delete(type);

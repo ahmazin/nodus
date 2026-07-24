@@ -36,6 +36,47 @@ const pending = new Set<EffectNode>();
 let txDepth = 0;
 let txBackups: Map<AtomNode<unknown>, unknown> | null = null;
 
+// ----- effect-error isolation -----
+
+/** Handler invoked when an effect throws during a flush. Receives the thrown value. */
+export type EffectErrorHandler = (err: unknown) => void;
+
+let effectErrorHandler: EffectErrorHandler | null = null;
+
+// Bounded dedupe cache so a permanently-throwing effect (re-run every flush) does not flood the
+// console with identical lines. Keyed by name+message; cleared when it grows past the cap.
+const loggedEffectErrors = new Set<string>();
+
+function defaultEffectErrorHandler(err: unknown): void {
+  const key = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  if (loggedEffectErrors.has(key)) return;
+  if (loggedEffectErrors.size > 100) loggedEffectErrors.clear();
+  loggedEffectErrors.add(key);
+  console.error('[nodus] effect threw during flush:', err);
+}
+
+/**
+ * Install a process-global handler for errors thrown by effects during a flush. Passing `null`
+ * restores the built-in deduped-`console.error` default.
+ *
+ * A throwing effect is isolated: it is removed from the queue and the remaining pending effects
+ * still run, so one broken consumer can never strand the rest of a batch. The handler is
+ * **deliberately process-global** because the scheduler itself is process-global — there is a
+ * single flush queue shared by every atom/effect in the process, so error routing must be too.
+ */
+export function setEffectErrorHandler(handler: EffectErrorHandler | null): void {
+  effectErrorHandler = handler;
+}
+
+function reportEffectError(err: unknown): void {
+  const handler = effectErrorHandler ?? defaultEffectErrorHandler;
+  try {
+    handler(err);
+  } catch {
+    /* a handler that itself throws must not break the flush loop it is reporting into */
+  }
+}
+
 function link(dep: ReactiveNode, sub: ReactiveNode): void {
   dep.observers.add(sub);
   sub.sources.add(dep);
@@ -62,7 +103,16 @@ function flush(): void {
     while (pending.size > 0) {
       const e: EffectNode = pending.values().next().value!;
       pending.delete(e);
-      if (!e.disposed) e.run();
+      // Isolate a throwing effect: it is already dequeued, so routing its error and continuing
+      // keeps the remaining pending effects running. Critically, this also means the commit-path
+      // flush inside `transact` can never throw back into that function's rollback catch (F16).
+      if (!e.disposed) {
+        try {
+          e.run();
+        } catch (err) {
+          reportEffectError(err);
+        }
+      }
     }
   } finally {
     flushing = false;
@@ -293,16 +343,16 @@ export function transact<T>(fn: () => T): T {
   if (outer) txBackups = new Map();
   txDepth++;
   beginBatch();
+  let result: T;
   try {
-    const result = fn();
-    txDepth--;
-    if (outer) txBackups = null;
-    endBatch();
-    return result;
+    result = fn();
   } catch (err) {
     txDepth--;
-    if (outer) {
-      const backups = txBackups!;
+    // Guard on `txBackups` as well as `outer`: even if some future change let the commit path
+    // fall in here, a null backups map must never be dereferenced (that was the F16 corruption
+    // that left txDepth negative and disabled rollback for the whole session).
+    if (outer && txBackups) {
+      const backups = txBackups;
       txBackups = null;
       // Restore each atom AND re-notify its observers, so computeds that recomputed mid-transaction
       // are invalidated (not left with a stale cache) and dependent effects re-run against the
@@ -312,15 +362,22 @@ export function transact<T>(fn: () => T): T {
         node.restore(value);
         for (const obs of [...node.observers]) obs.markDirty();
       }
-      // unwind this transaction's batch and flush (an effect throwing here must not mask `err`)
-      try {
-        endBatch();
-      } catch {
-        /* an effect threw while reacting to the rollback; the original transaction error wins */
-      }
-    } else {
+    } else if (outer) {
+      txBackups = null;
+    }
+    // unwind this transaction's batch and flush (a throwing effect is isolated by flush() and can
+    // never mask `err`; the try is belt-and-suspenders for any other unwind fault)
+    try {
       endBatch();
+    } catch {
+      /* the original transaction error wins over anything raised while unwinding the rollback */
     }
     throw err;
   }
+  // Commit path — kept OUTSIDE the try above so its endBatch()/flush can never re-enter the
+  // rollback catch. txDepth and txBackups are already settled before any effect runs.
+  txDepth--;
+  if (outer) txBackups = null;
+  endBatch();
+  return result;
 }

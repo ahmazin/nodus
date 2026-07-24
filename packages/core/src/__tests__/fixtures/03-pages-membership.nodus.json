@@ -1,0 +1,8 @@
+{"schemaVersion":1,"document":{"records":[
+{"id":"page:pa","index":"a0","name":"Overview","typeName":"page"},
+{"id":"page:pb","index":"a1","name":"Detail","typeName":"page"},
+{"h":50,"id":"node:na1","pageId":"page:pa","props":{},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":100,"x":0,"y":0,"z":"a0"},
+{"h":50,"id":"node:na2","pageId":"page:pa","parentId":"node:na1","props":{},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":100,"x":200,"y":0,"z":"a1"},
+{"h":50,"id":"node:nb1","pageId":"page:pb","props":{},"type":"rect","typeName":"node","visual":{"state":"ghost"},"w":100,"x":0,"y":0,"z":"a0"},
+{"from":{"kind":"node","nodeId":"node:na1"},"id":"edge:ea","pageId":"page:pa","props":{},"to":{"kind":"node","nodeId":"node:na2"},"type":"link","typeName":"edge","visual":{"state":"solid"}}
+]}}

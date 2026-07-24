@@ -57,6 +57,36 @@ jobs:
       - name: Verify dist is consumable from outside the workspace
         run: node scripts/verify-dist.mjs
 
+  # Release-hygiene gate: a PR that changes package source must carry a changeset, so every
+  # consumer-visible change lands with release notes and a version intent. Docs/tests/tooling-only
+  # PRs are exempt via the path filter. `changeset status --since` exits non-zero when a changed
+  # package has no changeset.
+  changeset-status:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_REF: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Require a changeset for package-source changes
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF" --depth=1
+          if git diff --name-only "origin/$BASE_REF"...HEAD | grep -qE '^packages/[^/]+/src/' ; then
+            pnpm changeset status --since="origin/$BASE_REF"
+          else
+            echo "no package source changes — changeset not required"
+          fi
+
   # React-UI interaction gate: drives the real Vite app with headless Chromium (create/drag/undo/
   # rename/auto-layout/flow/cloud-picker) via scripts/browser-verify.mjs, asserting zero console
   # errors. Separate job so a browser-download/GL hiccup is isolated from the pure-logic `verify`

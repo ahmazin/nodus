@@ -36,7 +36,35 @@ const stop = autosave(editor, store, 'my-diagram', {
 
 `autosave` also flushes on `pagehide` so an edit made in the last debounce window is never dropped.
 Implement the `DocStore` interface (`list` / `load` / `save` / `remove`) to back it with your own
-storage.
+storage — following the failure semantics below.
+
+## Failure semantics
+
+Every `DocStore` operation fails the same way, so an app can tell "empty" and "absent" apart from "the
+request failed":
+
+- A failed operation **throws** a `NodusError` (from `@nodus/core`) with `code`
+  `'persistence/<op>-failed'` — `persistence/list-failed`, `persistence/load-failed`,
+  `persistence/save-failed`, `persistence/remove-failed` — and `context` `{ op, status, body? }`.
+- `load(name)` returns `null` **only** when the document does not exist (HTTP 404); every other
+  failure throws. So `null` is unambiguously "absent", never "the request failed".
+- `list()` never swallows a failure into an empty array, and `remove()` never resolves a rejected
+  delete (403/500) as success.
+
+Match thrown errors with `isNodusError(e)` and branch on `e.code` / `e.context.status` — never
+`instanceof` (it breaks across a duplicated `@nodus/core`):
+
+```ts
+import { isNodusError } from '@nodus/core';
+
+try {
+  await store.remove('my-diagram');
+} catch (e) {
+  if (isNodusError(e) && e.code === 'persistence/remove-failed') {
+    console.error('delete rejected:', e.context); // { op: 'remove', status: 403, body? }
+  }
+}
+```
 
 ## Exports
 

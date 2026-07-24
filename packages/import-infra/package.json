@@ -6,15 +6,59 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/import-infra"
   },
   "license": "MIT",
   "description": "Import live infrastructure into a Nodus diagram: Terraform state/plan JSON and Kubernetes manifests -> infra records.",
   "type": "module",
-  "main": "./src/index.ts", "types": "./src/index.ts",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "sideEffects": false,
-  "dependencies": { "@nodus/core": "workspace:*", "@nodus/preset-infra": "workspace:*", "yaml": "^2.4.2" },
-  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
-  "publishConfig": { "main": "./dist/index.js", "module": "./dist/index.js", "types": "./dist/index.d.ts", "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } } }
+  "dependencies": {
+    "@nodus/preset-infra": "workspace:^",
+    "yaml": "^2.4.2"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "peerDependencies": {
+    "@nodus/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@nodus/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/import-infra#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
+  }
 }

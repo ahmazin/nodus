@@ -27,7 +27,7 @@
     "build:icons": "tsx scripts/build-icon-packs.ts",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm verify:all && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.9",

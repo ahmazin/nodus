@@ -1,0 +1,5 @@
+{"schemaVersion":1,"document":{"records":[
+{"h":60,"id":"node:u1","label":"🎉 Launch 日本語 👨‍👩‍👧","props":{"0":3,"a":2,"z":1,"Ä":4,"ä":5,"ключ":7,"日":6,"😀":8},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":140,"x":0,"y":0,"z":"a0"},
+{"h":60,"id":"node:u2","label":"שלום עולם","props":{"name":"José café"},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":140,"x":240,"y":0,"z":"a1"},
+{"from":{"kind":"node","nodeId":"node:u1"},"id":"edge:ue","label":"À́ → 流れ ←","props":{},"to":{"kind":"node","nodeId":"node:u2"},"type":"flow","typeName":"edge","visual":{"state":"solid"}}
+]}}

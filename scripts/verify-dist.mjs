@@ -32,6 +32,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -43,9 +44,42 @@ import { tmpdir } from 'node:os';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'package.json'));
 
-// The @nodus packages we pack + install into the consumer. `react` pulls in `icons-cloud`
-// (a workspace dep), so we must install that too or `@nodus/react` won't resolve.
-const NODUS_PACKAGES = ['core', 'icons-cloud', 'preset-infra', 'layout-dagre', 'react'];
+// The @nodus packages we pack + install into the consumer for BEHAVIORAL checks. icons-cloud is
+// private (never publishes) but stays here to exercise its multi-entry build. cli and its @nodus
+// runtime deps are included so the packed bin can be executed end-to-end.
+const NODUS_PACKAGES = [
+  'core',
+  'icons-cloud',
+  'preset-infra',
+  'preset-diagrams',
+  'preset-draw',
+  'import-infra',
+  'layout-dagre',
+  'react',
+  'cli',
+];
+
+// Every publishable package (private !== true), derived from the workspace so the list can't
+// drift from reality. These all get packed for the STATIC manifest assertions.
+const ALL_PUBLISHABLE = readdirSync(join(ROOT, 'packages')).filter((name) => {
+  const f = join(ROOT, 'packages', name, 'package.json');
+  if (!existsSync(f)) return false;
+  return JSON.parse(readFileSync(f, 'utf8')).private !== true;
+});
+
+// @nodus package names that must never be referenced by a published manifest (unpublishable).
+const PRIVATE_NODUS = new Set(
+  readdirSync(join(ROOT, 'packages'))
+    .filter((name) => {
+      const f = join(ROOT, 'packages', name, 'package.json');
+      return existsSync(f) && JSON.parse(readFileSync(f, 'utf8')).private === true;
+    })
+    .map((name) => `@nodus/${name}`),
+);
+
+// Packages whose manifests may keep @nodus/core as a regular dependency: self-contained bin apps
+// that PROVIDE the peer for the extension packages they bundle. Everything else must peer-depend.
+const CORE_DEP_ALLOWED = new Set(['@nodus/cli', '@nodus/mcp']);
 
 // External runtime deps the installed packages need, and where in the monorepo each is declared
 // (require.resolve searches node_modules upward from these dirs). @napi-rs/canvas is a root devDep
@@ -56,6 +90,8 @@ const EXTERNALS = {
   '@dagrejs/dagre': ['packages/layout-dagre'],
   react: ['packages/react'],
   'react-dom': ['packages/react'],
+  gifenc: ['packages/react'],
+  yaml: ['packages/import-infra'],
 };
 
 // ---------------------------------------------------------------------------
@@ -173,6 +209,70 @@ function main() {
     }
     tarballs[pkg] = tgz;
     record(`pack ${manifest.name}`, true, expected);
+  }
+
+  // 1b) pack the REMAINING publishable packages and statically assert every packed manifest.
+  //     This is the contract gate for the published dependency topology (peer ranges, no exact
+  //     pins, no workspace: survivors), types resolution (require-condition .d.cts), and
+  //     manifest completeness (repository/homepage/bugs/engines/exports/sideEffects).
+  console.log('\nmanifest assertions (every publishable package):');
+  for (const pkg of ALL_PUBLISHABLE) {
+    if (tarballs[pkg]) continue;
+    const pkgDir = join(ROOT, 'packages', pkg);
+    const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+    const expected = `${manifest.name.replace(/^@/, '').replace(/\//g, '-')}-${manifest.version}.tgz`;
+    const r = run('pnpm', ['pack', '--pack-destination', tarballsDir], { cwd: pkgDir, timeout: 120_000 });
+    const tgz = join(tarballsDir, expected);
+    if (r.code !== 0 || !existsSync(tgz)) {
+      record(`pack ${manifest.name}`, false, r.stderr.trim().split('\n').slice(-1)[0] || 'tarball not produced');
+      continue;
+    }
+    tarballs[pkg] = tgz;
+  }
+  const strictRepoUrl = process.env.REPO_URL_STRICT === '1';
+  for (const pkg of ALL_PUBLISHABLE) {
+    if (!tarballs[pkg]) continue; // pack failure already recorded
+    const mr = run('tar', ['-xzOf', tarballs[pkg], 'package/package.json'], { timeout: 30_000 });
+    let m;
+    try {
+      m = JSON.parse(mr.stdout);
+    } catch {
+      record(`manifest @nodus/${pkg}`, false, 'unreadable package.json in tarball');
+      continue;
+    }
+    const issues = [];
+    const warns = [];
+    if (JSON.stringify(m).includes('workspace:')) issues.push('workspace: protocol survived packing');
+    for (const field of ['dependencies', 'peerDependencies']) {
+      for (const [dep, spec] of Object.entries(m[field] ?? {})) {
+        if (!dep.startsWith('@nodus/')) continue;
+        if (/^\d/.test(spec)) issues.push(`${field}.${dep} exact-pinned '${spec}' (must be a range)`);
+        if (PRIVATE_NODUS.has(dep)) issues.push(`${field}.${dep} references a private (unpublishable) package`);
+      }
+    }
+    if (m.dependencies?.['@nodus/core'] && !CORE_DEP_ALLOWED.has(m.name)) {
+      issues.push('@nodus/core must be a peerDependency for extension packages');
+    }
+    if (m.engines?.node == null) issues.push('missing engines.node');
+    if (!m.homepage) issues.push('missing homepage');
+    if (!m.bugs?.url) issues.push('missing bugs.url');
+    if (m.repository?.directory !== `packages/${pkg}`) issues.push('repository.directory wrong/missing');
+    if (!m.repository?.url) issues.push('missing repository.url');
+    else if (m.repository.url.includes('OWNER')) {
+      (strictRepoUrl ? issues : warns).push('repository.url still has the OWNER placeholder');
+    }
+    if (m.exports?.['./package.json'] !== './package.json') issues.push("missing './package.json' export");
+    if (!('sideEffects' in m)) issues.push('missing sideEffects');
+    const rootEntry = m.exports?.['.'];
+    const reqTypes = rootEntry?.require?.types;
+    if (typeof reqTypes !== 'string' || !reqTypes.endsWith('.d.cts')) {
+      issues.push("exports['.'].require.types must reference the .d.cts declarations");
+    }
+    record(
+      `manifest @nodus/${pkg}`,
+      issues.length === 0,
+      issues.join('; ') || (warns.length ? `WARN: ${warns.join('; ')}` : 'topology + completeness ok'),
+    );
   }
 
   // 2) extract tarballs into the consumer's node_modules/@nodus/*.
@@ -298,15 +398,21 @@ function main() {
     'subpaths-check.mjs',
     `
     const out = {};
-    const preset = await import('@nodus/preset-infra');
-    out['preset-infra-resolves'] =
-      typeof preset.InfraCanvas === 'function' &&
-      typeof preset.installInfraPreset === 'function' &&
-      preset.darkInfraTheme != null;
-    const dagre = await import('@nodus/layout-dagre');
-    out['layout-dagre-resolves'] = dagre.dagreLayout != null;
-    const react = await import('@nodus/react');
-    out['react-entry-resolves'] = typeof react.Nodus === 'function' && typeof react.useValue === 'function';
+    async function probe(key, spec, assert) {
+      try {
+        const mod = await import(spec);
+        out[key] = assert(mod);
+        if (!out[key]) out['_err_' + key] = 'imported but expected exports missing';
+      } catch (e) {
+        out[key] = false;
+        out['_err_' + key] = String(e && e.message ? e.message : e).split('\\n')[0];
+      }
+    }
+    await probe('preset-infra-resolves', '@nodus/preset-infra', (m) =>
+      typeof m.InfraCanvas === 'function' && typeof m.installInfraPreset === 'function' && m.darkInfraTheme != null);
+    await probe('layout-dagre-resolves', '@nodus/layout-dagre', (m) => m.dagreLayout != null);
+    await probe('react-entry-resolves', '@nodus/react', (m) =>
+      typeof m.Nodus === 'function' && typeof m.useValue === 'function');
     console.log('##RESULTS## ' + JSON.stringify(out));
   `,
   );
@@ -315,6 +421,55 @@ function main() {
     'layout-dagre-resolves': '@nodus/layout-dagre resolves from dist (dagreLayout)',
     'react-entry-resolves': '@nodus/react main entry resolves from dist (Nodus, useValue)',
   });
+
+  // --- node16 types probe: a TypeScript consumer under moduleResolution node16 must get working
+  //     declarations for BOTH module flavors. The .cts probe forces the require condition — if it
+  //     serves ESM-flavored types (no .d.cts condition) this fails with TS1479, the exact bug class.
+  writeFileSync(
+    join(consumer, 'types-esm.mts'),
+    `import { Editor } from '@nodus/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
+  );
+  writeFileSync(
+    join(consumer, 'types-cjs.cts'),
+    `import { Editor } from '@nodus/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
+  );
+  writeFileSync(
+    join(consumer, 'tsconfig.types-probe.json'),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          module: 'node16',
+          moduleResolution: 'node16',
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+        },
+        files: ['types-esm.mts', 'types-cjs.cts'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const tscBin = require.resolve('typescript/bin/tsc');
+  const probe = run('node', [tscBin, '-p', 'tsconfig.types-probe.json'], { cwd: consumer, timeout: 180_000 });
+  record(
+    'node16 types resolve (ESM .mts + CJS .cts)',
+    probe.code === 0,
+    probe.code === 0 ? 'both flavors typecheck' : (probe.stdout || probe.stderr).trim().split('\n')[0],
+  );
+
+  // --- cli bin smoke: the packed bin must execute from the tarball (shebang intact, dist imports
+  //     resolve against the consumer's node_modules). Usage text on stdout/stderr is the assertion;
+  //     exit code is not (no-args usage may exit non-zero by design).
+  const binPath = join(consumer, 'node_modules', '@nodus', 'cli', 'dist', 'bin.js');
+  const binRes = run('node', [binPath], { cwd: consumer, timeout: 30_000 });
+  const usageOk = `${binRes.stdout}${binRes.stderr}`.includes('git-native diagram toolchain');
+  record(
+    'cli bin executes from packed tarball',
+    usageOk,
+    usageOk ? 'usage banner printed' : (binRes.stderr || binRes.stdout).trim().split('\n').slice(-1)[0] || `exit ${binRes.code}`,
+  );
 
   finish();
 }
@@ -349,6 +504,7 @@ function ingest(res, labels) {
     let detail = '';
     if (key === 'esm-headless-png' && parsed._pngBytes) detail = `${parsed._pngBytes} bytes, PNG magic ok`;
     else if (key === 'esm-resolves-dist' && parsed._esmUrl) detail = parsed._esmUrl.replace(/^file:\/\//, '');
+    else if (!ok && parsed[`_err_${key}`]) detail = parsed[`_err_${key}`];
     record(label, ok, detail);
   }
 }

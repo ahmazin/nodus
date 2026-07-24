@@ -95,4 +95,11 @@ export class AnimationClock {
     for (const tw of this.tweens) if (!tw.done) return true;
     return false;
   }
+
+  /** Drop every registered tween WITHOUT firing `onDone` — the teardown counterpart to `add()`'s
+   *  cancel fn. Used by `Editor.dispose()` so in-flight animations don't run their completion
+   *  callbacks (which would touch a disposed editor's state). */
+  clear(): void {
+    this.tweens.clear();
+  }
 }

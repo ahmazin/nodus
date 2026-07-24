@@ -81,6 +81,25 @@ gesture into a single undo entry.
 - **Three distinct version counters**, kept separate: `record.version` (diff/cache keys), the
   scene-index `version` atom (render invalidation), and `schemaVersion` (serialization migration).
 
+### Errors & the failure convention
+
+The façade sorts failures into three tiers so callers always know how a call can fail:
+
+- **A synchronous programmer error throws a typed `NodusError`.** An unknown registered type
+  (`createNode`/`connect` with a type nobody registered), an invalid util, or an unsupported input is
+  a bug at the call site — it throws `new NodusError(code, message, { context })`. Branch on
+  `err.code` (a closed `NodusErrorCode` union), never on the message.
+- **An expected empty outcome returns `boolean`/`null`.** A stale or missing id — a routine
+  consequence of async UI — is not a bug: `setEdgeRouter` / `setEdgeLabel` / `addWaypoint` /
+  `setWaypoints` / `renamePage` / `moveToPage` return `false` when the id no longer resolves and
+  `true` when applied.
+- **An async or third-party fault is routed to the `error` event**, never thrown (see the paint /
+  effect / listener isolation elsewhere).
+
+Test membership with `isNodusError(e)`, **not `instanceof`** — it matches a dual-package-safe brand
+string, so it still recognizes a `NodusError` minted by a second copy of `@nodus/core` (an ESM and a
+CJS build coexisting in one process) that `instanceof` would miss.
+
 ### Signals substrate — `.get()` subscribes, `.peek()` does not
 
 A tiny dependency-free reactive engine (`atom` / `computed` / `effect` / `reaction` / `transact`).

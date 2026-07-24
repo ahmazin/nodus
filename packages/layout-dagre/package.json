@@ -6,7 +6,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/layout-dagre"
   },
   "license": "MIT",
   "description": "Dagre layered auto-layout adapter for Nodus.",
@@ -17,11 +18,11 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "dependencies": {
-    "@nodus/core": "workspace:*",
     "@dagrejs/dagre": "^1.1.4"
   },
   "scripts": {
@@ -34,10 +35,29 @@
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
     }
+  },
+  "peerDependencies": {
+    "@nodus/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@nodus/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/layout-dagre#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

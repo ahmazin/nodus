@@ -1,0 +1,4 @@
+{"schemaVersion":1,"document":{"records":[
+{"h":100,"id":"node:q1","props":{"beyondSafe":9007199254740992,"big":1e+21,"frac":0.1,"hundred":100,"intFloat":5,"neg":-3.5,"negZero":0,"small":1.5e-10,"tiny":1e-7},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":1e-7,"x":0,"y":1e+21,"z":"a0"},
+{"from":{"kind":"point","x":0,"y":1e-7},"id":"edge:qe","props":{},"to":{"kind":"point","x":1e+21,"y":0.5},"type":"flow","typeName":"edge","visual":{"state":"solid"}}
+]}}

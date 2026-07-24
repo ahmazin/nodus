@@ -37,7 +37,8 @@ describe('clipboard', () => {
     expect(ed.store.edges()).toHaveLength(1);
 
     const created = ed.duplicate([a, b]);
-    expect(created).toHaveLength(2);
+    expect(created).toHaveLength(3); // 2 nodes + the duplicated interconnecting edge (edge ids are returned now)
+    expect(created.filter((id) => id.startsWith('node:'))).toHaveLength(2);
     expect(ed.store.nodes()).toHaveLength(4);
     expect(ed.store.edges()).toHaveLength(2); // the edge was duplicated too
 

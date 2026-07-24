@@ -6,31 +6,65 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/mcp"
   },
   "license": "MIT",
   "description": "Model Context Protocol server around a headless Nodus Editor — lets an agent build, lay out, and export diagrams (incl. Mermaid import). Dependency-free MCP over stdio.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "bin": { "nodus-mcp": "./dist/bin.js" },
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "bin": {
+    "nodus-mcp": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "dependencies": {
-    "@nodus/core": "workspace:*",
-    "@nodus/preset-diagrams": "workspace:*",
-    "@nodus/preset-infra": "workspace:*",
-    "@nodus/preset-draw": "workspace:*",
-    "@nodus/from-mermaid": "workspace:*",
-    "@nodus/layout-dagre": "workspace:*",
-    "@nodus/layout-elk": "workspace:*",
+    "@nodus/core": "workspace:^",
+    "@nodus/preset-diagrams": "workspace:^",
+    "@nodus/preset-infra": "workspace:^",
+    "@nodus/preset-draw": "workspace:^",
+    "@nodus/from-mermaid": "workspace:^",
+    "@nodus/layout-dagre": "workspace:^",
+    "@nodus/layout-elk": "workspace:^",
     "@napi-rs/canvas": "^0.1.60"
   },
-  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "bin": { "nodus-mcp": "./dist/bin.js" },
-    "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } }
+    "bin": {
+      "nodus-mcp": "./dist/bin.js"
+    },
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/mcp#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
   }
 }

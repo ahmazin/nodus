@@ -1,0 +1,6 @@
+{"schemaVersion":1,"document":{"records":[
+{"id":"page:p1","index":"a0","name":"Main","typeName":"page"},
+{"h":64,"id":"node:n1","label":"API Gateway","locked":true,"meta":{"createdBy":"seed","tags":["public","edge"]},"pageId":"page:p1","props":{"endpoints":["/health","/ready"],"port":8080,"replicas":3},"rotation":15,"style":{"dash":[4,2],"fill":"#22d3ee","radius":8,"stroke":"#0e7490","strokeWidth":1.5},"type":"infra.service","typeName":"node","visual":{"focused":true,"overlay":"error","state":"accent"},"w":160,"x":120,"y":80,"z":"a0"},
+{"h":50,"hidden":true,"id":"node:n2","pageId":"page:p1","props":{},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":100,"x":400,"y":200,"z":"a1"},
+{"from":{"kind":"node","nodeId":"node:n1"},"id":"edge:e1","label":"requests","meta":{"protocol":"grpc"},"pageId":"page:p1","props":{"bidirectional":false},"style":{"dash":[6,3],"stroke":"#f59e0b","strokeWidth":2},"to":{"kind":"outline","nodeId":"node:n2"},"type":"flow","typeName":"edge","visual":{"state":"solid"}}
+]}}

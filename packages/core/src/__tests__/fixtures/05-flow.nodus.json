@@ -1,0 +1,5 @@
+{"schemaVersion":1,"document":{"records":[
+{"h":50,"id":"node:f1","props":{},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":100,"x":0,"y":0,"z":"a0"},
+{"h":50,"id":"node:f2","props":{},"type":"rect","typeName":"node","visual":{"state":"solid"},"w":100,"x":300,"y":0,"z":"a1"},
+{"flow":{"color":"#22d3ee","count":6,"data":42,"reverse":true,"scale":{"colors":[{"at":0,"color":"#22c55e"},{"at":50,"color":"#f59e0b"},{"at":90,"color":"#ef4444"}],"count":[2,10],"domain":[0,100],"gradient":true,"size":[2,6],"speed":[20,120]},"size":4,"speed":80,"style":"dots"},"from":{"kind":"node","nodeId":"node:f1"},"id":"edge:fe","props":{},"to":{"kind":"node","nodeId":"node:f2"},"type":"flow","typeName":"edge","visual":{"state":"solid"}}
+]}}

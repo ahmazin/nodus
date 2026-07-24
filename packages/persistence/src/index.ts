@@ -7,7 +7,7 @@
  * The document format is the versioned `Snapshot` with defensive restore, so this is a thin layer.
  */
 
-import { effect, toCanonicalString, type Dispose, type Editor, type Snapshot } from '@nodus/core';
+import { effect, NodusError, toCanonicalString, type Dispose, type Editor, type Snapshot } from '@nodus/core';
 
 export interface DocMeta {
   name: string;
@@ -16,10 +16,32 @@ export interface DocMeta {
   edges: number;
 }
 
+/**
+ * A named-document store. Failure semantics are uniform across implementations: a failed operation
+ * **throws** a {@link NodusError} whose `code` is `'persistence/<op>-failed'` (e.g.
+ * `'persistence/load-failed'`) and whose `context` carries `{ op, status, body? }`. Success is never
+ * ambiguous — an empty list means "no documents", and `null` from {@link load} means "absent".
+ * Match thrown errors with `isNodusError(e)` from `@nodus/core`, never `instanceof`.
+ */
 export interface DocStore {
+  /**
+   * Metadata for every stored document. An empty array means the store is empty; a store failure
+   * **throws** `NodusError('persistence/list-failed')` — never a swallowed error masquerading as
+   * "no documents".
+   */
   list(): Promise<DocMeta[]>;
+  /**
+   * Load a document by name. Returns `null` **only** when the document does not exist (e.g. HTTP
+   * 404); any other failure **throws** `NodusError('persistence/load-failed')`. So `null` is
+   * unambiguously "absent", never "the request failed".
+   */
   load(name: string): Promise<Snapshot | null>;
+  /** Persist a document. **Throws** `NodusError('persistence/save-failed')` on failure. */
   save(name: string, snapshot: Snapshot): Promise<void>;
+  /**
+   * Remove a document. **Throws** `NodusError('persistence/remove-failed')` if the store rejects the
+   * delete — a 403/500 never resolves as a successful delete.
+   */
   remove(name: string): Promise<void>;
 }
 
@@ -80,6 +102,20 @@ export class LocalDocStore implements DocStore {
   }
 }
 
+type DocOp = 'list' | 'load' | 'save' | 'remove';
+
+/**
+ * Build the typed error for a non-OK HTTP response. The response body is read (best-effort, capped)
+ * into `context.body` for diagnostics, so callers branch on `err.code`/`err.context.status` rather
+ * than parsing a message string.
+ */
+async function httpDocStoreError(op: DocOp, r: Response): Promise<NodusError<string>> {
+  const body = (await r.text().catch(() => '')).slice(0, 1000);
+  const context: { op: DocOp; status: number; body?: string } = { op, status: r.status };
+  if (body) context.body = body;
+  return new NodusError(`persistence/${op}-failed`, `${op} failed: HTTP ${r.status}`, { context });
+}
+
 /** Talks to the Nodus doc server (see scripts/doc-server.mjs). */
 export class HttpDocStore implements DocStore {
   constructor(private readonly baseUrl: string) {}
@@ -88,12 +124,13 @@ export class HttpDocStore implements DocStore {
   }
   async list(): Promise<DocMeta[]> {
     const r = await fetch(this.url());
-    return r.ok ? ((await r.json()) as DocMeta[]) : [];
+    if (!r.ok) throw await httpDocStoreError('list', r); // never swallow a failure into an empty list
+    return (await r.json()) as DocMeta[];
   }
   async load(name: string): Promise<Snapshot | null> {
     const r = await fetch(this.url(name));
-    if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`load failed: ${r.status}`);
+    if (r.status === 404) return null; // the ONLY null — "absent", not "failed"
+    if (!r.ok) throw await httpDocStoreError('load', r);
     return (await r.json()) as Snapshot;
   }
   async save(name: string, snapshot: Snapshot): Promise<void> {
@@ -101,10 +138,11 @@ export class HttpDocStore implements DocStore {
     // (LocalDocStore/MemoryDocStore stay on JSON.stringify — their doc-list sort reads meta.updated,
     // which canonical bytes intentionally drop.)
     const r = await fetch(this.url(name), { method: 'PUT', headers: { 'content-type': 'application/json' }, body: toCanonicalString(snapshot) });
-    if (!r.ok) throw new Error(`save failed: ${r.status}`);
+    if (!r.ok) throw await httpDocStoreError('save', r);
   }
   async remove(name: string): Promise<void> {
-    await fetch(this.url(name), { method: 'DELETE' });
+    const r = await fetch(this.url(name), { method: 'DELETE' });
+    if (!r.ok) throw await httpDocStoreError('remove', r); // a rejected delete must not read as success
   }
 }
 

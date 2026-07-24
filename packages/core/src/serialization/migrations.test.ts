@@ -9,8 +9,8 @@ function snap(records: unknown[], typeVersions?: Record<string, number>): Snapsh
 }
 // v1 renames {r} -> {radius}; v2 doubles it. Type is at version 2.
 const migs: Migration[] = [
-  (p) => ({ radius: p.r, ...(({ r, ...rest }) => rest)(p) }),
-  (p) => ({ ...p, radius: (p.radius as number) * 2 }),
+  { id: 'r-to-radius', migrate: (p) => ({ radius: p.r, ...(({ r, ...rest }) => rest)(p) }) },
+  { id: 'double-radius', migrate: (p) => ({ ...p, radius: (p.radius as number) * 2 }) },
 ];
 const resolve = (rec: { typeName: string; type?: string }): Migration[] | undefined =>
   rec.type === 'box' ? migs : undefined;
@@ -32,7 +32,7 @@ describe('restore migration execution', () => {
     expect(r.unmigrated).toBe(0);
   });
   it('isolates a throwing migration: drops that record, keeps the rest', () => {
-    const boom: Migration[] = [() => { throw new Error('bad'); }];
+    const boom: Migration[] = [{ id: 'boom', migrate: () => { throw new Error('bad'); } }];
     const r = restore(snap([node('bad', 't', {}), node('ok', 'box', { r: 1 })]),
       { resolveMigrations: (rec) => (rec.type === 't' ? boom : rec.type === 'box' ? migs : undefined) });
     expect(r.records.map((x) => x.id)).toEqual(['ok']);
@@ -76,8 +76,8 @@ import * as nodus from '../index.js';
 it('exports Migration and RestoreOptions from the package root', () => {
   // types are compile-time; this asserts the value graph imports cleanly and restore is the public one
   expect(typeof nodus.restore).toBe('function');
-  const _m: nodus.Migration = (p) => p; // fails typecheck if Migration is not exported
+  const _m: nodus.Migration = { id: 'noop', migrate: (p) => p }; // fails typecheck if Migration not exported
   const _o: nodus.RestoreOptions = {};  // fails typecheck if RestoreOptions is not exported
-  expect(_m({ a: 1 })).toEqual({ a: 1 });
+  expect(_m.migrate({ a: 1 })).toEqual({ a: 1 });
   expect(_o).toBeDefined();
 });

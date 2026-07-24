@@ -6,16 +6,55 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/nodus"
+    "url": "git+https://github.com/OWNER/nodus.git",
+    "directory": "packages/preset-diagrams"
   },
   "license": "MIT",
   "description": "General diagram presets for Nodus: flowchart, state-machine, ERD, and org-chart node/edge types plus builder helpers.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "sideEffects": false,
-  "dependencies": { "@nodus/core": "workspace:*" },
-  "scripts": { "build": "tsup", "clean": "rm -rf dist" },
-  "publishConfig": { "main": "./dist/index.js", "module": "./dist/index.js", "types": "./dist/index.d.ts", "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } } }
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "peerDependencies": {
+    "@nodus/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@nodus/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/preset-diagrams#readme",
+  "bugs": {
+    "url": "https://github.com/OWNER/nodus/issues"
+  }
 }

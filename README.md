@@ -92,6 +92,10 @@ and hosts the inline label editor. The full interactive demo is in
 [`examples/browser`](./examples/browser) (`pnpm dev` → http://localhost:5188). See
 [`@nodus/react`](./packages/react#readme) for panels, hooks, the design system, and PNG export.
 
+> **React SSR / RSC:** the binding is client-only for now — under Next.js or another SSR framework,
+> render `<Nodus>` and the panels client-side (e.g. `dynamic(() => …, { ssr: false })`). Full SSR
+> support is in progress; see the [React binding guide](./apps/site/src/pages/docs/react.md).
+
 ## Git-native diagrams
 
 `@nodus/core` serializes deterministically — stable key order, normalized numbers — so a diagram is a
@@ -182,6 +186,14 @@ a layered Canvas-2D renderer, with all type-specific behavior in engine-owned re
   (render invalidation), `schemaVersion` (migration).
 
 See [`@nodus/core`](./packages/core#readme) for the full architecture and extension model.
+
+## Stability
+
+Every `@nodus/*` package is **pre-1.0 (0.x)** — a minor bump (`0.Y.0`) may break; a patch (`0.0.Z`) is
+additive or fixes only. Canonical `*.nodus.json` bytes are a versioned contract (a byte change is
+breaking). See [`docs/stability.md`](./docs/stability.md) for the full policy — the public-API
+boundary, deprecations, and the canonical-byte contract — and [`RELEASING.md`](./RELEASING.md) for the
+changesets release flow.
 
 ## License
 

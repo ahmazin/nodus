@@ -40,18 +40,18 @@ describe('EventBus robustness', () => {
     const bus = new EventBus();
     let a = 0;
     let b = 0;
-    const off = bus.on('x', () => {
+    const off = bus.on('custom:x', () => {
       a++;
-      if (a === 1) bus.on('x', () => b++);
+      if (a === 1) bus.on('custom:x', () => b++);
     });
-    bus.emit({ type: 'x' });
+    bus.emit({ type: 'custom:x' });
     expect(a).toBe(1);
     expect(b).toBe(0); // the listener added mid-dispatch does NOT run for this same event
-    bus.emit({ type: 'x' });
+    bus.emit({ type: 'custom:x' });
     expect(b).toBe(1); // it runs on the next emit
     off();
     // (empty-set cleanup on unsubscribe is internal; exercised here without leaking)
-    expect(() => bus.emit({ type: 'x' })).not.toThrow();
+    expect(() => bus.emit({ type: 'custom:x' })).not.toThrow();
   });
 });
 

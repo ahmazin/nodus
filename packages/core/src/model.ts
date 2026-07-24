@@ -218,11 +218,26 @@ export type Change =
 /** When a change should be recorded into undo history. */
 export type CapturePolicy = 'immediately' | 'later' | 'never';
 
+/**
+ * Who originated a change, which decides whether it enters undo history:
+ * - `'user'` — a direct local edit (create/move/style). Recorded.
+ * - `'program'` — a local edit made on the user's behalf (undo/redo replay, layout, importers).
+ *   Recorded when `capture` allows, so e.g. a programmatic layout is undoable as one step.
+ * - `'remote'` — a change applied from another peer via `applyRemote`. NOT recorded: a remote edit is
+ *   authoritative history from elsewhere, not a local action the user can undo (undoing it would
+ *   diverge the shared document). Remote applies also bypass before-apply interception.
+ */
 export type ChangeSource = 'user' | 'remote' | 'program';
 
 export interface ApplyOptions {
   capture?: CapturePolicy;
   source?: ChangeSource;
+  /**
+   * Run the store's registered before-apply interceptors (default `true`). Undo/redo and remote
+   * replays pass `false` — they apply recorded/authoritative deltas verbatim, and re-transforming
+   * them would double-apply constraints and corrupt the recorded inverse.
+   */
+  intercept?: boolean;
 }
 
 // ---- id helpers ----
@@ -240,7 +255,13 @@ function autoIdSuffix(n: number): string {
   return `${n.toString(36)}x${(((n + 1) * ID_HASH_MULT) % ID_HASH_MASK).toString(36)}`;
 }
 
-/** Generate a stable, collision-resistant id for a record type. Not time/random dependent. */
+/**
+ * Generate a stable, collision-resistant id for a record type. Not time/random dependent.
+ *
+ * @internal Backs `deterministicIdFactory()` and is scheduled to leave the public barrel (B5). Prefer
+ * `editor.ids.make(...)` (an instance {@link IdFactory}) — the module-global counter this reads is
+ * shared by every editor in the process, which is exactly the cross-instance collision A6 removes.
+ */
 export function makeId<T extends string>(typeName: T, seed?: string): Id<T> {
   const suffix = seed ?? autoIdSuffix(idCounter++);
   return `${typeName}:${suffix}` as Id<T>;
@@ -271,6 +292,9 @@ function autoIdCounterValue(id: string): number | null {
  * and is otherwise never seeded — without this, draw → save → reopen → draw regenerates a loaded node's
  * id, which the store then refuses as a duplicate `add` (see `Store.apply`). Called from `Store.load`.
  * Covers every record type (node/edge/page share this one counter).
+ *
+ * @internal Backs `deterministicIdFactory()` and is scheduled to leave the public barrel (B5). The
+ * instance path is `editor.ids.seed(...)` / `StoreOptions.idFactory`.
  */
 export function seedIdCounter(ids: Iterable<string>): void {
   for (const id of ids) {

@@ -8,6 +8,7 @@
 import type { EdgeRecord, Endpoint, NodeRecord, NodusRecord, PageRecord } from '../model.js';
 import { isEdge, isNode, isPage } from '../model.js';
 import type { Migration } from '../registries/index.js';
+import { NodusError } from '../errors/index.js';
 
 export type { NodusRecord, Migration };
 
@@ -20,7 +21,14 @@ export const SCHEMA_VERSION = 1;
  * of crashing on a hand-edited or corrupt `.nodus.json`.
  */
 export interface SerializationIssue {
-  code: 'non-array-records' | 'invalid-record' | 'duplicate-id' | 'bad-schema-version' | 'non-finite-number' | 'excess-nesting';
+  code:
+    | 'non-array-records'
+    | 'invalid-record'
+    | 'duplicate-id'
+    | 'bad-schema-version'
+    | 'non-finite-number'
+    | 'excess-nesting'
+    | 'invalid-snapshot';
   message: string;
   /** The offending value, when one can be attached (the raw entry, the duplicate id, the number). */
   value?: unknown;
@@ -302,17 +310,32 @@ function normalizePage(r: Record<string, unknown>): PageRecord | null {
 
 export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
   const onError = opts?.onError;
+
+  // Guard a null / non-object snapshot (bad JSON.parse result, wrong argument) — reading
+  // `input.schemaVersion` on it would throw a raw TypeError. Report it and return an empty result.
+  if (input === null || typeof input !== 'object') {
+    onError?.({ code: 'invalid-snapshot', message: 'snapshot is not an object; nothing to restore', value: input });
+    return { records: [], droppedEdges: 0, migrationErrors: 0, unmigrated: 0, repointedPageRefs: 0 };
+  }
+
   const typeVersions = input.typeVersions ?? {};
 
-  // schemaVersion: only a non-negative integer ≤ SCHEMA_VERSION is a version we can honour. A
-  // future/negative/non-integer/NaN/string value would otherwise silently skip migrations and load
-  // as-is; report it and fall back to a best-effort current-schema load.
+  // schemaVersion: a non-negative integer ≤ SCHEMA_VERSION is a version we can honour. A well-formed
+  // integer GREATER than SCHEMA_VERSION means the file was written by a newer Nodus — refuse it hard
+  // rather than silently skip its migrations and mangle the data. Anything malformed
+  // (negative / non-integer / NaN / string) stays best-effort: report + load as current.
   let fromSchema = SCHEMA_VERSION;
   const rawSchema: unknown = input.schemaVersion;
   if (rawSchema === undefined) {
     // absent ⇒ treat as current (a snapshot may predate the field); not an error.
   } else if (typeof rawSchema === 'number' && Number.isInteger(rawSchema) && rawSchema >= 0 && rawSchema <= SCHEMA_VERSION) {
     fromSchema = rawSchema;
+  } else if (typeof rawSchema === 'number' && Number.isInteger(rawSchema) && rawSchema > SCHEMA_VERSION) {
+    throw new NodusError(
+      'schema-too-new',
+      `This diagram was written by a newer version of Nodus (schemaVersion ${rawSchema}); this tool supports up to ${SCHEMA_VERSION}. Upgrade to open it.`,
+      { context: { fileSchema: rawSchema, supported: SCHEMA_VERSION } },
+    );
   } else {
     onError?.({ code: 'bad-schema-version', message: `schemaVersion ${String(rawSchema)} is outside the supported range [0, ${SCHEMA_VERSION}]; loading as ${SCHEMA_VERSION}`, value: rawSchema });
   }
@@ -382,7 +405,7 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
         } else if (stored < current) {
           try {
             let props = (r.props as Record<string, unknown>) ?? {};
-            for (let i = stored; i < current; i++) props = steps[i]!(props);
+            for (let i = stored; i < current; i++) props = steps[i]!.migrate(props);
             r = { ...r, props };
           } catch {
             migrationErrors++;

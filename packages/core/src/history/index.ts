@@ -23,9 +23,10 @@ export class History {
 
   constructor(private readonly applyFn: ApplyFn) {}
 
-  /** Called for every store change; records into history unless capture is `never`. */
+  /** Called for every store change; records into history unless capture is `never` or the change came
+   *  from a remote peer (a remote edit is authoritative, not a local action to undo — see ChangeSource). */
   record(info: ChangeInfo): void {
-    if (info.capture === 'never' || info.changes.length === 0) return;
+    if (info.capture === 'never' || info.source === 'remote' || info.changes.length === 0) return;
     this.redoStack.length = 0;
 
     if (info.capture === 'immediately') {
@@ -56,22 +57,29 @@ export class History {
     return this.redoStack.length > 0;
   }
 
-  undo(): void {
+  /** Undo the most recent entry. Returns `true` if something was undone, `false` on an empty stack. */
+  undo(): boolean {
     this.open = null;
     const entry = this.undoStack.pop();
-    if (!entry) return;
-    this.applyFn(entry.inverse, { capture: 'never', source: 'program' });
+    if (!entry) return false;
+    // Replay the recorded inverse verbatim: `intercept: false` so interceptors don't re-transform it
+    // (that would double-apply constraints and corrupt the recorded deltas).
+    this.applyFn(entry.inverse, { capture: 'never', source: 'program', intercept: false });
     this.redoStack.push(entry);
     this.bump();
+    return true;
   }
 
-  redo(): void {
+  /** Redo the most recently undone entry. Returns `true` if something was redone, else `false`. */
+  redo(): boolean {
     this.open = null;
     const entry = this.redoStack.pop();
-    if (!entry) return;
-    this.applyFn(entry.forward, { capture: 'never', source: 'program' });
+    if (!entry) return false;
+    // Replay the recorded forward deltas verbatim (see undo) — no re-interception.
+    this.applyFn(entry.forward, { capture: 'never', source: 'program', intercept: false });
     this.undoStack.push(entry);
     this.bump();
+    return true;
   }
 
   clear(): void {
