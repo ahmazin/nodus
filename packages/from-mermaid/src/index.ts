@@ -10,7 +10,7 @@
  * NOT supported (parsed leniently — ignored, never thrown): flowchart subgraphs, `&` multi-targets,
  * class/style directives, composite states, ER attribute keys beyond PK/FK. Unknown lines are skipped.
  */
-import { type Editor, type NodusRecord } from '@nodus/core';
+import { NodusError, type Editor, type NodusRecord } from '@nodus/core';
 import {
   buildERD,
   buildFlowchart,
@@ -26,12 +26,26 @@ import {
 export type MermaidKind = 'flowchart' | 'state' | 'er';
 export type Direction = 'TB' | 'LR' | 'RL' | 'BT';
 
+/**
+ * A body statement that parsed cleanly as the right format but matched no conversion rule. Typed so a
+ * caller can tell the user *which* line was dropped rather than only "skipped 3" (F34). `code` is a
+ * stable string; `statement` is the locus.
+ */
+export interface MermaidIssue {
+  code: 'unparsable-statement';
+  message: string;
+  /** The offending body statement — answers "which line?". */
+  statement: string;
+}
+
 export interface ParsedMermaid {
   kind: MermaidKind;
   direction: Direction;
   records: NodusRecord[];
   /** Count of body statements that matched no rule (flowchart only in v1; 0 for state/er). */
   skipped: number;
+  /** One typed issue per skipped statement (never silently dropped). Same count as `skipped`. */
+  issues: MermaidIssue[];
 }
 
 // ---------------------------------------------------------------------------
@@ -209,10 +223,10 @@ function parseFlowStatement(stmt: string): { nodes: NodeTok[]; links: LinkTok[] 
   return { nodes, links };
 }
 
-function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]; skipped: number } {
+function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]; skipped: number; issues: MermaidIssue[] } {
   const steps = new Map<string, FlowStep>();
   const links: FlowLink[] = [];
-  let skipped = 0;
+  const issues: MermaidIssue[] = [];
   const note = (t: NodeTok): void => {
     const existing = steps.get(t.id);
     // A labelled/shaped occurrence wins over a bare reference (`A[Start]` beats a later bare `A`).
@@ -223,7 +237,7 @@ function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]
     if (/^(subgraph|end|direction|class|classDef|style|linkStyle|click)\b/i.test(line)) continue;
     const parsed = parseFlowStatement(line);
     if (!parsed || parsed.nodes.length === 0) {
-      skipped++;
+      issues.push({ code: 'unparsable-statement', message: `Unrecognized flowchart statement: ${line}`, statement: line });
       continue;
     }
     for (const n of parsed.nodes) note(n);
@@ -234,7 +248,7 @@ function parseFlowchart(lines: string[]): { steps: FlowStep[]; links: FlowLink[]
       links.push(l.label ? { from: from.id, to: to.id, label: l.label } : { from: from.id, to: to.id });
     }
   }
-  return { steps: [...steps.values()], links, skipped };
+  return { steps: [...steps.values()], links, skipped: issues.length, issues };
 }
 
 // ---------------------------------------------------------------------------
@@ -375,23 +389,30 @@ export const MAX_MERMAID_BYTES = 512_000;
 /** Parse a Mermaid string into diagram records (unpositioned — run a layout to place them). */
 export function fromMermaid(src: string): ParsedMermaid {
   if (src.length > MAX_MERMAID_BYTES)
-    throw new Error(`fromMermaid: source too large (${src.length} chars > ${MAX_MERMAID_BYTES} cap)`);
+    throw new NodusError('from-mermaid/source-too-large', `fromMermaid: source too large (${src.length} chars > ${MAX_MERMAID_BYTES} cap)`, {
+      context: { bytes: src.length, cap: MAX_MERMAID_BYTES },
+    });
   const lines = cleanLines(src);
-  if (lines.length === 0) throw new Error('fromMermaid: empty source');
+  if (lines.length === 0) throw new NodusError('from-mermaid/parse-failed', 'fromMermaid: empty source', { context: { reason: 'empty' } });
   const kind = detectKind(lines[0]!);
-  if (!kind) throw new Error(`fromMermaid: unrecognized diagram header "${lines[0]}" (expected graph/flowchart, stateDiagram, or erDiagram)`);
+  if (!kind)
+    throw new NodusError('from-mermaid/parse-failed', `fromMermaid: unrecognized diagram header "${lines[0]}" (expected graph/flowchart, stateDiagram, or erDiagram)`, {
+      context: { reason: 'unrecognized-header', header: lines[0] },
+    });
   const direction = kind === 'flowchart' ? readDirection(lines[0]!) : 'TB';
 
   let records: NodusRecord[];
   let skipped = 0;
+  let issues: MermaidIssue[] = [];
   if (kind === 'flowchart') {
     const parsed = parseFlowchart(lines);
     records = buildFlowchart(parsed);
     skipped = parsed.skipped;
+    issues = parsed.issues;
   } else if (kind === 'state') records = buildStateMachine(parseStateDiagram(lines));
   else records = buildERD(parseERDiagram(lines));
 
-  return { kind, direction, records, skipped };
+  return { kind, direction, records, skipped, issues };
 }
 
 export interface ImportMermaidOptions {

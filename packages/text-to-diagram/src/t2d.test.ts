@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type EdgeRecord } from '@nodus/core';
+import { Editor, isNodusError, type EdgeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
-import { DiagramSpecError, diagramSystemPrompt, diagramTool, MAX_SPEC_ELEMENTS, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
+import { analyzeSpec, DiagramSpecError, diagramSystemPrompt, diagramTool, MAX_SPEC_ELEMENTS, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
 
 describe('text-to-diagram', () => {
   it('exposes a valid Anthropic tool definition + system prompt', () => {
@@ -79,6 +79,56 @@ describe('text-to-diagram', () => {
     it('accepts an ordinary spec', () => {
       const spec = { nodes: [{ id: 'a' }, { id: 'b' }], edges: [{ from: 'a', to: 'b' }] } as DiagramSpec;
       expect(normalizeSpec(spec).nodes).toHaveLength(2);
+    });
+  });
+
+  // F34 — the shared importer error convention: DiagramSpecError is a coded NodusError, the tool-use
+  // boundary no longer throws a bare Error, and dropped/coerced elements surface as typed issues.
+  describe('error convention (F34)', () => {
+    const thrown = (fn: () => unknown): unknown => {
+      try {
+        fn();
+      } catch (e) {
+        return e;
+      }
+      throw new Error('expected the call to throw, but it returned');
+    };
+
+    it('a malformed spec throws a coded NodusError (invalid-spec)', () => {
+      const e = thrown(() => normalizeSpec(null as unknown as DiagramSpec));
+      expect(e).toBeInstanceOf(DiagramSpecError);
+      expect(isNodusError(e)).toBe(true);
+      expect((e as { code: string }).code).toBe('text-to-diagram/invalid-spec');
+    });
+
+    it('the element cap uses a distinct spec-too-large code', () => {
+      const nodes = Array.from({ length: MAX_SPEC_ELEMENTS + 1 }, (_, i) => ({ id: `n${i}` }));
+      const e = thrown(() => normalizeSpec({ nodes } as DiagramSpec));
+      expect((e as { code: string }).code).toBe('text-to-diagram/spec-too-large');
+    });
+
+    it('recordsFromToolUse throws a coded NodusError (not a bare Error) on the wrong tool name', () => {
+      const e = thrown(() => recordsFromToolUse({ name: 'not_render', input: {} }));
+      expect(isNodusError(e)).toBe(true);
+      expect((e as { code: string }).code).toBe('text-to-diagram/invalid-spec');
+    });
+
+    it('analyzeSpec surfaces typed issues for dropped/coerced elements instead of losing them silently', () => {
+      const spec = {
+        nodes: ['junk', { id: 'ok', type: 'db', label: 'OK' }, { id: 'svc', type: 'nonsense', label: 'S' }],
+        edges: [{ from: 'ok', to: 'ghost' }],
+      } as unknown as DiagramSpec;
+      const { records, issues } = analyzeSpec(spec);
+      // records match recordsFromSpec's existing behavior (2 valid nodes; ghost edge dropped)
+      expect(records.filter((r) => r.typeName === 'node')).toHaveLength(2);
+      expect(records.filter((r) => r.typeName === 'edge')).toHaveLength(0);
+      expect(issues.map((i) => i.code).sort()).toEqual(['coerced-type', 'dropped-edge', 'dropped-node']);
+      expect(issues.find((i) => i.code === 'coerced-type')!.ref).toBe('svc');
+      expect(issues.find((i) => i.code === 'dropped-edge')!.ref).toBe('ok→ghost');
+    });
+
+    it('a clean spec yields zero issues (regression guard)', () => {
+      expect(analyzeSpec({ nodes: [{ id: 'a', type: 'db', label: 'A' }] }).issues).toEqual([]);
     });
   });
 });

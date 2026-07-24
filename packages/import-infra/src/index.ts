@@ -12,6 +12,7 @@
 import {
   isEdge,
   isNode,
+  NodusError,
   type Change,
   type EdgeRecord,
   type Endpoint,
@@ -22,14 +23,22 @@ import {
 import { modelToRecords, type InfraModel } from '@nodus/preset-infra';
 import { parseAllDocuments } from 'yaml';
 
+/** Namespaced failure codes for this importer (F34). `parse-failed` = input is not the right format;
+ *  `input-too-large` = a resource-exhaustion guard (depth/element/byte cap) tripped. */
+export type ImportErrorCode = 'import-infra/parse-failed' | 'import-infra/input-too-large';
+
 /**
  * A structured, catchable error raised at the import trust boundary. Importers parse UNTRUSTED
  * shared files (Terraform JSON, Kubernetes manifests); a malformed or hostile input surfaces as an
  * `ImportError` with a clean message rather than a raw parser exception or a stack overflow.
+ *
+ * It is a {@link NodusError} subclass, so it carries a machine-readable `code` and matches
+ * `isNodusError(e)` across the dual-package seam — branch on `e.code`, never `instanceof` across
+ * package copies.
  */
-export class ImportError extends Error {
-  constructor(message: string) {
-    super(message);
+export class ImportError extends NodusError<ImportErrorCode> {
+  constructor(message: string, opts: { code?: ImportErrorCode; context?: Record<string, unknown>; cause?: unknown } = {}) {
+    super(opts.code ?? 'import-infra/parse-failed', message, { context: opts.context, cause: opts.cause });
     this.name = 'ImportError';
   }
 }
@@ -78,7 +87,11 @@ interface TfModule {
 
 function collectResources(mod: TfModule | undefined, out: TfResource[], depth = 0): void {
   if (!mod) return;
-  if (depth > MAX_DEPTH) throw new ImportError(`Terraform module nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
+  if (depth > MAX_DEPTH)
+    throw new ImportError(`Terraform module nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'module-nesting', limit: MAX_DEPTH },
+    });
   for (const r of mod.resources ?? []) out.push(r);
   for (const c of mod.child_modules ?? []) collectResources(c, out, depth + 1);
 }
@@ -96,7 +109,11 @@ interface TfConfigModule {
 /** Recursively collect configuration resources, qualifying each address with its module path. */
 function collectConfigResources(mod: TfConfigModule | undefined, modulePrefix: string, out: TfConfigResource[], depth = 0): void {
   if (!mod) return;
-  if (depth > MAX_DEPTH) throw new ImportError(`Terraform configuration nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
+  if (depth > MAX_DEPTH)
+    throw new ImportError(`Terraform configuration nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'configuration-nesting', limit: MAX_DEPTH },
+    });
   for (const r of mod.resources ?? []) {
     const base = r.address ?? (r.type && r.name ? `${r.type}.${r.name}` : undefined);
     if (!base) continue;
@@ -110,7 +127,11 @@ function collectConfigResources(mod: TfConfigModule | undefined, modulePrefix: s
 /** Recursively gather every `references: string[]` under an expressions tree (blocks nest arrays/objects). */
 function collectReferences(expr: unknown, out: string[], depth = 0): void {
   if (!expr || typeof expr !== 'object') return;
-  if (depth > MAX_DEPTH) throw new ImportError(`Terraform expression nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`);
+  if (depth > MAX_DEPTH)
+    throw new ImportError(`Terraform expression nesting exceeds ${MAX_DEPTH} levels — aborting import (malformed or malicious input).`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'expression-nesting', limit: MAX_DEPTH },
+    });
   if (Array.isArray(expr)) {
     for (const v of expr) collectReferences(v, out, depth + 1);
     return;
@@ -168,16 +189,31 @@ export interface TerraformAnalysis {
 }
 
 export function analyzeTerraform(showJson: unknown): TerraformAnalysis {
+  // Malformed input must be distinguishable from an empty diagram: refuse anything that is not a
+  // `terraform show -json` object rather than silently returning zero records (F34).
+  if (showJson === null || typeof showJson !== 'object' || Array.isArray(showJson))
+    throw new ImportError('Terraform input must be a `terraform show -json` object.', {
+      code: 'import-infra/parse-failed',
+      context: { received: showJson === null ? 'null' : Array.isArray(showJson) ? 'array' : typeof showJson },
+    });
   const root = showJson as {
     values?: { root_module?: TfModule };
     planned_values?: { root_module?: TfModule };
     configuration?: { root_module?: TfConfigModule };
   };
+  if (root.values === undefined && root.planned_values === undefined && root.configuration === undefined)
+    throw new ImportError('Not `terraform show -json` output — expected a `values`, `planned_values`, or `configuration` block.', {
+      code: 'import-infra/parse-failed',
+      context: { keys: Object.keys(root).slice(0, 20) },
+    });
   const rootModule = root.values?.root_module ?? root.planned_values?.root_module;
   const resources: TfResource[] = [];
   collectResources(rootModule, resources);
   if (resources.length > MAX_IMPORT_ELEMENTS)
-    throw new ImportError(`Terraform state has ${resources.length} resources (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`);
+    throw new ImportError(`Terraform state has ${resources.length} resources (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'elements', count: resources.length, limit: MAX_IMPORT_ELEMENTS },
+    });
 
   const nodeKeys = resources.map((r) => r.address);
   const addresses = new Set(nodeKeys);
@@ -294,7 +330,11 @@ function toK8sObjects(input: string | K8sObject[]): K8sObject[] {
     } catch (e) {
       // The YAML parser throws on adversarial input (e.g. the alias bomb it caps at maxAliasCount).
       // Surface it as a structured ImportError at the trust boundary, not a raw parser exception.
-      throw new ImportError(`Invalid Kubernetes YAML: ${e instanceof Error ? e.message : String(e)}`);
+      throw new ImportError(`Invalid Kubernetes YAML: ${e instanceof Error ? e.message : String(e)}`, {
+        code: 'import-infra/parse-failed',
+        context: { format: 'kubernetes-yaml' },
+        cause: e,
+      });
     }
   } else {
     raw = input;
@@ -317,10 +357,16 @@ export interface KubernetesAnalysis {
 
 export function analyzeKubernetes(input: string | K8sObject[]): KubernetesAnalysis {
   if (typeof input === 'string' && input.length > MAX_IMPORT_BYTES)
-    throw new ImportError(`Kubernetes manifest is ${input.length} bytes (> ${MAX_IMPORT_BYTES} cap) — aborting import to avoid a main-thread freeze.`);
+    throw new ImportError(`Kubernetes manifest is ${input.length} bytes (> ${MAX_IMPORT_BYTES} cap) — aborting import to avoid a main-thread freeze.`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'bytes', bytes: input.length, limit: MAX_IMPORT_BYTES },
+    });
   const objects = toK8sObjects(input);
   if (objects.length > MAX_IMPORT_ELEMENTS)
-    throw new ImportError(`Kubernetes input has ${objects.length} objects (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`);
+    throw new ImportError(`Kubernetes input has ${objects.length} objects (> ${MAX_IMPORT_ELEMENTS} cap) — aborting import to avoid a main-thread freeze.`, {
+      code: 'import-infra/input-too-large',
+      context: { reason: 'elements', count: objects.length, limit: MAX_IMPORT_ELEMENTS },
+    });
   const nodes: InfraModel['nodes'] = [];
   const edges: NonNullable<InfraModel['edges']> = [];
   const byName = new Map<string, K8sObject>();

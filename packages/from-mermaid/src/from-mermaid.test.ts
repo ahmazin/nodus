@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type EdgeRecord, type NodeRecord, type NodusRecord } from '@nodus/core';
+import { Editor, isNodusError, type EdgeRecord, type NodeRecord, type NodusRecord } from '@nodus/core';
 import { installDiagrams } from '@nodus/preset-diagrams';
 import { elkLayout } from '@nodus/layout-elk';
 import { fromMermaid, importMermaid, MAX_MERMAID_BYTES, parseERDiagram, parseFlowchart, parseStateDiagram } from '@nodus/from-mermaid';
@@ -251,5 +251,50 @@ describe('from-mermaid: ReDoS + input-size guards', () => {
     const tooBig = 'flowchart LR\n' + 'A-->B\n'.repeat(100_000); // ~600 KB > 512 KB cap
     expect(tooBig.length).toBeGreaterThan(MAX_MERMAID_BYTES);
     expect(() => fromMermaid(tooBig)).toThrow(/too large/);
+  });
+});
+
+// F34 — the shared importer error convention: malformed input throws a coded NodusError; partial
+// input surfaces typed issues; valid input is unchanged.
+describe('from-mermaid: error convention (F34)', () => {
+  const thrown = (fn: () => unknown): unknown => {
+    try {
+      fn();
+    } catch (e) {
+      return e;
+    }
+    throw new Error('expected the call to throw, but it returned');
+  };
+
+  it('an unrecognized header throws a coded NodusError, not a bare Error', () => {
+    const e = thrown(() => fromMermaid('sequenceDiagram\n A->>B: hi'));
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('from-mermaid/parse-failed');
+  });
+
+  it('empty source throws parse-failed', () => {
+    const e = thrown(() => fromMermaid('   \n  \n'));
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('from-mermaid/parse-failed');
+  });
+
+  it('over-cap source throws a distinct source-too-large code with the cap in context', () => {
+    const tooBig = 'flowchart LR\n' + 'A-->B\n'.repeat(100_000);
+    const e = thrown(() => fromMermaid(tooBig));
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('from-mermaid/source-too-large');
+    expect((e as { context?: { cap?: number } }).context?.cap).toBe(MAX_MERMAID_BYTES);
+  });
+
+  it('unparsable flowchart statements surface as typed issues with the offending line', () => {
+    const { skipped, issues } = fromMermaid('flowchart LR\n A[Web] --> B[(DB)]\n @@@ not a statement');
+    expect(skipped).toBe(1);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.code).toBe('unparsable-statement');
+    expect(issues[0]!.statement).toContain('@@@');
+  });
+
+  it('a clean flowchart yields zero issues (regression guard)', () => {
+    expect(fromMermaid('flowchart LR\n A --> B').issues).toEqual([]);
   });
 });

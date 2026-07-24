@@ -42,7 +42,36 @@ The node `type` the model emits is one of the infra kinds (`service` / `db` / `c
 ## Exports
 
 `diagramTool` (the Anthropic tool schema), `diagramSystemPrompt`, `recordsFromSpec(spec)`,
-`recordsFromToolUse(toolUse)`, `normalizeSpec(spec)`, and the `DiagramSpec` type.
+`recordsFromToolUse(toolUse)`, `analyzeSpec(spec)`, `normalizeSpec(spec)`, `DiagramSpecError`, and the
+`DiagramSpec` / `SpecIssue` types.
+
+## Errors
+
+The spec is **untrusted** model output, so failure is explicit and coded:
+
+- **A wholly-unusable payload throws** a `DiagramSpecError` — a subclass of `NodusError` (from
+  `@nodus/core`) — with a namespaced `code`: `'text-to-diagram/invalid-spec'` (not an object with a
+  `nodes` array, or the wrong tool passed to `recordsFromToolUse`) or `'text-to-diagram/spec-too-large'`
+  (over the element cap). Match with `isNodusError(e)`, never `instanceof`.
+- **Partial success is not silent.** A model that emits one malformed node or a dangling edge no longer
+  loses it invisibly: use `analyzeSpec(spec)` → `{ records, issues }`, where each `SpecIssue { code,
+  message, ref? }` names what was dropped (`'dropped-node'` / `'dropped-edge'`) or coerced
+  (`'coerced-type'`, e.g. an unknown type folded to `service`). `recordsFromSpec` returns just the
+  records when you don't need the issues.
+
+```ts
+import { isNodusError } from '@nodus/core';
+import { analyzeSpec } from '@nodus/text-to-diagram';
+
+try {
+  const { records, issues } = analyzeSpec(toolUse.input);
+  for (const issue of issues) console.warn(issue.code, issue.message, issue.ref);
+} catch (e) {
+  if (isNodusError(e) && e.code === 'text-to-diagram/invalid-spec') {
+    // the model returned something we can't build — show e.message / e.context
+  }
+}
+```
 
 ## See also
 

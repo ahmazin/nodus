@@ -35,6 +35,35 @@ await editor.layout('dagre');    // …so run a registered layout to place them
 Both converters return `NodusRecord[]`. `terraformKind(type)` and `kubernetesKind(kind)` — the
 resource-to-node-type classifiers — are also exported if you want to inspect or override the mapping.
 
+## Errors
+
+Importers parse **untrusted** shared files, so failure is explicit and coded:
+
+- **Malformed input throws** an `ImportError` — a subclass of `NodusError` (from `@nodus/core`) — with
+  a namespaced `code`: `'import-infra/parse-failed'` (input that is not `terraform show -json` output,
+  or unparseable Kubernetes YAML) or `'import-infra/input-too-large'` (a depth / element / byte
+  resource-exhaustion guard tripped). `context` carries the specifics. Malformed input is **refused**,
+  never returned as an empty diagram. Match with `isNodusError(e)`, never `instanceof` across package
+  copies.
+- **Partial success is reported.** `analyzeTerraform` / `analyzeKubernetes` return `{ records, skipped,
+  notes }` — `skipped` is a typed `{ label, count }[]` of unmapped kinds and `notes` explains limits
+  (e.g. state-only JSON has no configuration edges) — so nothing vanishes silently. (`fromTerraform` /
+  `fromKubernetes` are the records-only convenience wrappers over these.)
+
+```ts
+import { isNodusError } from '@nodus/core';
+import { analyzeKubernetes } from '@nodus/import-infra';
+
+try {
+  const { records, skipped } = analyzeKubernetes(manifestYaml);
+  for (const s of skipped) console.info(`skipped ${s.count}× ${s.label}`);
+} catch (e) {
+  if (isNodusError(e) && e.code === 'import-infra/parse-failed') {
+    // not valid Kubernetes / Terraform input — show e.message / e.context
+  }
+}
+```
+
 ## See also
 
 - [`@nodus/preset-infra`](../preset-infra/README.md) — the node types the records use.

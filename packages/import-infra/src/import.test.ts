@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type EdgeRecord, type NodeRecord } from '@nodus/core';
+import { Editor, isNodusError, type EdgeRecord, type NodeRecord } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
 import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError, MAX_IMPORT_BYTES, MAX_IMPORT_ELEMENTS } from '@nodus/import-infra';
 
@@ -342,5 +342,64 @@ describe('import — resource-exhaustion caps (audit M2)', () => {
     const showJson = { values: { root_module: { resources: [{ address: 'aws_instance.web', type: 'aws_instance', name: 'web' }] } } };
     const { records } = analyzeTerraform(showJson);
     expect(records.filter((r) => r.typeName === 'node')).toHaveLength(1);
+  });
+});
+
+// F34 — the shared importer error convention: ImportError is now a coded NodusError, and malformed
+// input is refused (not silently returned as an empty diagram).
+describe('import-infra: error convention (F34)', () => {
+  const thrown = (fn: () => unknown): unknown => {
+    try {
+      fn();
+    } catch (e) {
+      return e;
+    }
+    throw new Error('expected the call to throw, but it returned');
+  };
+
+  it('refuses non-Terraform JSON with a coded parse-failed error instead of an empty result', () => {
+    const e = thrown(() => analyzeTerraform({ hello: 'world' }));
+    expect(e).toBeInstanceOf(ImportError);
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('import-infra/parse-failed');
+  });
+
+  it('refuses a non-object Terraform input (string / null)', () => {
+    expect((thrown(() => analyzeTerraform('nope')) as { code: string }).code).toBe('import-infra/parse-failed');
+    expect((thrown(() => analyzeTerraform(null)) as { code: string }).code).toBe('import-infra/parse-failed');
+  });
+
+  it('the resource cap throws input-too-large with the count in context', () => {
+    const resources = Array.from({ length: MAX_IMPORT_ELEMENTS + 1 }, (_, i) => ({ address: `aws_instance.n${i}`, type: 'aws_instance', name: `n${i}` }));
+    const e = thrown(() => analyzeTerraform({ values: { root_module: { resources } } }));
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('import-infra/input-too-large');
+    expect((e as { context?: { count?: number } }).context?.count).toBe(MAX_IMPORT_ELEMENTS + 1);
+  });
+
+  it('an adversarial Kubernetes YAML (alias bomb) throws a coded parse-failed error', () => {
+    // The yaml parser throws when alias expansion exceeds its cap; the importer must surface that as
+    // a coded parse-failed NodusError (the existing hardening test asserts the class; this asserts code).
+    const bomb = [
+      'a: &a ["x","x","x","x","x","x","x","x","x"]',
+      'b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]',
+      'c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]',
+      'd: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]',
+      'e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]',
+      'f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]',
+      'kind: Service',
+      'metadata: { name: x }',
+    ].join('\n');
+    const e = thrown(() => fromKubernetes(bomb));
+    expect(isNodusError(e)).toBe(true);
+    expect((e as { code: string }).code).toBe('import-infra/parse-failed');
+  });
+
+  it('a partial Kubernetes import still surfaces skipped kinds as typed entries (regression guard)', () => {
+    const { skipped } = analyzeKubernetes([
+      { kind: 'Deployment', metadata: { name: 'a' } },
+      { kind: 'ConfigMap', metadata: { name: 'c' } },
+    ]);
+    expect(skipped).toEqual(expect.arrayContaining([{ label: 'ConfigMap', count: 1 }]));
   });
 });
