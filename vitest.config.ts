@@ -22,6 +22,9 @@ export default defineConfig({
       '@nodus/persistence': src('./packages/persistence/src/index.ts'),
       '@nodus/react': src('./packages/react/src/index.tsx'),
       '@nodus/stencils': src('./packages/stencils/src/index.ts'),
+      // gifenc ships CJS main + `module` ESM but no exports map: plain Node resolves the CJS
+      // build whose named exports the lexer can't see. Bundlers use `module`; tests must too.
+      gifenc: src('./packages/react/node_modules/gifenc/dist/gifenc.esm.js'),
     },
   },
   test: {

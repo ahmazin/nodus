@@ -9,12 +9,15 @@
  * Decoupled from `@nodus/stencils`: the libraries arrive as a prop and persistence is the host's job.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import { Editor, isNode, makeId, renderSVG, type NodusRecord } from '@nodus/core';
+import { Editor, isNode, renderSVG, sessionIdFactory, type NodusRecord } from '@nodus/core';
 import type { Stencil, StencilLibrary as StencilLibraryData } from '@nodus/stencils';
 import { getCanvas } from './canvas-registry.js';
 import { useUiTokens, type UiMode, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
 import { useValue } from './use-value.js';
+
+// makeId left the public barrel (it's @internal now); mint stencil ids from a session factory instead.
+const stencilIds = sessionIdFactory();
 
 export interface StencilLibraryProps {
   editor: Editor;
@@ -244,7 +247,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
     if (records.length === 0) return;
     const name = window.prompt('Name this stencil', 'My stencil')?.trim();
     if (!name) return;
-    onSaveSelection?.({ id: makeId('stencil'), name, records });
+    onSaveSelection?.({ id: stencilIds.make('stencil'), name, records });
   };
 
   // pointer-drag session (window listeners live only while a drag is in flight) — mirrors CloudIconPicker

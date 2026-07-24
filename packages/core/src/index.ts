@@ -2,8 +2,35 @@
  * @nodus/core — a headless, framework-agnostic, extensible Canvas-2D diagram engine.
  */
 
-// model
-export * from './model.js';
+// model — explicit named exports (makeId/seedIdCounter are @internal and deliberately NOT public;
+// use the instance factory `editor.ids` or `sessionIdFactory()`/`deterministicIdFactory()`).
+export {
+  isNode,
+  isEdge,
+  isPage,
+  type Id,
+  type Vec2,
+  type Box,
+  type Mat2D,
+  type Camera,
+  type NodeState,
+  type VisualState,
+  type FlowColorStop,
+  type FlowScale,
+  type FlowSpec,
+  type FlowSource,
+  type FlowRuntimeConfig,
+  type BaseRecord,
+  type NodeRecord,
+  type Endpoint,
+  type EdgeRecord,
+  type PageRecord,
+  type NodusRecord,
+  type Change,
+  type CapturePolicy,
+  type ChangeSource,
+  type ApplyOptions,
+} from './model.js';
 
 // data-driven flow
 export { resolveFlow, colorForValue } from './flow.js';
@@ -23,6 +50,7 @@ export {
   batch,
   transact,
   untrack,
+  inTransaction,
   setEffectErrorHandler,
   type Atom,
   type Computed,
@@ -102,18 +130,26 @@ export {
 } from './routing/index.js';
 
 // store
-export { Store, type ChangeInfo, type StoreListener, type BeforeApply } from './store/index.js';
+export {
+  Store,
+  type ChangeInfo,
+  type StoreListener,
+  type BeforeApply,
+  type StoreOptions,
+  type StoreErrorContext,
+} from './store/index.js';
 
 // commands
 export { CommandRegistry, installDefaultCommands, type Command } from './commands/index.js';
 
 // scene index
-export { SceneIndex, type RenderItem, type SceneIndexDeps } from './scene-index/index.js';
+export { SceneIndex, type RenderItem, type SceneIndexDeps, type SceneIndexErrorContext } from './scene-index/index.js';
 
 // registries
 export {
   Registry,
   DEFAULT_CAPABILITIES,
+  DEFAULT_EDGE_CAPABILITIES,
   validateNodeUtil,
   validateEdgeUtil,
   type RegistryOptions,
@@ -122,6 +158,7 @@ export {
   type Migration,
   type Port,
   type NodeCapabilities,
+  type EdgeCapabilities,
   type EdgeRouteContext,
   type NodeRegistry,
   type EdgeRegistry,
@@ -173,12 +210,21 @@ export {
 } from './tools/index.js';
 
 // builtins
-export { rectNodeUtil, lineEdgeUtil, groupNodeUtil, drawEdgeLabel } from './builtins/index.js';
+export { rectNodeUtil, lineEdgeUtil, groupNodeUtil, unknownNodeUtil, drawEdgeLabel } from './builtins/index.js';
 
 // renderer
 export { DrawApi, type FillOpts, type StrokeOpts, type LabelOpts, type ImageOpts } from './renderer/draw-api.js';
 export type { Ctx2D, CanvasGradientLike, DrawableImage } from './renderer/context.js';
-export { fillBackground, drawGrid, paintItem, strokeWorldBox, fillHandle, setPaintErrorHandler } from './renderer/paint.js';
+export {
+  fillBackground,
+  drawGrid,
+  paintItem,
+  strokeWorldBox,
+  fillHandle,
+  setPaintErrorHandler,
+  type PaintErrorHandler,
+  type PaintItemDeps,
+} from './renderer/paint.js';
 export { SVGContext } from './renderer/svg-context.js';
 export { renderSVG, type RenderSVGOptions } from './renderer/svg-export.js';
 export { drawStencil, measureStencil, STENCIL, type StencilOpts } from './renderer/stencil.js';
@@ -192,6 +238,7 @@ export {
   drawIcon,
   iconNames,
   installDefaultIcons,
+  IconRegistry,
   type IconDraw,
   type IconMeta,
 } from './icons/index.js';
@@ -201,12 +248,15 @@ export {
   serializeRecords,
   restore,
   SCHEMA_VERSION,
+  MAX_NEST_DEPTH,
   stableStringify,
   toCanonicalString,
   compareRecords,
   type Snapshot,
   type RestoreResult,
   type RestoreOptions,
+  type LoadReport,
+  type SerializationIssue,
 } from './serialization/index.js';
 
 // editor

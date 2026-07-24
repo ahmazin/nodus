@@ -6,7 +6,7 @@
 
 import {
   defaultTheme,
-  makeId,
+  sessionIdFactory,
   type EdgeRecord,
   type Editor,
   type Endpoint,
@@ -65,15 +65,18 @@ export function installDiagrams(editor: Editor, opts: { theme?: Theme } = {}): v
 // ---------------------------------------------------------------------------
 let zc = 0;
 const zNext = () => (zc++).toString(36).padStart(10, '0');
+// Out-of-editor builders mint session-prefixed, collision-resistant ids (F6) — distinct from any
+// editor's own factory even across processes, unlike the old global-counter makeId.
+const ids = sessionIdFactory();
 
 function node(type: string, label: string, w: number, h: number, props: Record<string, unknown> = {}, state: NodeState = 'accent'): { id: `node:${string}`; rec: NodeRecord } {
-  const id = makeId('node');
+  const id = ids.make('node');
   return { id, rec: { id, typeName: 'node', version: 0, type, x: 0, y: 0, w, h, z: zNext(), visual: { state }, label, props } };
 }
 function edge(from: string, to: string, label: string | undefined, fromPort: string, toPort: string): EdgeRecord {
   const f: Endpoint = { kind: 'node', nodeId: from as `node:${string}`, portId: fromPort };
   const t: Endpoint = { kind: 'node', nodeId: to as `node:${string}`, portId: toPort };
-  return { id: makeId('edge'), typeName: 'edge', version: 0, type: 'flow', from: f, to: t, visual: { state: 'solid' }, ...(label ? { label } : {}), props: {} };
+  return { id: ids.make('edge'), typeName: 'edge', version: 0, type: 'flow', from: f, to: t, visual: { state: 'solid' }, ...(label ? { label } : {}), props: {} };
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@
 import {
   Editor,
   STENCIL,
-  makeId,
+  sessionIdFactory,
   measureStencil,
   type Ctx2D,
   type CreateCanvas,
@@ -73,6 +73,10 @@ export interface InfraCanvasHandle {
 
 const isInfraKind = (t: string): t is InfraKind => (INFRA_TYPES as readonly string[]).includes(t);
 
+// Out-of-editor builder: session-prefixed, collision-resistant ids (F6). A caller-supplied `key`
+// still seeds a stable id (`ids.make('node', key)`), so keyed/seeded records keep their prior identity.
+const ids = sessionIdFactory();
+
 export function modelToRecords(model: InfraModel, overlays?: Record<string, string>): NodusRecord[] {
   const idMap = new Map<string, string>();
   const records: NodusRecord[] = [];
@@ -80,7 +84,7 @@ export function modelToRecords(model: InfraModel, overlays?: Record<string, stri
 
   for (const spec of model.nodes) {
     const type = isInfraKind(spec.type) ? `infra.${spec.type}` : spec.type;
-    const id = spec.id ?? (spec.key ? makeId('node', spec.key) : makeId('node'));
+    const id = spec.id ?? (spec.key ? ids.make('node', spec.key) : ids.make('node'));
     if (spec.key) idMap.set(spec.key, id);
     idMap.set(spec.id ?? id, id);
     const overlayName = overlays?.[spec.key ?? spec.id ?? ''] ?? spec.overlay;
@@ -111,7 +115,7 @@ export function modelToRecords(model: InfraModel, overlays?: Record<string, stri
     const fromEp: Endpoint = { kind: 'node', nodeId: from as `node:${string}`, portId: 'out' };
     const toEp: Endpoint = { kind: 'node', nodeId: to as `node:${string}`, portId: 'in' };
     records.push({
-      id: makeId('edge'),
+      id: ids.make('edge'),
       typeName: 'edge',
       version: 0,
       type: e.type ?? 'infra.connector',
