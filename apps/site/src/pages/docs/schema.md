@@ -157,5 +157,16 @@ highlighting + intra-line word-diff, and `restore()` can `JSON.parse` it):
 - `hidden` is omit-when-false; non-finite numbers serialize as `null` (surfaced via an error hook).
 - `typeVersions` sits between `schemaVersion` and `document`, driving per-shape `props` migrations on load.
 
+> **These bytes are a breaking contract.** The exact output of `toCanonicalString` is a stable,
+> versioned public API — real diagrams commit it to git, and a merge driver, `diff`, and code review
+> all depend on it not shifting under them. A change that alters the bytes for the *same* document
+> (key order, number formatting, record sort, field omission) is a **semver-breaking** change, even
+> when no field is added or removed. Checked-in golden fixtures
+> (`packages/core/src/__tests__/fixtures/*.nodus.json`, verified by `golden-fixtures.test.ts`) pin the
+> format on every PR. If a change to them is intentional, regenerate with
+> `pnpm exec tsx scripts/gen-fixtures.ts`, review the diff, and land the regenerated fixtures **plus a
+> changeset** in the same PR; an incidental fixture change is CI telling you a byte-level contract just
+> moved.
+
 See **[Concepts →](/docs/concepts)** for how records flow through the one mutation channel, and the
 **[CLI →](/docs/cli)** for `fmt` / `diff`, which turn this format into code-reviewed diagrams.
