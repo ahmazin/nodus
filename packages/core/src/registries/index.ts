@@ -36,6 +36,16 @@ export const DEFAULT_CAPABILITIES: NodeCapabilities = {
   multiline: false,
 };
 
+/** Per-type edge behavior toggles. */
+export interface EdgeCapabilities {
+  /** Whether the edge's label is user-editable (default true). */
+  canEdit: boolean;
+}
+
+export const DEFAULT_EDGE_CAPABILITIES: EdgeCapabilities = {
+  canEdit: true,
+};
+
 /**
  * An ordered, up-only, pure props transform carrying a stable `id`. A type with `migrations = [m1, m2]`
  * is at version 2; a record stored at version `v` runs steps `v … length-1` (`.migrate`) to reach
@@ -50,17 +60,28 @@ export interface Migration<P extends Record<string, unknown> = Record<string, un
 }
 
 export interface NodeUtil<P extends Record<string, unknown> = Record<string, unknown>> {
+  /** The type key this util is registered under (`node.type`). */
   readonly type: string;
+  /** Default `props` for a freshly-created node of this type. `createNode` merges the caller's partial
+   *  props OVER these (defaults survive unless explicitly overridden). */
   getDefaultProps(): P;
+  /** Default size for a new node (used when the caller doesn't pass w/h). Default 120×56 if absent. */
   getDefaultSize?(props: P): { w: number; h: number };
   /** Compute intrinsic size (e.g. from a label). Canvas has no DOM autosize; layout needs sizes. */
   measure?(node: NodeRecord, theme: Theme): { w: number; h: number };
-  /** The one declarative geometry (world coords) — serves bounds, culling, hit-test, snapping. */
+  /** The ONE declarative geometry (world coords) — the single source for bounds, culling, hit-testing,
+   *  and snapping. Everything spatial derives from it, so it must be deterministic per record. */
   getGeometry(node: NodeRecord): Geometry2d;
+  /** Named connection ports (anchors) for this node, for port-to-port edges. Absent ⇒ no fixed ports. */
   getPorts?(node: NodeRecord): Port[];
+  /** Paint the node via the `Ctx2D`-abstracting {@link DrawApi} using the resolved theme tokens. A
+   *  throw here is isolated per-item (the frame continues; see the paint-error channel). */
   draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void;
+  /** Per-type behavior toggles, merged over {@link DEFAULT_CAPABILITIES} by `editor.capabilitiesOf`.
+   *  Unset flags resolve to the default (notably `canRotate` defaults to FALSE). */
   readonly capabilities?: Partial<NodeCapabilities>;
-  /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
+  /** Ordered up-migrations for this type's `props`. `version === migrations.length`; a record stored at
+   *  version `v` runs steps `v … length-1`. Step ids are stable + APPEND-ONLY across re-registration. */
   readonly migrations?: Migration[];
   /** Normalize-or-throw validation for this type's `props`, run synchronously by the façade
    *  (createNode/updateNode/updateRecord) and by the built-in before-apply guard. Return the
@@ -95,6 +116,7 @@ export interface EdgeUtil<P extends Record<string, unknown> = Record<string, unk
   /** Hit tolerance (world units) around the polyline. */
   readonly hitWidth?: number;
   draw(api: DrawApi, edge: EdgeRecord, tokens: ResolvedTokens, route: Vec2[]): void;
+  readonly capabilities?: Partial<EdgeCapabilities>;
   /** Ordered up-migrations for this type's `props`. Version === migrations.length. */
   readonly migrations?: Migration[];
   /** Normalize-or-throw validation for this type's `props` (see {@link NodeUtil.validateProps}). */

@@ -10,6 +10,7 @@ import type { Camera } from '../model.js';
 import type { Theme } from '../theme/index.js';
 import type { NodeUtil, EdgeUtil } from '../registries/index.js';
 import type { LayoutEngine } from '../layout/index.js';
+import type { Router } from '../routing/index.js';
 import type { NodusEvent, NodusEventMap, NodusEventOf, NodusCustomEvent } from '../events/index.js';
 import type { StoreListener, BeforeApply } from '../store/index.js';
 import type { Command } from '../commands/index.js';
@@ -33,11 +34,27 @@ export interface OverlayLayer {
   paint(frame: FrameContext): void;
 }
 
+/**
+ * The stable extension surface handed to a {@link Plugin}'s `register`. TWO-TIER contract:
+ *
+ * - `EngineHost` itself (register*, on/onChange/onBeforeChange, addOverlay, setTheme, registerCommand)
+ *   is the STABLE public API a plugin should build against; every register / subscribe call returns a
+ *   {@link Dispose} so the engine can unwind the plugin's footprint on teardown.
+ * - `host.editor` is an ESCAPE HATCH to the full {@link Editor} for advanced needs, with NO stability
+ *   promise — members tagged `@internal` (host-wiring: paintFlow, computeSnap, keyDown, …) may change
+ *   between minor versions. Prefer the stable surface; reach into `editor` only when you must.
+ */
 export interface EngineHost {
-  registerNodeType(util: NodeUtil): void;
-  registerEdgeType(util: EdgeUtil): void;
-  registerTool(tool: ToolNode): void;
-  registerLayout(engine: LayoutEngine): void;
+  /** Register a node type. Returns a {@link Dispose} that unregisters it (and re-indexes). */
+  registerNodeType(util: NodeUtil): Dispose;
+  /** Register an edge type. Returns a disposer that unregisters it. */
+  registerEdgeType(util: EdgeUtil): Dispose;
+  /** Register a tool. Returns a disposer that removes it (resetting to `select` if it was active). */
+  registerTool(tool: ToolNode): Dispose;
+  /** Register an edge router. Returns a disposer that unregisters it. */
+  registerRouter(router: Router): Dispose;
+  /** Register a layout engine. Returns a disposer that unregisters it. */
+  registerLayout(engine: LayoutEngine): Dispose;
   setTheme(theme: Theme): void;
   addOverlay(overlay: OverlayLayer): Dispose;
   /** Subscribe to the event bus; the handler payload is narrowed by key (`'*'` receives every event,

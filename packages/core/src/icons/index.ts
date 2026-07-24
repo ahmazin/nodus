@@ -42,6 +42,52 @@ export function drawIcon(ctx: Ctx2D, name: string, box: Box, color: string, fill
   draw(ctx, box.x + (box.w - size) / 2, box.y + (box.h - size) / 2, size, color, fill);
 }
 
+/**
+ * A per-editor icon registry. Private registrations (via {@link register}) are isolated to this
+ * instance, while lookups fall through to the SHARED module-global built-in defaults — so two editors
+ * can register different glyphs under the same name without clobbering each other, and both still
+ * resolve the built-ins. `Editor.icons` is one of these; `DrawApi` resolves `icon()` through it.
+ */
+export class IconRegistry {
+  private readonly local = new Map<string, IconDraw>();
+  private readonly localMeta = new Map<string, IconMeta>();
+
+  /** Register a glyph on THIS editor only (shadows a built-in of the same name for this editor). */
+  register(name: string, draw: IconDraw, meta?: IconMeta): void {
+    this.local.set(name, draw);
+    if (meta) this.localMeta.set(name, meta);
+    else this.localMeta.delete(name);
+  }
+
+  /** Remove a per-editor registration, restoring the shared default glyph (if any) for `name`. */
+  unregister(name: string): void {
+    this.local.delete(name);
+    this.localMeta.delete(name);
+  }
+
+  /** Resolve a glyph: this editor's registration first, then the shared built-in default. */
+  get(name: string): IconDraw | undefined {
+    return this.local.get(name) ?? registry.get(name);
+  }
+
+  getMeta(name: string): IconMeta | undefined {
+    // a local registration's meta is authoritative (even when it deliberately has none)
+    return this.local.has(name) ? this.localMeta.get(name) : iconMeta.get(name);
+  }
+
+  names(): string[] {
+    return [...new Set([...registry.keys(), ...this.local.keys()])];
+  }
+
+  /** Render a glyph centered in `box`, resolved per-editor (see {@link drawIcon} for the shared form). */
+  draw(ctx: Ctx2D, name: string, box: Box, color: string, fill?: string): void {
+    const draw = this.get(name);
+    if (!draw) return;
+    const size = Math.min(box.w, box.h);
+    draw(ctx, box.x + (box.w - size) / 2, box.y + (box.h - size) / 2, size, color, fill);
+  }
+}
+
 // ---- helpers ----
 
 /** Stroke a path (built inside `fn`) with round caps/joins. */

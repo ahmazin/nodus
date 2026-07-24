@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type NodeRecord } from '../index.js';
+import { Editor, Rectangle2d, type NodeRecord } from '../index.js';
 
 /** Edit-lock: a locked node stays selectable (so it can be unlocked) but the interaction tools
  *  refuse to move / resize / rotate / delete it. Default camera is identity, so screen == world. */
@@ -57,13 +57,21 @@ describe('edit-lock enforcement', () => {
 
   it('rotate() and canResizeNode() respect the lock', () => {
     const ed = new Editor();
-    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100 });
+    // E3: rect opts out of rotation by default; use a type that opts in so rotate() is exercised.
+    ed.registerNodeType({
+      type: 'rot',
+      getDefaultProps: () => ({}),
+      getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
+      draw: () => {},
+      capabilities: { canRotate: true },
+    });
+    const id = ed.createNode({ type: 'rot', x: 0, y: 0, w: 100, h: 100 });
     expect(ed.canResizeNode(id)).toBe(true);
 
     ed.lock([id]);
     expect(ed.canResizeNode(id)).toBe(false);
     ed.rotate([id], Math.PI / 4);
-    expect((ed.store.peek(id) as NodeRecord).rotation ?? 0).toBe(0); // rotation skipped
+    expect((ed.store.peek(id) as NodeRecord).rotation ?? 0).toBe(0); // rotation skipped (locked)
 
     ed.unlock([id]);
     expect(ed.canResizeNode(id)).toBe(true);

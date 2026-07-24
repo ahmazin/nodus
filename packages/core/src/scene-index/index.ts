@@ -11,7 +11,7 @@ import { atom, type Atom } from '../signals/index.js';
 import { Polyline2d, boxIntersects, padBox, type Geometry2d } from '../geometry/index.js';
 import type { Box, Change, EdgeRecord, Endpoint, Id, NodeRecord, NodusRecord, Vec2 } from '../model.js';
 import { isEdge, isNode } from '../model.js';
-import type { EdgeRegistry, NodeRegistry } from '../registries/index.js';
+import type { EdgeRegistry, NodeRegistry, NodeUtil } from '../registries/index.js';
 import type { RouterRegistry } from '../routing/index.js';
 
 /** Clearance (world units) added around each obstacle node, and used to widen the corridor query. */
@@ -45,10 +45,14 @@ export interface SceneIndexErrorContext {
    * - `'build'`     — a third-party util (`getGeometry`/`getRoute`/`getPorts`) threw while building it.
    * - `'non-finite'`— its resolved geometry produced a non-finite (NaN/Infinity) world box, which would
    *   poison the whole R-tree, so the record is dropped instead of inserted (see `addRecord`).
+   * - `'missing-util'`— its `type` isn't registered. Warned ONCE per unknown type per document load
+   *   (deduped, cleared on `rebuild`), never per frame. A warning, not a fatal error.
    */
-  phase: 'build' | 'non-finite';
+  phase: 'build' | 'non-finite' | 'missing-util';
   kind: 'node' | 'edge';
   id: Id;
+  /** For `'missing-util'`: the unregistered type name. */
+  type?: string;
 }
 
 export interface SceneIndexDeps {
@@ -62,8 +66,13 @@ export interface SceneIndexDeps {
    * escape the mutation channel and drift undo state. Default: a safe no-op; wire to the EventBus.
    */
   onError?: (err: unknown, ctx: SceneIndexErrorContext) => void;
+  /** Fallback util for a node whose `type` isn't registered (opt-in placeholder). When set, an
+   *  unknown-type node builds/indexes via this util instead of being dropped. */
+  unknownNodeUtil?: NodeUtil;
 }
 
+/** The retained render-item index: one `RenderItem` per record in an rbush R-tree, driving viewport
+ * culling, paint order, and two-phase hit-testing (R-tree broad phase → per-geometry narrow phase). */
 export class SceneIndex {
   private readonly tree = new RBush<Entry>();
   private readonly items = new Map<Id, RenderItem>();
@@ -76,12 +85,28 @@ export class SceneIndex {
   private readonly linkedEdges = new Map<Id, EdgeRecord>();
   /** bumped after every sync so the renderer can react. */
   readonly version: Atom<number> = atom(0);
+  /** Unknown types already warned about this document, so `missing-util` fires ONCE per type per load
+   *  (not per frame). Cleared on `rebuild`. */
+  private readonly warnedMissingTypes = new Set<string>();
 
   constructor(private readonly deps: SceneIndexDeps) {}
 
   /** Route a caught indexing error to the consumer's hook (default: safe no-op — never swallowed). */
   private reportError(err: unknown, ctx: SceneIndexErrorContext): void {
     this.deps.onError?.(err, ctx);
+  }
+
+  /** Warn once per unknown type per document that a record's `type` isn't registered. */
+  private warnMissingType(kind: 'node' | 'edge', id: Id, type: string): void {
+    if (this.warnedMissingTypes.has(type)) return;
+    this.warnedMissingTypes.add(type);
+    const fate = kind === 'node' && this.deps.unknownNodeUtil ? 'rendered via the placeholder' : 'left unindexed';
+    this.reportError(new Error(`No ${kind} type "${type}" is registered; the record is ${fate}.`), {
+      phase: 'missing-util',
+      kind,
+      id,
+      type,
+    });
   }
 
   /** The active page, or null for the single implicit page (no page filtering). The editor sets this
@@ -210,6 +235,7 @@ export class SceneIndex {
     this.entries.clear();
     this.nodeEdges.clear();
     this.linkedEdges.clear();
+    this.warnedMissingTypes.clear(); // a fresh document re-warns for any still-unknown type
     const list = [...records];
     // Collect entries and bulk-`load` the R-tree in one pass (OMT) — a balanced tree built faster
     // than N individual `insert`s. Query behavior is identical; only construction differs.
@@ -326,8 +352,12 @@ export class SceneIndex {
   }
 
   private buildNode(node: NodeRecord): RenderItem | null {
-    const util = this.deps.nodes.get(node.type);
-    if (!util) return null;
+    let util = this.deps.nodes.get(node.type);
+    if (!util) {
+      this.warnMissingType('node', node.id, node.type);
+      util = this.deps.unknownNodeUtil; // opt-in placeholder; undefined ⇒ keep the drop behavior
+      if (!util) return null;
+    }
     const geometry = util.getGeometry(node);
     return {
       id: node.id,
@@ -343,7 +373,10 @@ export class SceneIndex {
 
   private buildEdge(edge: EdgeRecord): RenderItem | null {
     const util = this.deps.edges.get(edge.type);
-    if (!util) return null;
+    if (!util) {
+      this.warnMissingType('edge', edge.id, edge.type);
+      return null; // no edge placeholder — an unknown edge type stays unindexed
+    }
     const from = this.resolveEndpoint(edge.from);
     const to = this.resolveEndpoint(edge.to);
     if (!from || !to) return null; // drop edges with missing endpoints
@@ -427,7 +460,7 @@ export class SceneIndex {
     if (ep.kind === 'point') return { point: { x: ep.x, y: ep.y } };
     const node = this.deps.getRecord(ep.nodeId);
     if (!node || !isNode(node)) return null;
-    const util = this.deps.nodes.get(node.type);
+    const util = this.deps.nodes.get(node.type) ?? this.deps.unknownNodeUtil; // placeholder attaches edges too
     const geom = util?.getGeometry(node);
     if (ep.kind === 'outline') {
       const center = geom?.center() ?? { x: node.x + node.w / 2, y: node.y + node.h / 2 };

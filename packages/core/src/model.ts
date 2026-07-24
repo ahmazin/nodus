@@ -215,7 +215,13 @@ export type Change =
   | { op: 'update'; id: Id; patch: Record<string, unknown> }
   | { op: 'remove'; id: Id };
 
-/** When a change should be recorded into undo history. */
+/**
+ * When a change is recorded into undo history:
+ * - `'immediately'` — its own undo entry (a discrete action: create, delete, one drag commit).
+ * - `'later'` — accumulate into the open group until `editor.mark()` closes it, so a continuous gesture
+ *   (drag, slider scrub) collapses into ONE entry. `editor.transaction(fn)` sets this ambiently.
+ * - `'never'` — not recorded (load, remote replay, the undo/redo re-apply itself).
+ */
 export type CapturePolicy = 'immediately' | 'later' | 'never';
 
 /**
@@ -306,9 +312,11 @@ export function seedIdCounter(ids: Iterable<string>): void {
 export function isNode(r: NodusRecord): r is NodeRecord {
   return r.typeName === 'node';
 }
+/** Type guard: `r` is an {@link EdgeRecord}. */
 export function isEdge(r: NodusRecord): r is EdgeRecord {
   return r.typeName === 'edge';
 }
+/** Type guard: `r` is a {@link PageRecord}. */
 export function isPage(r: NodusRecord): r is PageRecord {
   return r.typeName === 'page';
 }

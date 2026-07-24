@@ -7,6 +7,7 @@ import type { ResolvedTokens, Theme } from '../theme/index.js';
 import type { Box, Camera, EdgeRecord, FlowSpec, NodeRecord, Vec2 } from '../model.js';
 import type { EdgeRegistry, NodeRegistry, NodeUtil } from '../registries/index.js';
 import type { RenderItem } from '../scene-index/index.js';
+import type { IconRegistry } from '../icons/index.js';
 import { DrawApi, hashId } from './draw-api.js';
 import type { Ctx2D } from './context.js';
 import { resolveTokensCached } from './token-cache.js';
@@ -14,7 +15,7 @@ import { clamp } from '../camera/index.js';
 
 // ---- per-item paint fault tolerance ----
 
-type PaintErrorHandler = (err: unknown, record: NodeRecord | EdgeRecord) => void;
+export type PaintErrorHandler = (err: unknown, record: NodeRecord | EdgeRecord) => void;
 
 const seenPaintErrors = new Set<string>();
 
@@ -32,9 +33,10 @@ const defaultPaintErrorHandler: PaintErrorHandler = (err, record) => {
 
 let paintErrorHandler: PaintErrorHandler = defaultPaintErrorHandler;
 
-/** Override how per-item paint errors are surfaced (default: deduped `console.error`). `null` silences. */
+/** Override the module-global paint-error sink (used by standalone renders without an Editor). `null`
+ *  RESTORES the built-in deduped-`console.error` default — it does NOT install silence. */
 export function setPaintErrorHandler(handler: PaintErrorHandler | null): void {
-  paintErrorHandler = handler ?? (() => {});
+  paintErrorHandler = handler ?? defaultPaintErrorHandler;
   seenPaintErrors.clear();
 }
 
@@ -241,6 +243,14 @@ export interface ItemPresentation {
  *  `zoom`, when supplied, is threaded into the `DrawApi` for depth-of-field LOD (e.g. `drawStencil`
  *  drops the glyph + sub-label below its threshold); omitted defaults to 1 (full detail) — the
  *  `paintRegion`/PNG-export call site passes none, so exports always render full detail. */
+/** Per-editor paint dependencies threaded into `paintItem`: the unknown-type placeholder, the icon
+ *  registry (for per-editor glyph resolution), and the paint-error sink (routes to the editor's bus). */
+export interface PaintItemDeps {
+  unknownNodeUtil?: NodeUtil;
+  icons?: IconRegistry;
+  onPaintError?: PaintErrorHandler;
+}
+
 export function paintItem(
   ctx: Ctx2D,
   item: RenderItem,
@@ -250,6 +260,7 @@ export function paintItem(
   present?: ItemPresentation,
   override?: Partial<ResolvedTokens>,
   zoom?: number,
+  deps?: PaintItemDeps,
 ): void {
   const rec = item.record;
   let tokens: ResolvedTokens;
@@ -258,13 +269,13 @@ export function paintItem(
     if (override) tokens = { ...tokens, ...override };
   } catch (err) {
     // even token resolution can throw on a corrupt record/theme — skip the item, keep the frame.
-    paintErrorHandler(err, rec);
+    (deps?.onPaintError ?? paintErrorHandler)(err, rec);
     return;
   }
   // Per-shape jitter seed for the optional sketchy style (see DrawApi). A stable hash of the record id
   // means the hand-drawn wobble is identical every frame, reload, and headless export — never random,
   // never serialized. It is inert unless a resolved token carries roughness > 0.
-  const api = new DrawApi(ctx, tokens, hashId(rec.id), zoom ?? 1);
+  const api = new DrawApi(ctx, tokens, hashId(rec.id), zoom ?? 1, deps?.icons);
   ctx.save();
   try {
     ctx.globalAlpha *= tokens.opacity;
@@ -277,14 +288,14 @@ export function paintItem(
       ctx.translate(-cx, -cy);
     }
     if (item.kind === 'node') {
-      paintNode(ctx, api, rec as NodeRecord, nodes.get(rec.type), tokens);
+      paintNode(ctx, api, rec as NodeRecord, nodes.get(rec.type) ?? deps?.unknownNodeUtil, tokens);
     } else if (item.route) {
       edges.get(rec.type)?.draw(api, rec as EdgeRecord, tokens, item.route);
     }
   } catch (err) {
     // A single malformed record (NaN geometry, a throwing third-party draw()) must never abort the
     // whole frame — skip just this item, surface the error, and mark it so the gap isn't silent.
-    paintErrorHandler(err, rec);
+    (deps?.onPaintError ?? paintErrorHandler)(err, rec);
     drawErrorPlaceholder(ctx, item.aabb);
   } finally {
     // a throwing/early-returning draw() must not leak the save() and permanently dim globalAlpha for

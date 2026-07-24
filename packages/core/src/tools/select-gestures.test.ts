@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '../index.js';
+import { Editor, Rectangle2d } from '../index.js';
 import type { EdgeRecord, Id, NodeRecord } from '../model.js';
 
 /**
@@ -50,10 +50,18 @@ describe('SelectTool — cut', () => {
 });
 
 describe('SelectTool — rotation handle', () => {
-  /** Select a fresh rect and return its bbox center + the world position of the rotation handle. */
+  /** Select a fresh rotatable node and return its bbox center + the world position of the rotation
+   *  handle. (E3: `rect` opts out of rotation by default, so use a type that opts in.) */
   function setup(): { ed: Editor; id: Id; center: { x: number; y: number }; handle: { x: number; y: number } } {
     const ed = new Editor();
-    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 130, h: 56 });
+    ed.registerNodeType({
+      type: 'rot',
+      getDefaultProps: () => ({}),
+      getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
+      draw: () => {},
+      capabilities: { canRotate: true },
+    });
+    const id = ed.createNode({ type: 'rot', x: 0, y: 0, w: 130, h: 56 });
     ed.select([id]);
     const b = ed.sceneIndex.getItem(id)!.aabb;
     const center = { x: b.x + b.w / 2, y: b.y + b.h / 2 };

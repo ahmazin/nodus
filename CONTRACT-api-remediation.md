@@ -32,7 +32,9 @@ Package-scoped codes elsewhere use a slash namespace, e.g. `'persistence/load-fa
 ```ts
 export interface ErrorEventContext {
   phase: 'listener'|'duplicate-add'|'build'|'non-finite'|'missing-util'
-       |'plugin'|'register'|'flow'|'paint'|'effect'|'layout'|'before-apply';
+       |'plugin'|'register'|'flow'|'paint'|'effect'|'layout'|'before-apply'|'load';
+  // 'load' added 2026-07-24 (lead-authorized amendment): serialization issues forwarded
+  // during hydrateSnapshot use phase 'load' (previously shoehorned into 'build').
   [k: string]: unknown;
 }
 export interface NodusEventMap {

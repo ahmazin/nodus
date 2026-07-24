@@ -5,7 +5,7 @@
  * scene index, history, and observers can never drift from the document.
  */
 
-import { atom, batch, transact, type Atom, type Dispose } from '../signals/index.js';
+import { atom, batch, transact, inTransaction, type Atom, type Dispose } from '../signals/index.js';
 import type {
   ApplyOptions,
   Change,
@@ -27,6 +27,10 @@ export interface ChangeInfo {
   source: ChangeSource;
   capture: CapturePolicy;
 }
+
+// No dev-mode convention exists in core; derive one from Node's env (guarded for non-Node runtimes like
+// the browser bundle, where it stays false). Used only to freeze dispatched arrays in development.
+const IS_DEV = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 
 /**
  * A before-apply interceptor: given the changes about to be applied (and their source), return a
@@ -80,6 +84,9 @@ export interface StoreOptions {
   idFactory?: IdFactory;
 }
 
+/** The reactive record store — the single source of truth and the ONLY mutation channel. Every edit
+ * goes through {@link apply}; per-record signal atoms drive fine-grained reactivity. See {@link listen}
+ * for the (normative) dispatch semantics. */
 export class Store {
   private readonly atoms = new Map<Id, Atom<NodusRecord>>();
   /**
@@ -104,6 +111,9 @@ export class Store {
   /** True only while the interceptor pipeline is running — reentrant `apply()` from an interceptor
    *  is a programmer error (it would recurse into interception), so it throws `reentrant-apply`. */
   private runningInterceptors = false;
+  /** When set (by `editor.transaction`), unset-capture applies inherit it so a group of helper edits
+   *  collapses into ONE undo entry. `capture: 'never'` (undo/redo/remote replay) is never overridden. */
+  private ambientCapture: CapturePolicy | null = null;
 
   constructor(private readonly opts: StoreOptions = {}) {}
 
@@ -151,6 +161,20 @@ export class Store {
 
   // ---- writes ----
 
+  /**
+   * Subscribe to committed changes. Dispatch semantics (normative):
+   * - SYNCHRONOUS and POST-COMMIT: listeners run once per `apply()`, after the atoms are committed, in
+   *   the same call stack (never deferred).
+   * - ENGINE LISTENER FIRST: the editor registers its listener before any consumer, so the scene index
+   *   / history / event bus are already synced when downstream listeners run.
+   * - SNAPSHOTTED: the listener set is copied before dispatch, so (un)subscribing during a dispatch —
+   *   or triggering a nested `apply()` — cannot perturb the current pass.
+   * - FAULT-ISOLATED: a throwing listener is caught and routed to `onError`; siblings still run and
+   *   `apply()` never throws post-commit.
+   * - IMMUTABLE PAYLOAD: `ChangeInfo` (and its arrays) is delivered by reference and MUST NOT be
+   *   mutated. A listener MAY call mutation helpers (their nested `apply()` dispatches synchronously),
+   *   but must not touch the received `ChangeInfo`. In development the arrays are frozen.
+   */
   listen(fn: StoreListener): Dispose {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -161,6 +185,12 @@ export class Store {
   onReset(fn: (info: { records: NodusRecord[]; reason: 'load' }) => void): Dispose {
     this.resetListeners.add(fn);
     return () => this.resetListeners.delete(fn);
+  }
+
+  /** Set the ambient undo-capture policy (or `null` to clear). While set, an `apply()` with unset
+   *  capture inherits it — the mechanism behind `editor.transaction()`'s one-undo-entry grouping. */
+  setAmbientCapture(capture: CapturePolicy | null): void {
+    this.ambientCapture = capture;
   }
 
   /** Register a {@link BeforeApply} interceptor. Interceptors run as a registration-order fold at the
@@ -212,11 +242,24 @@ export class Store {
    */
   apply(changes: Change[], opts: ApplyOptions = {}): ChangeInfo {
     const source: ChangeSource = opts.source ?? 'user';
-    const capture: CapturePolicy = opts.capture ?? 'immediately';
+    // `capture: 'never'` (undo/redo/remote replay) is authoritative and never re-grouped; otherwise an
+    // ambient policy (from editor.transaction) wins over the per-call default, so a group of helper
+    // edits collapses into one undo entry.
+    const capture: CapturePolicy =
+      opts.capture === 'never' ? 'never' : (this.ambientCapture ?? opts.capture ?? 'immediately');
 
     // Reentrant apply from within an interceptor would recurse into the pipeline — a programmer error.
     if (this.runningInterceptors) {
       throw new NodusError('reentrant-apply', 'store.apply() was called from within a before-apply interceptor.');
+    }
+    // A raw `transact()` on the stack means apply() would compose incorrectly (its own transaction
+    // would nest, its listeners fire mid-outer-transaction). Group edits with editor.transaction()
+    // instead. Skipped for intercept:false replays (undo/redo/remote), which never nest in a transact.
+    if (opts.intercept !== false && inTransaction()) {
+      throw new NodusError(
+        'apply-in-transaction',
+        'store.apply() cannot compose inside a raw transact(); group edits with editor.transaction().',
+      );
     }
 
     // Before-apply interception runs BEFORE the transaction so the inverse is computed from the final
@@ -315,7 +358,15 @@ export class Store {
     }
 
     const info: ChangeInfo = { changes: applied, inverse: inverse.reverse(), source, capture };
+    // Listeners receive `ChangeInfo` by reference and MUST NOT mutate it. In development, freeze the
+    // arrays so an accidental mutation throws loudly instead of silently corrupting undo/other listeners.
+    if (IS_DEV) {
+      Object.freeze(info.changes);
+      Object.freeze(info.inverse);
+    }
     if (applied.length > 0) {
+      // Snapshot the listener set so a listener that (un)subscribes or calls a mutation helper (which
+      // dispatches its own nested apply synchronously) can't perturb THIS dispatch pass.
       for (const l of [...this.listeners]) {
         // Isolate a throwing listener: siblings still run and `apply()` never throws. The store's
         // atoms are already committed and consistent here, so we do NOT roll back — a buggy
@@ -323,7 +374,12 @@ export class Store {
         try {
           l(info);
         } catch (err) {
-          this.opts.onError?.(err, { phase: 'listener', info });
+          // A throwing `onError` sink must not, in turn, make apply() throw post-commit.
+          try {
+            this.opts.onError?.(err, { phase: 'listener', info });
+          } catch {
+            /* the error sink itself threw — nothing left to do but not propagate */
+          }
         }
       }
     }

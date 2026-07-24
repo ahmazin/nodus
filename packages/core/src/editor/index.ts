@@ -51,11 +51,15 @@ import {
   Registry,
   validateNodeUtil,
   validateEdgeUtil,
+  DEFAULT_CAPABILITIES,
+  DEFAULT_EDGE_CAPABILITIES,
   type EdgeUtil,
   type Migration,
   type NodeUtil,
+  type NodeCapabilities,
+  type EdgeCapabilities,
 } from '../registries/index.js';
-import { RouterRegistry, defaultRouters } from '../routing/index.js';
+import { RouterRegistry, defaultRouters, type Router } from '../routing/index.js';
 import type { LayoutEngine, LayoutGraph, LayoutOptions } from '../layout/index.js';
 import type { EngineHost, OverlayLayer, Plugin } from '../plugins/index.js';
 import {
@@ -65,8 +69,19 @@ import {
   type PointerInfo,
   type ToolNode,
 } from '../tools/index.js';
-import { rectNodeUtil, lineEdgeUtil, groupNodeUtil } from '../builtins/index.js';
-import { drawAmbient, drawGrid, fillBackground, fillHandle, paintFlowMarkers, paintItem, strokeWorldBox } from '../renderer/paint.js';
+import { rectNodeUtil, lineEdgeUtil, groupNodeUtil, unknownNodeUtil } from '../builtins/index.js';
+import {
+  drawAmbient,
+  drawGrid,
+  fillBackground,
+  fillHandle,
+  paintFlowMarkers,
+  paintItem,
+  strokeWorldBox,
+  type PaintErrorHandler,
+  type PaintItemDeps,
+} from '../renderer/paint.js';
+import { IconRegistry } from '../icons/index.js';
 import { StaticLayerCache, type CreateOffscreen, type LayerCacheStats } from '../renderer/layer-cache.js';
 import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveTokensCached } from '../renderer/token-cache.js';
@@ -75,7 +90,14 @@ import { resolveFlow } from '../flow.js';
 import { formatRate } from '../flow-format.js';
 import { mix, parseHex } from '../renderer/color.js';
 import type { Ctx2D } from '../renderer/context.js';
-import { restore, serializeRecords, type Snapshot } from '../serialization/index.js';
+import {
+  restore,
+  serializeRecords,
+  SCHEMA_VERSION,
+  type Snapshot,
+  type LoadReport,
+  type SerializationIssue,
+} from '../serialization/index.js';
 import { NodusError } from '../errors/index.js';
 import { sessionIdFactory, type IdFactory } from '../ids/index.js';
 import { AnimationClock, easeInOutCubic, easeOutCubic, type TweenSpec } from './animation.js';
@@ -146,17 +168,38 @@ function readableTextColor(bg: string): string {
 }
 
 export interface EditorOptions {
+  /** Initial theme (default: {@link defaultTheme}). */
   theme?: Theme;
+  /** Extra node types to register at construction (in addition to the builtins). Default: none. */
   nodeTypes?: NodeUtil[];
+  /** Extra edge types to register at construction. Default: none. */
   edgeTypes?: EdgeUtil[];
+  /** Records to hydrate into the document at construction (runs migrations, seeds z, opens the first
+   *  page — the same path as `loadSnapshot`). Default: empty document. */
   records?: NodusRecord[];
-  /** Register the built-in `rect`/`line` types (default true). */
+  /** Register the built-in `rect`/`group` node + `line` edge types and default commands (default true). */
   builtins?: boolean;
+  /** Initial camera (default: {@link DEFAULT_CAMERA}). */
   camera?: Camera;
+  /** Initial viewport in CSS px (default: `{ w: 800, h: 600 }`). */
   viewport?: { w: number; h: number };
+  /**
+   * Read-only mode (default false). Gates the INTERACTIVE layer ONLY: pointerDown/Move/Up, keyDown,
+   * and doubleClick early-return. Camera control, selection, and PROGRAMMATIC mutation
+   * (createNode/updateRecord/loadSnapshot/…) still work — read-only is a UI affordance, not a lock on
+   * the document.
+   */
+  readOnly?: boolean;
+  /** Undo-history tuning. `limit` caps the number of undo entries (oldest evicted past it). Default:
+   *  unbounded. */
+  history?: { limit?: number };
   /** Id generator for this editor (default: a fresh {@link sessionIdFactory}). Two editors with the
    *  default factory mint disjoint ids; pass `deterministicIdFactory()` for reproducible fixtures. */
   idFactory?: IdFactory;
+  /** How to render a node whose `type` isn't registered. `false`/omitted (default) keeps it
+   *  inert-but-preserved (unindexed, still in the document); `true` uses the built-in dashed-box
+   *  placeholder; a `NodeUtil` uses your own. Unknown types always warn once per load regardless. */
+  unknownTypePlaceholder?: boolean | NodeUtil;
 }
 
 export interface PointerMods {
@@ -245,10 +288,35 @@ function endpointNodeId(ep: Endpoint): Id<'node'> | undefined {
   return ep.kind === 'node' || ep.kind === 'outline' ? ep.nodeId : undefined;
 }
 
+/** Wrap `fn` so it runs at most once — used for plugin disposers pushed into BOTH the editor's teardown
+ *  and returned to the caller, so invoking both can't double-run the teardown. */
+function once(fn: () => void): () => void {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+}
+
+/**
+ * The engine façade: it wires the reactive record store → scene index → renderer, hosts the tool
+ * manager, camera, history, and the extension registries, and is the single object an app or preset
+ * drives. Construct with {@link EditorOptions} (all optional). Mutations go through helpers
+ * (`createNode`/`connect`/`updateRecord`/…) which route to `store.apply` so undo, the scene index, and
+ * events stay in sync — never mutate records directly.
+ *
+ * Failure convention: a synchronous programmer error (unknown type, invalid util, use-after-dispose)
+ * THROWS a typed {@link NodusError}; a stale/missing id RETURNS `false`/`null`; an async or
+ * third-party fault (listener, plugin, paint, effect, flow) is ROUTED to the `error` event.
+ */
 export class Editor implements EngineHost {
   /** This editor's instance id generator (see {@link EditorOptions.idFactory}). Assigned first in the
    *  constructor so the store — which advances it on load — can be handed the same instance. */
   readonly ids: IdFactory;
+  /** Fallback util for unregistered node types (see {@link EditorOptions.unknownTypePlaceholder}), or
+   *  undefined to keep the inert-but-preserved default. */
+  readonly unknownNodeUtil: NodeUtil | undefined;
   // Route errors caught inside the store's listener dispatch (a throwing third-party change listener)
   // to the EventBus, so hosts can observe them instead of them being swallowed. The closure reads
   // `this.events` lazily (only when an error fires), so field-init order is not a problem. Constructed
@@ -274,7 +342,25 @@ export class Editor implements EngineHost {
   readonly layouts = new Map<string, LayoutEngine>();
   readonly routers = new RouterRegistry();
   readonly commands = new CommandRegistry();
+  /** Per-editor icon registry: instance registrations are isolated; lookups fall through to the shared
+   *  built-in glyphs. Threaded into this editor's `DrawApi` so `draw()` resolves icons per-instance. */
+  readonly icons = new IconRegistry();
   readonly toolManager: ToolManager;
+
+  /** Per-editor dedup for paint errors (one report per record@version), cleared as it grows. */
+  private readonly seenPaintErrors = new Set<string>();
+  /** Instance paint-error sink: routes a throwing draw()/token-resolve to THIS editor's error bus
+   *  (never another editor's, never the module-global console). Deduped per record@version. */
+  private readonly onPaintError: PaintErrorHandler = (err, record) => {
+    const key = `${record.id}@${record.version}`;
+    if (this.seenPaintErrors.has(key)) return;
+    if (this.seenPaintErrors.size > 1024) this.seenPaintErrors.clear();
+    this.seenPaintErrors.add(key);
+    this.events.emit({ type: 'error', error: err, context: { phase: 'paint', id: record.id, recordType: record.type }, severity: 'error' });
+  };
+  /** Bundled per-editor paint deps handed to every `paintItem` — memoized (assigned in the constructor
+   *  after `unknownNodeUtil` resolves) so the hot render loop allocates nothing per item. */
+  private paintDeps!: PaintItemDeps;
 
   // reactive state
   readonly themeAtom: Atom<Theme>;
@@ -299,7 +385,15 @@ export class Editor implements EngineHost {
   /** typeVersions from the most recently loaded snapshot — merged with current utils on save. */
   private loadedTypeVersions: Record<string, number> = {};
   private readonly disposers: Dispose[] = [];
+  /** Once-wrapped teardown per installed plugin id (see {@link use}). */
+  private readonly pluginDisposers = new Map<string, Dispose>();
   private _disposed = false;
+  /** Nesting depth of `transaction()`; only the outermost call sets/clears the ambient capture + marks. */
+  private transactionDepth = 0;
+  /** Read-only mode gates the interactive (pointer/key) layer only — see {@link EditorOptions.readOnly}. */
+  readonly readOnly: boolean;
+  /** Bumped per `layout()` call; a late-returning async layout whose generation is stale is discarded. */
+  private layoutGeneration = 0;
   /** Captured from store.onReset during a load; emitted as `document:load` once the scene is rebuilt. */
   private pendingReset: { source: 'load'; recordCount: number } | null = null;
 
@@ -317,12 +411,13 @@ export class Editor implements EngineHost {
     }
   }
 
-  /** Emit a captured `document:load` (from store.onReset) now that the scene index is rebuilt. */
-  private flushDocumentLoad(): void {
+  /** Emit a captured `document:load` (from store.onReset) now that the scene index is rebuilt, carrying
+   *  the {@link LoadReport} of what was migrated/repaired. */
+  private flushDocumentLoad(report?: LoadReport): void {
     if (!this.pendingReset) return;
     const { source, recordCount } = this.pendingReset;
     this.pendingReset = null;
-    this.events.emit({ type: 'document:load', source, recordCount });
+    this.events.emit({ type: 'document:load', source, recordCount, ...(report ? { report } : {}) });
   }
 
   /** The registered node/edge util for a typed record, or undefined for pages / unknown types. */
@@ -411,6 +506,18 @@ export class Editor implements EngineHost {
     // Id factory + store first: the store advances this factory on load, so both must share the one
     // instance. `this.events` (a field initializer) is already set, so the store's onError closure is safe.
     this.ids = opts.idFactory ?? sessionIdFactory();
+    this.readOnly = opts.readOnly ?? false;
+    this.unknownNodeUtil =
+      opts.unknownTypePlaceholder === true
+        ? unknownNodeUtil
+        : typeof opts.unknownTypePlaceholder === 'object'
+          ? opts.unknownTypePlaceholder
+          : undefined;
+    this.paintDeps = {
+      ...(this.unknownNodeUtil ? { unknownNodeUtil: this.unknownNodeUtil } : {}),
+      icons: this.icons,
+      onPaintError: this.onPaintError,
+    };
     this.store = new Store({
       onError: (error, context) => this.events.emit({ type: 'error', error, context, severity: 'error' }),
       idFactory: this.ids,
@@ -426,18 +533,19 @@ export class Editor implements EngineHost {
       nodes: this.nodes,
       edges: this.edges,
       routers: this.routers,
+      ...(this.unknownNodeUtil ? { unknownNodeUtil: this.unknownNodeUtil } : {}),
       // a throwing third-party getGeometry/getRoute leaves the record unindexed and surfaces here.
-      // SceneIndexErrorContext's phases ('build'|'non-finite') are all valid ErrorEventContext phases;
-      // the widen is only for its missing (nominal) index signature.
+      // SceneIndexErrorContext's phases are all valid ErrorEventContext phases; the widen is only for
+      // its missing (nominal) index signature. A `missing-util` is a warning, not a fatal error.
       onError: (error, context) =>
         this.events.emit({
           type: 'error',
           error,
           context: context as unknown as ErrorEventContext,
-          severity: 'error',
+          severity: context.phase === 'missing-util' ? 'warning' : 'error',
         }),
     });
-    this.history = new History((changes, o) => this.store.apply(changes, o));
+    this.history = new History((changes, o) => this.store.apply(changes, o), opts.history?.limit);
     this.toolManager = new ToolManager(this, defaultTools());
 
     if (opts.builtins !== false) {
@@ -483,10 +591,9 @@ export class Editor implements EngineHost {
     );
 
     if (opts.records && opts.records.length > 0) {
-      this.store.load(opts.records);
-      this.sceneIndex.rebuild(this.store.allRecords());
-      this.rebuildFlowIndex();
-      this.flushDocumentLoad();
+      // One hydration path: run migrations, seed z, set the active page (not just a bare store.load).
+      const report = this.hydrateSnapshot({ schemaVersion: SCHEMA_VERSION, document: { records: opts.records } });
+      this.flushDocumentLoad(report);
     }
   }
 
@@ -498,29 +605,50 @@ export class Editor implements EngineHost {
   // EngineHost / registration
   // ==========================================================================
 
-  registerNodeType(util: NodeUtil): void {
+  /** Register a node type (validated; a re-registration overrides + warns on the `error` channel).
+   *  Re-indexes the scene. Returns a {@link Dispose} that unregisters the type and re-indexes. */
+  registerNodeType(util: NodeUtil): Dispose {
     this.nodes.register(util);
     this.sceneIndex.rebuild(this.store.allRecords());
+    return () => {
+      this.nodes.unregister(util.type);
+      this.sceneIndex.rebuild(this.store.allRecords());
+    };
   }
-  registerEdgeType(util: EdgeUtil): void {
+  registerEdgeType(util: EdgeUtil): Dispose {
     this.edges.register(util);
     this.sceneIndex.rebuild(this.store.allRecords());
+    return () => {
+      this.edges.unregister(util.type);
+      this.sceneIndex.rebuild(this.store.allRecords());
+    };
   }
-  registerTool(tool: ToolNode): void {
+  registerTool(tool: ToolNode): Dispose {
     this.toolManager.register(tool);
+    return () => this.toolManager.unregister(tool.id);
   }
-  registerLayout(engine: LayoutEngine): void {
+  registerRouter(router: Router): Dispose {
+    this.routers.register(router);
+    this.sceneIndex.rebuild(this.store.allRecords()); // routers affect edge geometry
+    return () => {
+      this.routers.unregister(router.id);
+      this.sceneIndex.rebuild(this.store.allRecords());
+    };
+  }
+  registerLayout(engine: LayoutEngine): Dispose {
     const id = (engine as { id?: unknown } | null | undefined)?.id;
     if (typeof id !== 'string' || id.length === 0) {
-      throw new Error(
+      throw new NodusError(
+        'invalid-util',
         `Cannot register layout: 'id' must be a non-empty string (got ${typeof id === 'string' ? JSON.stringify(id) : String(id)}).`,
       );
     }
     if (typeof engine.layout !== 'function') {
-      throw new Error(`Cannot register layout ${JSON.stringify(id)}: 'layout' must be a function.`);
+      throw new NodusError('invalid-util', `Cannot register layout ${JSON.stringify(id)}: 'layout' must be a function.`);
     }
     if (this.layouts.has(id)) this.reportRegistryOverride('layout', id);
     this.layouts.set(id, engine);
+    return () => this.layouts.delete(id);
   }
   setTheme(theme: Theme): void {
     this.themeAtom.set(theme);
@@ -558,25 +686,72 @@ export class Editor implements EngineHost {
   execute(id: string, args?: unknown): void | Promise<void> {
     return this.commands.execute(id, this, args);
   }
+  /**
+   * Install a plugin. Idempotent by `plugin.id`: a second install (StrictMode double-invoke, HMR)
+   * returns the EXISTING disposer + warns, rather than throwing or double-registering. Every register*
+   * / subscribe call the plugin makes is recorded, so its disposer unwinds exactly its own footprint;
+   * the disposer is `once`-wrapped and pushed into the editor's teardown AND returned (so calling it
+   * plus `editor.dispose()` can never double-invoke).
+   */
   use(plugin: Plugin): Dispose {
-    // Isolate a throwing plugin: surface the failure on the observable `error` channel, then rethrow
-    // with context (which plugin) so a plugin that can't install is loud for the app author. We push
-    // the disposer only on success — a plugin that threw never leaves a half-baked disposer that a
-    // later `dispose()`/teardown would run against partial state.
-    let dispose: Dispose | void;
+    const id = plugin.id;
+    const existing = id ? this.pluginDisposers.get(id) : undefined;
+    if (existing) {
+      console.warn(`[nodus] plugin ${JSON.stringify(id)} is already installed; returning the existing disposer.`);
+      return existing;
+    }
+
+    // A recording host captures each register/subscribe disposer into `bundle` for exact teardown.
+    const bundle: Dispose[] = [];
+    let raw: Dispose | void;
     try {
-      dispose = plugin.register(this);
+      raw = plugin.register(this.recordingHost(bundle));
     } catch (err) {
-      const id = (plugin as { id?: unknown } | null | undefined)?.id;
+      // Match the documented decision: a partially-registered plugin's registrations REMAIN usable and
+      // the editor keeps operating; we simply don't push a disposer for the failed install.
       const label = typeof id === 'string' && id.length > 0 ? JSON.stringify(id) : '<unknown>';
       this.events.emit({ type: 'error', error: err, context: { phase: 'plugin', pluginId: id }, severity: 'error' });
       throw new Error(`Plugin ${label} failed to install: ${err instanceof Error ? err.message : String(err)}`, {
         cause: err,
       });
     }
-    const d = typeof dispose === 'function' ? dispose : () => {};
-    this.disposers.push(d);
-    return d;
+    if (typeof raw === 'function') bundle.push(raw); // the plugin's own disposer runs last (unwound first)
+
+    const dispose = once(() => {
+      for (let i = bundle.length - 1; i >= 0; i--) bundle[i]!();
+      if (id) this.pluginDisposers.delete(id);
+    });
+    if (id) this.pluginDisposers.set(id, dispose);
+    this.disposers.push(dispose);
+    return dispose;
+  }
+
+  /** A host that delegates to this editor but records every returned disposer into `bundle`, so a
+   *  plugin's teardown unwinds exactly what it registered (see {@link use}). */
+  private recordingHost(bundle: Dispose[]): EngineHost {
+    const rec = (d: Dispose): Dispose => {
+      bundle.push(d);
+      return d;
+    };
+    return {
+      editor: this,
+      registerNodeType: (u) => rec(this.registerNodeType(u)),
+      registerEdgeType: (u) => rec(this.registerEdgeType(u)),
+      registerTool: (t) => rec(this.registerTool(t)),
+      registerLayout: (e) => rec(this.registerLayout(e)),
+      registerRouter: (r) => rec(this.registerRouter(r)),
+      setTheme: (t) => this.setTheme(t),
+      addOverlay: (o) => rec(this.addOverlay(o)),
+      on: ((type: string, handler: (e: NodusEvent) => void) => rec(this.on(type, handler))) as EngineHost['on'],
+      onChange: (h) => rec(this.onChange(h)),
+      onBeforeChange: (f) => rec(this.onBeforeChange(f)),
+      registerCommand: (c) => rec(this.registerCommand(c)),
+    };
+  }
+
+  /** Ids of the plugins currently installed via {@link use}. */
+  installedPlugins(): string[] {
+    return [...this.pluginDisposers.keys()];
   }
 
   /** Surface a type/layout re-registration (a deliberate override, e.g. a preset replacing a builtin)
@@ -661,6 +836,8 @@ export class Editor implements EngineHost {
     return this.createNode({ type, x: world.x - size.w / 2, y: world.y - size.h / 2 }, opts);
   }
 
+  /** Update a node record (delegates to {@link updateRecord}; a `props` patch is validated). No-op
+   *  if `id` is stale. Undoable per the `opts.capture` policy (default one entry). */
   updateNode(id: Id, patch: Partial<NodeRecord>, opts?: ApplyOptions): void {
     this.updateRecord(id, patch as Record<string, unknown>, opts);
   }
@@ -740,7 +917,7 @@ export class Editor implements EngineHost {
     if (hit && hit.kind === 'node') {
       const n = hit.record as NodeRecord;
       const util = this.nodes.get(n.type);
-      if (n.type !== 'group' && util?.capabilities?.canConnect !== false) {
+      if (n.type !== 'group' && this.capabilitiesOf(n.type).canConnect) {
         return { kind: 'outline', nodeId: n.id };
       }
     }
@@ -749,7 +926,7 @@ export class Editor implements EngineHost {
   setEdgeEndpoint(id: Id, which: 'from' | 'to', endpoint: Endpoint, opts?: ApplyOptions): void {
     this.updateRecord(id, { [which]: endpoint }, opts ?? { capture: 'immediately' });
   }
-  /** The world positions of a selected edge's draggable endpoints (route ends), or null. */
+  /** @internal Host-wiring surface. The world positions of a selected edge's draggable endpoints (route ends), or null. */
   edgeEndpointHandles(id: Id): { from: Vec2; to: Vec2 } | null {
     const item = this.sceneIndex.getItem(id);
     if (!item || item.kind !== 'edge' || !item.route || item.route.length < 2) return null;
@@ -808,7 +985,7 @@ export class Editor implements EngineHost {
       const r = this.store.peek(id);
       if (!r || !isNode(r)) continue;
       if (r.locked === true) continue; // edit-locked: not rotatable
-      if (this.nodes.get(r.type)?.capabilities?.canRotate === false) continue;
+      if (!this.capabilitiesOf(r.type).canRotate) continue;
       changes.push({ op: 'update', id, patch: { rotation: (r.rotation ?? 0) + radians } });
     }
     if (changes.length) this.store.apply(changes, opts ?? { capture: 'immediately' });
@@ -959,6 +1136,7 @@ export class Editor implements EngineHost {
   /**
    * Compute a snap correction for a moving box against the grid and other nodes' edges/centers.
    * Returns the delta to add and the alignment guides to draw.
+   * @internal Host-wiring surface — not part of the stable API.
    */
   computeSnap(box: Box, movingIds: Set<Id>): { dx: number; dy: number; guides: Guide[] } {
     const cam = this.camera;
@@ -1361,7 +1539,7 @@ export class Editor implements EngineHost {
   canConnectTo(nodeId: Id): boolean {
     const rec = this.store.peek(nodeId);
     if (!rec || !isNode(rec)) return false;
-    return this.nodes.get(rec.type)?.capabilities?.canConnect !== false;
+    return this.capabilitiesOf(rec.type).canConnect;
   }
 
   /**
@@ -1412,6 +1590,8 @@ export class Editor implements EngineHost {
   // selection
   // ==========================================================================
 
+  /** Select the given ids (replacing the current selection, or ADDING when `additive`). Emits the
+   *  `selection` event. Ephemeral — selection is not part of the document or undo history. */
   select(ids: Id[], additive = false): void {
     const set = additive ? new Set([...this.selectedAtom.peek(), ...ids]) : new Set(ids);
     this.selectedAtom.set(set);
@@ -1424,6 +1604,7 @@ export class Editor implements EngineHost {
     this.selectedAtom.set(set);
     this.emitSelection();
   }
+  /** Clear the selection (emits `selection` with an empty set). */
   clearSelection(): void {
     if (this.selectedAtom.peek().size === 0) return;
     this.selectedAtom.set(new Set());
@@ -1436,6 +1617,8 @@ export class Editor implements EngineHost {
   isSelected(id: Id): boolean {
     return this.selectedAtom.peek().has(id);
   }
+  /** The currently-selected ids as an array. Reads with `peek()` — it does NOT subscribe; a panel
+   *  that must re-render on selection change should read `sceneIndex.version`/subscribe separately. */
   selectedIdsArray(): Id[] {
     return [...this.selectedAtom.peek()];
   }
@@ -1496,12 +1679,23 @@ export class Editor implements EngineHost {
     this.events.emit({ type: 'selection', ids: [...this.selectedAtom.peek()] });
   }
 
+  /** The resolved capabilities for a node type: `DEFAULT_CAPABILITIES` overlaid with the util's
+   *  declared partial. The ONE merge point — read sites go through this, so an unset flag (e.g.
+   *  `canRotate`) resolves to the documented default (false) consistently. */
+  capabilitiesOf(type: string): NodeCapabilities {
+    return { ...DEFAULT_CAPABILITIES, ...this.nodes.get(type)?.capabilities };
+  }
+  /** The resolved capabilities for an edge type (see {@link capabilitiesOf}). */
+  edgeCapabilitiesOf(type: string): EdgeCapabilities {
+    return { ...DEFAULT_EDGE_CAPABILITIES, ...this.edges.get(type)?.capabilities };
+  }
+
   canEdit(id: Id): boolean {
     const r = this.store.peek(id);
     if (!r) return false;
-    if (isEdge(r)) return true; // edges are always label-editable
+    if (isEdge(r)) return this.edgeCapabilitiesOf(r.type).canEdit;
     if (!isNode(r)) return false;
-    return this.nodes.get(r.type)?.capabilities?.canEdit !== false;
+    return this.capabilitiesOf(r.type).canEdit;
   }
 
   // ---- resize ----
@@ -1510,7 +1704,7 @@ export class Editor implements EngineHost {
     const r = this.store.peek(id);
     if (!r || !isNode(r)) return false;
     if (r.locked === true) return false; // edit-locked: no resize handles / no resize gesture
-    return this.nodes.get(r.type)?.capabilities?.canResize !== false;
+    return this.capabilitiesOf(r.type).canResize;
   }
 
   /** World positions of a box's 8 resize handles. */
@@ -1525,7 +1719,7 @@ export class Editor implements EngineHost {
       sw: { x: b.x, y: y2 }, w: { x: b.x, y: midY },
     };
   }
-  /** Which resize handle (if any) is under `world`, within a screen-scaled tolerance. */
+  /** @internal Host-wiring surface. Which resize handle (if any) is under `world`, within a screen-scaled tolerance. */
   hitResizeHandle(b: Box, world: Vec2): ResizeHandle | null {
     const tol = 7 / this.camera.z;
     const pts = this.resizeHandlePoints(b);
@@ -1618,7 +1812,7 @@ export class Editor implements EngineHost {
   isMultilineEdit(id: Id): boolean {
     const r = this.store.peek(id);
     if (!r || !isNode(r)) return false;
-    return this.nodes.get(r.type)?.capabilities?.multiline === true;
+    return this.capabilitiesOf(r.type).multiline;
   }
   beginEdit(id: Id): void {
     this.editingAtom.set(id);
@@ -1647,6 +1841,7 @@ export class Editor implements EngineHost {
   get camera(): Camera {
     return this.cameraAtom.peek();
   }
+  /** Set the camera (pan/zoom). Ephemeral — camera is view state, not serialized or undoable. */
   setCamera(cam: Camera): void {
     // Reject a non-finite camera (NaN/Infinity from a corrupt content bound, a divide-by-zero fit, or a
     // bad restore) at this one chokepoint — a single NaN here freezes the whole viewport, and every
@@ -1701,6 +1896,7 @@ export class Editor implements EngineHost {
     const center = screenCenter ?? { x: vp.w / 2, y: vp.h / 2 };
     this.setCamera(zoomAt(this.camera, center, factor));
   }
+  /** Pan+zoom so the whole document fits the viewport with `padding` px of margin. View-only. */
   zoomToFit(padding = 48): void {
     const bounds = this.sceneIndex.contentBounds();
     if (!bounds) return;
@@ -1722,6 +1918,26 @@ export class Editor implements EngineHost {
   mark(): void {
     this.assertLive();
     this.history.mark();
+  }
+  /**
+   * Group every mutation made inside `fn` into ONE undo entry. Helper edits inside `fn` inherit
+   * ambient `capture: 'later'`, and a single `mark()` closes the group on exit (nesting is safe —
+   * only the outermost call marks). This is the blessed way to compose edits: do NOT wrap raw
+   * `store.apply` in a signals `transact()` (that throws `NodusError('apply-in-transaction')`).
+   */
+  transaction(fn: () => void): void {
+    this.assertLive();
+    this.transactionDepth++;
+    if (this.transactionDepth === 1) this.store.setAmbientCapture('later');
+    try {
+      fn();
+    } finally {
+      this.transactionDepth--;
+      if (this.transactionDepth === 0) {
+        this.store.setAmbientCapture(null);
+        this.mark();
+      }
+    }
   }
   /** Undo the most recent action. Returns `true` if something was undone, `false` on an empty stack. */
   undo(): boolean {
@@ -1775,12 +1991,32 @@ export class Editor implements EngineHost {
         context: { engineId },
       });
     }
-    const nodes = this.store.nodes();
-    const edges = this.store.edges();
+    // Bump the generation so a slower earlier call's late result is discarded (see the guard below).
+    const gen = ++this.layoutGeneration;
+    // Scope the graph to the ACTIVE PAGE, excluding hidden nodes. A locked node arrives `fixed` so the
+    // engine won't move it; `parentId` lets group-aware engines respect containment.
+    const active = this.activePageId();
+    const nodes = this.store.nodes().filter((n) => this.pageIdOf(n) === active && n.hidden !== true);
+    const nodeIds = new Set<Id>(nodes.map((n) => n.id));
     const graph: LayoutGraph = {
-      nodes: nodes.map((n) => ({ id: n.id, w: n.w, h: n.h, x: n.x, y: n.y })),
-      edges: edges
-        .filter((e) => e.from.kind !== 'point' && e.to.kind !== 'point') // node OR outline (both carry nodeId)
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        w: n.w,
+        h: n.h,
+        x: n.x,
+        y: n.y,
+        ...(n.locked === true ? { fixed: true } : {}),
+        ...(n.parentId ? { parentId: n.parentId } : {}),
+      })),
+      edges: this.store
+        .edges()
+        .filter(
+          (e) =>
+            e.from.kind !== 'point' &&
+            e.to.kind !== 'point' &&
+            nodeIds.has((e.from as { nodeId: Id }).nodeId) &&
+            nodeIds.has((e.to as { nodeId: Id }).nodeId),
+        )
         .map((e) => ({
           id: e.id,
           source: (e.from as { nodeId: Id }).nodeId,
@@ -1789,6 +2025,9 @@ export class Editor implements EngineHost {
       ...(opts?.direction ? { direction: opts.direction } : {}),
     };
     const result = await engine.layout(graph, opts);
+    // Staleness guard: a disposed editor, or a newer layout() call that superseded this one, discards
+    // this (now stale) result rather than committing positions computed against an old graph.
+    if (this.disposed || gen !== this.layoutGeneration) return;
     const olds = new Map<Id, { x: number; y: number }>(nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
     const changes: Change[] = [];
     for (const n of nodes) {
@@ -1855,6 +2094,8 @@ export class Editor implements EngineHost {
     return out;
   }
 
+  /** Serialize the whole document to a canonical {@link Snapshot} (stable key order, normalized
+   *  numbers, per-type `typeVersions`). Round-trips through {@link loadSnapshot}. */
   toJSON(meta?: Record<string, unknown>): Snapshot {
     return serializeRecords(this.store.allRecords(), {
       ...(meta ? { meta } : {}),
@@ -1862,14 +2103,31 @@ export class Editor implements EngineHost {
     });
   }
   /**
-   * Load a snapshot, migrating and repairing records defensively. A well-formed but NEWER
-   * `schemaVersion` is refused: `restore()` throws `NodusError('schema-too-new')`, which propagates
-   * here (the host should surface "upgrade to open this diagram") rather than silently mangling it.
+   * The single hydration path (constructor `records` and `loadSnapshot` both use it): migrate + repair
+   * records, load them, rebuild the scene index + flow, reset selection/editing, open the first page,
+   * and seed the z-counter past the largest loaded z (so new nodes paint on top). Returns a
+   * {@link LoadReport}; each repaired issue is also forwarded to the `error` channel as a warning.
+   *
+   * A well-formed but NEWER `schemaVersion` is refused: `restore()` throws `NodusError('schema-too-new')`,
+   * which propagates to the caller (the host should surface "upgrade to open this diagram").
    */
-  loadSnapshot(snap: Snapshot, opts?: { fit?: boolean }): void {
-    this.assertLive();
+  private hydrateSnapshot(snap: Snapshot): LoadReport {
     this.loadedTypeVersions = snap.typeVersions ?? {};
-    const { records } = restore(snap, { resolveMigrations: this.resolveMigrations });
+    const issues: SerializationIssue[] = [];
+    const result = restore(snap, {
+      resolveMigrations: this.resolveMigrations,
+      onError: (issue) => {
+        issues.push(issue);
+        // forward each repaired defect to the observable error channel (non-fatal → warning)
+        this.events.emit({
+          type: 'error',
+          error: new Error(issue.message),
+          context: { phase: 'load', issue: issue.code },
+          severity: 'warning',
+        });
+      },
+    });
+    const { records } = result;
     batch(() => {
       this.store.load(records);
       this.sceneIndex.rebuild(this.store.allRecords());
@@ -1889,10 +2147,18 @@ export class Editor implements EngineHost {
       }
     }
     this.zCounter = Math.max(this.zCounter, maxZ + 1);
+    return { ...result, issues };
+  }
+
+  /** Load a snapshot into the editor. Returns a {@link LoadReport}; also emits `document:load` (carrying
+   *  the report) once the scene is rebuilt. See {@link hydrateSnapshot} for schema-too-new behavior. */
+  loadSnapshot(snap: Snapshot, opts?: { fit?: boolean }): LoadReport {
+    this.assertLive();
+    const report = this.hydrateSnapshot(snap);
     this.history.clear();
     if (opts?.fit) this.zoomToFit();
-    // scene index + flow are rebuilt above; now surface `document:load` to observers.
-    this.flushDocumentLoad();
+    this.flushDocumentLoad(report);
+    return report;
   }
 
   // ==========================================================================
@@ -1940,7 +2206,8 @@ export class Editor implements EngineHost {
   }
 
   /** Diagnostic counters for the static-layer cache (hits / full repaints / drag-region repaints), or
-   *  `null` when no cache is installed. Does not affect rendering — for perf tests and dev tooling. */
+   *  `null` when no cache is installed. Does not affect rendering — for perf tests and dev tooling.
+   *  @internal */
   layerCacheStats(): LayerCacheStats | null {
     return this.layerCache?.stats ?? null;
   }
@@ -2093,7 +2360,7 @@ export class Editor implements EngineHost {
       } else {
         override = item.kind === 'edge' ? this.edgeGradientOverride(item, theme) : undefined;
       }
-      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override, cam.z);
+      paintItem(ctx, item, this.nodes, this.edges, theme, this.presentationFor(item.id), override, cam.z, this.paintDeps);
     }
   }
 
@@ -2206,11 +2473,7 @@ export class Editor implements EngineHost {
         // rotate handle: a round dot 24px above the box top-center, coinciding with SelectTool's
         // hit-test (which reads the same raw item.aabb). Round shape distinguishes it from the square
         // resize handles. Gated identically to editor.rotate(): unlocked + canRotate !== false.
-        if (
-          single &&
-          !locked &&
-          this.nodes.get((item.record as NodeRecord).type)?.capabilities?.canRotate !== false
-        ) {
+        if (single && !locked && this.capabilitiesOf((item.record as NodeRecord).type).canRotate) {
           const cx = item.aabb.x + item.aabb.w / 2;
           const top = item.aabb.y;
           const hy = top - px(24);
@@ -2593,7 +2856,8 @@ export class Editor implements EngineHost {
     });
   }
   /** Test-only: advance the animation clock with the current reduced-motion state, without a full
-   *  `render()` call (which needs a real Ctx2D). Lets unit tests drive tween ticks deterministically. */
+   *  `render()` call (which needs a real Ctx2D). Lets unit tests drive tween ticks deterministically.
+   *  @internal */
   animClockStep(now: number): void {
     this.animClock.step(now, this.reducedMotionAtom.peek());
   }
@@ -2609,7 +2873,8 @@ export class Editor implements EngineHost {
 
   /** Draw the animated flow markers for every visible flowing edge. `time` is a ms clock (the host
    *  passes performance.now()). Advances the internal flow clock only while animating, so pause /
-   *  reduced-motion freeze in place and speedScale changes stay smooth. No-op draw when disabled. */
+   *  reduced-motion freeze in place and speedScale changes stay smooth. No-op draw when disabled.
+   *  @internal */
   paintFlow(ctx: Ctx2D, dpr: number, time: number): void {
     const c = this.flowConfigAtom.peek();
     const frameMs = c.maxFps && c.maxFps > 0 ? 1000 / c.maxFps : 1000 / 30;
@@ -2680,7 +2945,7 @@ export class Editor implements EngineHost {
     if (!txt) return;
     const mid = route[Math.floor(route.length / 2)] ?? route[0]!;
     const tokens = resolveTokensCached(theme, item.record as EdgeRecord);
-    const api = new DrawApi(ctx, tokens, hashId(item.id));
+    const api = new DrawApi(ctx, tokens, hashId(item.id), 1, this.icons);
     const w = api.measureLabel(txt, 10) + 12;
     const h = 17;
     const bg = resolved.color ?? tokens.stroke;
@@ -2777,7 +3042,7 @@ export class Editor implements EngineHost {
     // world -> device: scale by pixelRatio, offset by region origin
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, -region.x * pixelRatio, -region.y * pixelRatio);
     for (const item of this.sceneIndex.paintOrder()) {
-      paintItem(ctx, item, this.nodes, this.edges, theme);
+      paintItem(ctx, item, this.nodes, this.edges, theme, undefined, undefined, undefined, this.paintDeps);
     }
     // optional flow snapshot at `time` (stateless: honors enabled + speedScale; ignores pause/reduced-motion)
     if (opts.flow) {
@@ -2788,6 +3053,12 @@ export class Editor implements EngineHost {
     }
   }
 
+  /**
+   * Render the document (or `opts.bounds`) to PNG bytes. The `create` factory is injected so the same
+   * code runs in the browser (`OffscreenCanvas`/`<canvas>`) and HEADLESS (`@napi-rs/canvas` — Skia),
+   * keeping the core DOM-free. `opts.pixelRatio` scales the output; `opts.background`/`grid` toggle
+   * layers. Returns the encoded PNG as a `Uint8Array`.
+   */
   async toPNG(create: CreateCanvas, opts: ToPNGOptions = {}): Promise<Uint8Array> {
     const bounds = opts.bounds ?? this.sceneIndex.contentBounds() ?? { x: 0, y: 0, w: 100, h: 100 };
     const pad = opts.padding ?? 40;
@@ -2833,24 +3104,31 @@ export class Editor implements EngineHost {
   }
   pointerDown(screen: Vec2, mods: PointerMods = {}): void {
     this.assertLive();
+    if (this.readOnly) return; // read-only gates the interactive layer only
     this.toolManager.pointerDown(this.pointerInfo(screen, mods));
   }
   pointerMove(screen: Vec2, mods: PointerMods = {}): void {
     this.assertLive();
+    if (this.readOnly) return;
     const info = this.pointerInfo(screen, mods);
     this.updateHover(info.target?.id ?? null);
     this.toolManager.pointerMove(info);
   }
   pointerUp(screen: Vec2, mods: PointerMods = {}): void {
     this.assertLive();
+    if (this.readOnly) return;
     this.toolManager.pointerUp(this.pointerInfo(screen, mods));
   }
+  /** @internal Host-wiring surface (a host wires this to the DOM dblclick). */
   doubleClick(screen: Vec2, mods: PointerMods = {}): void {
     this.assertLive();
+    if (this.readOnly) return;
     this.toolManager.doubleClick(this.pointerInfo(screen, mods));
   }
+  /** @internal Host-wiring surface (a host wires this to the DOM keydown). */
   keyDown(k: KeyInfo): void {
     this.assertLive();
+    if (this.readOnly) return;
     this.toolManager.keyDown(k);
   }
 

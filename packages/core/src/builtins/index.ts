@@ -42,6 +42,27 @@ export const rectNodeUtil: NodeUtil = {
   },
 };
 
+/**
+ * Placeholder for a node whose `type` isn't registered (a document loaded before its preset, a
+ * dropped plugin). Renders a dashed box labelled with the unknown type name and hit-tests as a plain
+ * rectangle from the record's `x/y/w/h`, so the record stays visible and selectable instead of
+ * vanishing. Opt in via `EditorOptions.unknownTypePlaceholder`; default keeps the inert-but-preserved
+ * behavior. NOT registered under a type key — the engine uses it only as a fallback.
+ */
+export const unknownNodeUtil: NodeUtil = {
+  type: 'unknown',
+  getDefaultProps: () => ({}),
+  getGeometry(node: NodeRecord): Geometry2d {
+    return new Rectangle2d({ x: node.x, y: node.y, w: node.w, h: node.h });
+  },
+  draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void {
+    const box = { x: node.x, y: node.y, w: node.w, h: node.h };
+    api.strokeRoundRect(box, tokens.radius, tokens.stroke, { width: tokens.strokeWidth, dash: [4, 3] });
+    // Show the unregistered type so the gap is diagnosable at a glance.
+    api.label(node.label ?? node.type, { x: node.x + node.w / 2, y: node.y + node.h / 2 });
+  },
+};
+
 const ARROW_GAP = 6;
 const ARROW_SIZE = 8;
 

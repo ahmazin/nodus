@@ -36,6 +36,12 @@ const pending = new Set<EffectNode>();
 let txDepth = 0;
 let txBackups: Map<AtomNode<unknown>, unknown> | null = null;
 
+/** Whether a `transact()` is currently on the stack. The store uses this to refuse a raw `apply()`
+ *  nested inside a `transact()` (it would compose incorrectly — group with `editor.transaction`). */
+export function inTransaction(): boolean {
+  return txDepth > 0;
+}
+
 // ----- effect-error isolation -----
 
 /** Handler invoked when an effect throws during a flush. Receives the thrown value. */
@@ -129,10 +135,16 @@ function scheduleEffect(e: EffectNode): void {
 // ============================================================================
 
 export interface Atom<T> {
+  /** Read the value AND, when called inside a reactive context (an `effect`/`computed`/`reaction` or
+   *  React's `useValue`), subscribe to it — the context re-runs when this atom next changes. Outside a
+   *  reactive context it is a plain read. Use {@link peek} to read without subscribing. */
   get(): T;
+  /** Set the value. Equal values (by the atom's `eq`, default `Object.is`) are a no-op; otherwise
+   *  observers are marked dirty and dependent effects are scheduled (run at the end of the batch). */
   set(v: T): void;
+  /** Set from the previous value (`set(f(peek()))`). */
   update(f: (prev: T) => T): void;
-  /** Read without registering a dependency. */
+  /** Read WITHOUT registering a dependency — never subscribes, even inside a reactive context. */
   peek(): T;
 }
 
@@ -183,7 +195,9 @@ export function atom<T>(initial: T, eq: Eq<T> = defaultEq as Eq<T>): Atom<T> {
 // ============================================================================
 
 export interface Computed<T> {
+  /** Read the lazily-recomputed value AND subscribe when inside a reactive context (like {@link Atom.get}). */
   get(): T;
+  /** Read the value without subscribing (recomputes if dirty; see {@link Atom.peek}). */
   peek(): T;
   /** Unlink from upstream sources so they no longer retain this computed. Call when discarding a
    *  throwaway computed over long-lived atoms; otherwise the atoms hold it (and its closure) forever. */
@@ -285,15 +299,21 @@ class EffectNode extends ReactiveNode {
   }
 }
 
-/** Run `fn` now and re-run it whenever any signal it read changes. Returns a disposer. */
+/**
+ * Run `fn` now (fires IMMEDIATELY), then re-run it whenever any signal it read via `.get()` changes.
+ * Returns a disposer that stops it. A throw inside `fn` during a flush is ISOLATED (the other pending
+ * effects still run) and routed to the handler set via {@link setEffectErrorHandler} — it never
+ * propagates out of the write that scheduled it.
+ */
 export function effect(fn: () => void): Dispose {
   const node = new EffectNode(fn);
   return () => node.dispose();
 }
 
 /**
- * Run `track` reactively; whenever its dependencies change, call `effectFn` with the
- * latest tracked value. The `effectFn` body itself does not track dependencies.
+ * Subscribe-and-run: evaluate `track` reactively (its `.get()` reads are the dependencies) and call
+ * `effectFn` with the latest tracked value — IMMEDIATELY on registration and again on every change.
+ * `effectFn`'s own body does NOT track dependencies (it runs untracked). Returns a disposer.
  */
 export function reaction<T>(track: () => T, effectFn: (value: T) => void): Dispose {
   let first = true;
@@ -334,9 +354,13 @@ export function batch<T>(fn: () => T): T {
 }
 
 /**
- * Run `fn` as an atomic transaction. Writes are batched; if `fn` throws, every atom write
- * made during the (outermost) transaction is rolled back and pending effects are discarded,
- * so observers never see a partially-applied mutation.
+ * Run `fn` as an atomic transaction. Writes are batched; if `fn` throws, every atom write made during
+ * the (outermost) transaction is rolled back and pending effects are discarded, so observers never see
+ * a partially-applied mutation.
+ *
+ * This is the LOW-LEVEL signal primitive. Do NOT call `store.apply` inside it — the store refuses that
+ * (`NodusError('apply-in-transaction')`) because a nested apply would compose incorrectly. To group
+ * document edits into one undo entry, use `editor.transaction(fn)` instead (see {@link inTransaction}).
  */
 export function transact<T>(fn: () => T): T {
   const outer = txDepth === 0;

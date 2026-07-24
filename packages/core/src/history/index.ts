@@ -15,13 +15,19 @@ interface HistoryEntry {
 
 export type ApplyFn = (changes: Change[], opts: ApplyOptions) => void;
 
+/** Delta-based undo/redo. Records forward + inverse `Change[]` per user transaction; `capture`
+ * controls grouping (see {@link CapturePolicy}). Reactive: `version` bumps so `canUndo`/`canRedo` track it. */
 export class History {
   private readonly undoStack: HistoryEntry[] = [];
   private readonly redoStack: HistoryEntry[] = [];
   private open: HistoryEntry | null = null;
   readonly version: Atom<number> = atom(0);
 
-  constructor(private readonly applyFn: ApplyFn) {}
+  /** @param limit Max undo entries kept; the oldest are evicted past it. Undefined ⇒ unbounded. */
+  constructor(
+    private readonly applyFn: ApplyFn,
+    private readonly limit?: number,
+  ) {}
 
   /** Called for every store change; records into history unless capture is `never` or the change came
    *  from a remote peer (a remote edit is authoritative, not a local action to undo — see ChangeSource). */
@@ -42,10 +48,15 @@ export class History {
       // inverse must undo newest first -> prepend
       this.open.inverse.unshift(...info.inverse);
     }
+    // Evict the oldest entries past the limit (the open group, if any, is the newest — never evicted).
+    if (this.limit !== undefined) {
+      while (this.undoStack.length > this.limit) this.undoStack.shift();
+    }
     this.bump();
   }
 
-  /** Close the current accumulation group (e.g. on pointer-up). */
+  /** Close the current `capture: 'later'` accumulation group (e.g. on pointer-up), so the whole
+   *  gesture becomes ONE undo entry and the next change starts a fresh entry. No-op if none is open. */
   mark(): void {
     this.open = null;
   }

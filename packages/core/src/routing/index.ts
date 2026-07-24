@@ -6,6 +6,7 @@
 
 import type { Box, Vec2 } from '../model.js';
 import { boxCenter, boxIntersects, distToSegment } from '../geometry/index.js';
+import { NodusError } from '../errors/index.js';
 
 export interface RouteContext {
   from: Vec2;
@@ -392,11 +393,33 @@ function smoothThrough(points: Vec2[], perSeg: number): Vec2[] {
 
 export class RouterRegistry {
   private readonly map = new Map<string, Router>();
+  /** Notified when a registration overrides an existing router id (a soft, non-fatal warning). */
+  onOverride?: (id: string) => void;
+
+  /** Register a router under its `id`. Fails fast on a malformed router (matching the type-registry
+   *  contract); a re-registration fires {@link onOverride}. */
   register(r: Router): void {
+    if (r === null || typeof r !== 'object' || typeof r.id !== 'string' || r.id.length === 0) {
+      throw new NodusError('invalid-util', `Cannot register router: 'id' must be a non-empty string.`, {
+        context: { got: typeof r },
+      });
+    }
+    if (typeof r.route !== 'function') {
+      throw new NodusError('invalid-util', `Cannot register router ${JSON.stringify(r.id)}: 'route' must be a function.`, {
+        context: { id: r.id },
+      });
+    }
+    if (this.map.has(r.id)) this.onOverride?.(r.id);
     this.map.set(r.id, r);
+  }
+  unregister(id: string): void {
+    this.map.delete(id);
   }
   get(id: string | undefined): Router | undefined {
     return id ? this.map.get(id) : undefined;
+  }
+  has(id: string): boolean {
+    return this.map.has(id);
   }
   list(): Router[] {
     return [...this.map.values()];

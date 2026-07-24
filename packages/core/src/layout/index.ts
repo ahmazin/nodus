@@ -38,6 +38,9 @@ export interface LayoutOptions {
   rankGap?: number;
   /** Gap between nodes in the same rank. */
   nodeGap?: number;
+  /** Cancels a long-running (async) layout; the engine should honor it and the editor discards a
+   *  superseded result. */
+  signal?: AbortSignal;
   [key: string]: unknown;
 }
 

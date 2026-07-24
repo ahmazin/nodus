@@ -5,7 +5,7 @@
  */
 
 import type { Box, Vec2 } from '../model.js';
-import { drawIcon } from '../icons/index.js';
+import { drawIcon, type IconRegistry } from '../icons/index.js';
 import type { ResolvedTokens } from '../theme/index.js';
 import type { Ctx2D, CanvasGradientLike, DrawableImage } from './context.js';
 
@@ -86,6 +86,9 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** The drawing façade a `NodeUtil`/`EdgeUtil` `draw()` paints through — primitives (rects, paths,
+ * labels, icons, images) over a `Ctx2D` abstraction, so identical code paints to a DOM canvas or Skia
+ * headless. Threads the sketchy-jitter seed, camera zoom (LOD), and the per-editor {@link IconRegistry}. */
 export class DrawApi {
   /**
    * `seed` is the per-shape jitter seed (a hash of the record id, see `hashId`). It is threaded in by
@@ -102,6 +105,9 @@ export class DrawApi {
     readonly tokens: ResolvedTokens,
     readonly seed: number = 0,
     readonly zoom: number = 1,
+    /** Per-editor icon registry; when set, `icon()` resolves glyphs through it (instance-registered
+     *  first, shared built-ins as fallback). Undefined ⇒ the module-global default set. */
+    readonly icons?: IconRegistry,
   ) {}
 
   // ---- path construction ----
@@ -406,9 +412,11 @@ export class DrawApi {
     return this;
   }
 
-  /** Draw a registered icon glyph inside `box`. `color` is the outline; `fill` tints the body. */
+  /** Draw a registered icon glyph inside `box`. `color` is the outline; `fill` tints the body. Resolves
+   *  through the editor's {@link IconRegistry} when one was threaded in, else the module-global set. */
   icon(name: string, box: Box, color: string, fill?: string): this {
-    drawIcon(this.ctx, name, box, color, fill);
+    if (this.icons) this.icons.draw(this.ctx, name, box, color, fill);
+    else drawIcon(this.ctx, name, box, color, fill);
     return this;
   }
 

@@ -98,6 +98,15 @@ export interface RestoreResult {
   repointedPageRefs: number;
 }
 
+/**
+ * The result of hydrating a document into an `Editor` (`loadSnapshot`): the {@link RestoreResult}
+ * counts plus every non-fatal {@link SerializationIssue} the restore repaired. Returned by
+ * `loadSnapshot` and carried on the `document:load` event so a host can report what was fixed.
+ */
+export interface LoadReport extends RestoreResult {
+  issues: SerializationIssue[];
+}
+
 export function serializeRecords(
   records: NodusRecord[],
   opts?: { meta?: Record<string, unknown>; typeVersions?: Record<string, number> },

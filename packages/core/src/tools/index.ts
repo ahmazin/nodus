@@ -29,6 +29,9 @@ export interface KeyInfo {
   alt: boolean;
 }
 
+/** Base class for an interaction tool (select/hand/create/connect, or a plugin's own). The tool
+ * manager routes pointer/key events to the active tool; override the on* handlers. `onEnter`/`onExit`
+ * bracket activation. Registered via `editor.registerTool` / a plugin. */
 export abstract class ToolNode {
   abstract readonly id: string;
   protected editor!: Editor;
@@ -509,7 +512,7 @@ export class SelectTool extends ToolNode {
     if (!item || item.kind !== 'node') return null;
     const node = item.record as NodeRecord;
     if (node.locked === true) return null; // edit-locked: not rotatable (editor.rotate skips it too)
-    if (this.editor.nodes.get(node.type)?.capabilities?.canRotate === false) return null;
+    if (!this.editor.capabilitiesOf(node.type).canRotate) return null;
     const b = item.aabb;
     return {
       handle: { x: b.x + b.w / 2, y: b.y - ROTATE_HANDLE_OFFSET / this.editor.camera.z },
@@ -764,6 +767,14 @@ export class ToolManager {
   register(tool: ToolNode): void {
     tool.bind(this.editor);
     this.tools.set(tool.id, tool);
+  }
+
+  /** Remove a registered tool. If it was the active tool, reset to `select` first (running its
+   *  onExit + select's onEnter). Never removes `select` itself. */
+  unregister(id: string): void {
+    if (id === 'select' || !this.tools.has(id)) return;
+    if (this.currentId === id) this.setTool('select');
+    this.tools.delete(id);
   }
 
   get current(): ToolNode {

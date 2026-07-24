@@ -26,6 +26,7 @@ export interface ErrorEventContext {
     | 'paint'
     | 'effect'
     | 'layout'
+    | 'load'
     | 'before-apply';
   [k: string]: unknown;
 }
@@ -36,6 +37,8 @@ export interface ErrorEventContext {
  * {@link NodusEvent} and are not part of this map.
  */
 export interface NodusEventMap {
+  /** Emitted synchronously, once per committed `store.apply()`, AFTER the engine listener has synced
+   *  the scene index/history (see `Store.listen` dispatch semantics). `info` MUST NOT be mutated. */
   change: { info: ChangeInfo };
   selection: { ids: Id[] };
   camera: { camera: Camera };
@@ -86,6 +89,8 @@ function defaultUnhandledError(event: NodusErrorEvent): void {
   console.error('[nodus] unhandled error event:', err, event.context);
 }
 
+/** A small typed pub/sub bus. `on()` narrows the handler by event key; `emit()` dispatches
+ * synchronously, isolating a throwing handler (re-surfaced on the `error` event). See {@link on}. */
 export class EventBus {
   private readonly handlers = new Map<string, Set<Handler>>();
   private readonly wildcard = new Set<Handler>();
