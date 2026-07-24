@@ -6,10 +6,11 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, restore, type CreateCanvas, type NodusRecord, type Snapshot } from '@nodus/core';
+import { Editor, type CreateCanvas, type NodusRecord, type Snapshot } from '@nodus/core';
 import { diagramsTheme, installDiagrams } from '@nodus/preset-diagrams';
 import { installInfraPreset } from '@nodus/preset-infra';
 import { installDrawTools } from '@nodus/preset-draw';
+import { restoreLabeled } from '../load.js';
 
 export type Preset = 'diagrams' | 'infra' | 'draw';
 
@@ -34,12 +35,20 @@ export interface RenderOptions {
   scale?: number;
   background?: boolean;
   grid?: boolean;
+  /** Sink for a non-fatal load-diagnostics summary (dropped edges / repairs); the bin passes console.error. */
+  onWarn?: (message: string) => void;
 }
 
-/** Render `file` to a PNG. Returns the output path written. */
+/**
+ * Render `file` to a PNG. Returns the output path written. Throws `NodusError('schema-too-new')` (via
+ * the shared loader) when the file was written by a newer Nodus, so the bin maps it to the "newer
+ * file" exit code instead of rendering a mangled diagram.
+ */
 export async function render(file: string, opts: RenderOptions = {}): Promise<string> {
   const snap = JSON.parse(readFileSync(file, 'utf8')) as Snapshot;
-  const preset = opts.preset ?? detectPreset(restore(snap).records);
+  const loaded = restoreLabeled(snap, file);
+  if (loaded.warning) opts.onWarn?.(loaded.warning);
+  const preset = opts.preset ?? detectPreset(loaded.records);
 
   // Headless text renders blank unless the process loads system fonts first.
   (GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();

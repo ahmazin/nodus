@@ -7,22 +7,26 @@
  * declared infra."
  */
 import { readFileSync } from 'node:fs';
-import { restore, type NodeRecord, type NodusRecord, type Snapshot } from '@nodus/core';
+import { type NodeRecord, type NodusRecord } from '@nodus/core';
 import { computeDrift, fromKubernetes, fromTerraform, type DriftResult } from '@nodus/import-infra';
 import { sanitizeText } from './sanitize.js';
+import { loadRecords } from '../load.js';
 
 export interface DriftCliReport {
   result: DriftResult;
   text: string;
   /** True iff the diagram no longer matches the source (`result.total > 0`) — the CLI exit gate. */
   drifted: boolean;
+  /** Non-clean-load summary for the committed diagram (if restore dropped/repaired records), for stderr. */
+  loadWarnings: string[];
 }
 
 type SourceKind = 'terraform' | 'kubernetes';
 
-/** Load a `.nodus.json` Snapshot into its records, mirroring diff.ts's loader. */
-function loadDiagram(file: string): NodusRecord[] {
-  return restore(JSON.parse(readFileSync(file, 'utf8')) as Snapshot).records;
+/** Load a `.nodus.json` Snapshot into records + a non-clean-load warning, via the shared CLI loader. */
+function loadDiagram(file: string): { records: NodusRecord[]; warning: string | null } {
+  const { records, warning } = loadRecords(file);
+  return { records, warning };
 }
 
 /**
@@ -93,7 +97,8 @@ export function driftReport(
   sourceFile: string,
   opts?: { source?: SourceKind | 'auto' },
 ): DriftCliReport {
-  const diagramRecords = loadDiagram(diagramFile);
+  const diagram = loadDiagram(diagramFile);
+  const diagramRecords = diagram.records;
   const json = JSON.parse(readFileSync(sourceFile, 'utf8')) as unknown;
 
   const requested = opts?.source ?? 'auto';
@@ -109,5 +114,6 @@ export function driftReport(
 
   const incoming = importSource(json, source);
   const result = computeDrift(diagramRecords, incoming);
-  return { result, text: buildText(result, note), drifted: result.total > 0 };
+  const loadWarnings = diagram.warning ? [diagram.warning] : [];
+  return { result, text: buildText(result, note), drifted: result.total > 0, loadWarnings };
 }

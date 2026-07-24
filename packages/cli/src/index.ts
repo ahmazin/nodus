@@ -1,4 +1,6 @@
 /** Public API of @nodus/cli — command functions, exported for programmatic use and tests. */
-export { fmt, canonicalizeFile, type FmtResult } from './commands/fmt.js';
+export { fmt, canonicalizeFile, type FmtResult, type CanonicalizeResult } from './commands/fmt.js';
 export { render, detectPreset, type RenderOptions, type Preset } from './commands/render.js';
-export { diffReport, type DiffReport } from './commands/diff.js';
+export { diffReport, readSource, type DiffReport } from './commands/diff.js';
+export { driftReport, type DriftCliReport } from './commands/drift.js';
+export { main } from './main.js';
