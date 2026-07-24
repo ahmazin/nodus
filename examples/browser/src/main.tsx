@@ -72,6 +72,7 @@ import {
   showToast,
   useAutosave,
   useCurrentTool,
+  useNodusEditor,
   useUiTokens,
   useValue,
   type Command,
@@ -238,6 +239,13 @@ function categoryColored(util: NodeUtil, editor: Editor): NodeUtil {
 
 function buildEditor(): Editor {
   const editor = new Editor({ viewport: { w: 1200, h: 700 } });
+  // A real host handles the engine's `error` event rather than letting it hit the core's default
+  // console fallback. `warning`-severity events are expected here (we deliberately re-register the
+  // draw shapes below), so drop them; surface genuine errors.
+  editor.on('error', (e) => {
+    if (e.severity === 'warning') return;
+    console.error('[demo] editor error:', e.error, e.context);
+  });
   installInfraPreset(editor); // registers infra types + the dark theme (appearance: 'dark')
   installDrawTools(editor);
   // Re-register the whiteboard shapes with a label→category colour fallback (Playground parity). Same
@@ -680,7 +688,7 @@ function TemplatesModal({ editor, open, onClose }: { editor: Editor; open: boole
 }
 
 function App(): ReactElement {
-  const editor = useMemo(buildEditor, []);
+  const editor = useNodusEditor(buildEditor);
   const t = useUiTokens(editor);
   const c = chrome(t);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1672,9 +1680,37 @@ function App(): ReactElement {
   );
 }
 
+// ---- C3 keyboard-scope E2E harness (?harness=twin): two independent editors side by side plus a
+//      plain <input>, used by browser-verify to prove keyboardScope="host" confines shortcuts to the
+//      focused editor (Delete/undo in A never touches B, and typing in the input touches neither). ----
+function makeTwinEditor(tag: string): Editor {
+  const e = new Editor({ viewport: { w: 420, h: 320 } });
+  const id = e.createNode({ type: 'rect', x: 60, y: 60, w: 140, h: 64, label: tag });
+  e.select([id]);
+  return e;
+}
+
+function TwinHarness(): ReactElement {
+  const editorA = useNodusEditor(() => makeTwinEditor('A'));
+  const editorB = useNodusEditor(() => makeTwinEditor('B'));
+  useEffect(() => {
+    const w = window as unknown as { __editorA: Editor; __editorB: Editor };
+    w.__editorA = editorA;
+    w.__editorB = editorB;
+  }, [editorA, editorB]);
+  const box: CSSProperties = { width: 420, height: 320, border: '1px solid #888', flex: '0 0 auto' };
+  return (
+    <div style={{ display: 'flex', gap: 24, padding: 24, alignItems: 'flex-start' }}>
+      <Nodus editor={editorA} keyboardScope="host" className="twin-host-a" style={box} />
+      <Nodus editor={editorB} keyboardScope="host" className="twin-host-b" style={box} />
+      <input data-testid="plain-input" defaultValue="hello" style={{ height: 30 }} />
+    </div>
+  );
+}
+
+const isTwinHarness = new URLSearchParams(window.location.search).get('harness') === 'twin';
+
 injectGlobalStyles();
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode>{isTwinHarness ? <TwinHarness /> : <App />}</StrictMode>,
 );

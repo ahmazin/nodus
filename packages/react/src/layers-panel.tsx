@@ -126,6 +126,7 @@ export function buildLayerTree(nodes: NodeRecord[], edges: EdgeRecord[]): LayerN
 
 export interface LayersPanelProps {
   editor: Editor;
+  className?: string;
   style?: CSSProperties;
 }
 
@@ -153,7 +154,7 @@ function typeGlyph(ln: LayerNode): ReactElement {
   return svg(<rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" stroke="none" />, 13);
 }
 
-export function LayersPanel({ editor, style }: LayersPanelProps): ReactElement {
+export function LayersPanel({ editor, className, style }: LayersPanelProps): ReactElement {
   useEffect(() => { injectGlobalStyles(); }, []);
   const t = useUiTokens(editor);
 
@@ -353,7 +354,7 @@ export function LayersPanel({ editor, style }: LayersPanelProps): ReactElement {
   };
 
   return (
-    <div data-testid="layers-panel" data-nodus-ui="" role="tree" aria-label="Layers" style={rootStyle}>
+    <div data-testid="layers-panel" data-nodus-ui="" role="tree" aria-label="Layers" className={className} style={rootStyle}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '11px 13px',

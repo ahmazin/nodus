@@ -10,9 +10,11 @@ import { FlowScaleEditor } from './flow-scale-editor.js';
 export interface FlowControlsProps {
   editor: Editor;
   ids: Id[];
+  className?: string;
+  style?: CSSProperties;
 }
 
-export function FlowControls({ editor, ids }: FlowControlsProps): ReactElement | null {
+export function FlowControls({ editor, ids, className, style: rootStyle }: FlowControlsProps): ReactElement | null {
   // Re-render on selection change AND on flow edits to the selected edges. The parent panel's
   // snapshot is only the selection string, so a same-selection value change (adding/editing flow)
   // wouldn't re-render this subtree — and React would then snap our controlled inputs back to their
@@ -61,7 +63,7 @@ export function FlowControls({ editor, ids }: FlowControlsProps): ReactElement |
   const style = flow?.style ?? 'dots';
 
   return (
-    <div data-nodus-ui="" style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${s.border}`, fontFamily: t.font.family, color: t.color.text }}>
+    <div data-nodus-ui="" className={className} style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${s.border}`, fontFamily: t.font.family, color: t.color.text, ...rootStyle }}>
       <style>{FLOW_STYLE}</style>
       <div style={{ ...s.micro, marginBottom: 8 }}>
         Flow · {edgeIds.length} edge{edgeIds.length === 1 ? '' : 's'}

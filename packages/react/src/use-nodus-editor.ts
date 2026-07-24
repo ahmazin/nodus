@@ -18,7 +18,7 @@
  *   return <Nodus editor={editor} />;
  */
 
-import { useEffect, useRef, type DependencyList } from 'react';
+import { useEffect, useReducer, useRef, type DependencyList } from 'react';
 import { type Editor } from '@nodus/core';
 
 /** Shallow `Object.is` comparison of two dependency tuples, matching React's own deps semantics. */
@@ -34,34 +34,39 @@ function sameDeps(a: DependencyList, b: DependencyList): boolean {
  * Own an `Editor` instance across a component's lifetime.
  *
  * @param factory  Builds the editor (construct + register types/tools/plugins). Called once up front,
- *                 then again only when `deps` change — never on an ordinary re-render.
+ *                 then again only when `deps` change or after the current editor has been disposed
+ *                 (StrictMode's dev remount) — never on an ordinary re-render.
  * @param deps     When any entry changes (by `Object.is`), the current editor is disposed and `factory`
  *                 is re-run. Defaults to `[]` (built once, disposed on unmount). Must have a stable
  *                 length across renders, exactly like a `useEffect` dependency array.
- * @returns        A stable `Editor` — the same instance every render until `deps` change.
+ * @returns        A stable `Editor` — the same live instance every render until `deps` change.
  */
 export function useNodusEditor(factory: () => Editor, deps: DependencyList = []): Editor {
-  // Hold the live instance alongside the deps it was built for. We build synchronously *during render*
-  // so the editor is ready for the same render that mounts `<Nodus editor={editor}>`. We deliberately do
-  // NOT dispose here — disposal is deferred to the effect below, so a render React later throws away
-  // (Suspense, or StrictMode's double-invoked render) can never tear down an editor that is still in use.
   const ref = useRef<{ editor: Editor; deps: DependencyList } | null>(null);
-  if (ref.current === null || !sameDeps(ref.current.deps, deps)) {
+  // Forces a re-render so the render guard below can rebuild after StrictMode disposes the editor.
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+
+  // Build during render — the editor is ready for the same render that mounts `<Nodus editor={editor}>`.
+  // Rebuild when there is no instance yet, when `deps` changed, OR when the current instance has been
+  // disposed. That last case is the StrictMode fix: React's dev-only mount→unmount→remount disposes the
+  // editor in the unmount cleanup, and the render guard is what swaps in a fresh one.
+  if (ref.current === null || !sameDeps(ref.current.deps, deps) || ref.current.editor.disposed) {
     ref.current = { editor: factory(), deps };
   }
   const editor = ref.current.editor;
 
-  // Disposal keyed on the user's `deps`: React runs this cleanup on unmount AND just before re-running on
-  // a deps change. `editor` is captured per-render, so it is exactly the instance built for this deps
-  // tuple — the old editor is disposed while the newly-built one is already live in the ref above.
-  // `Editor.dispose()` is idempotent (its disposer list is cleared on first call), so StrictMode's
-  // dev-only mount→unmount→mount, which disposes the instance during the simulated unmount, neither
-  // leaks nor double-frees.
-  useEffect(
-    () => () => editor.dispose(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` intentionally drives recreation + disposal
-    deps,
-  );
+  // Disposal is keyed on the editor's IDENTITY, not the user's `deps`: React runs cleanup on unmount and
+  // whenever `editor` changes, so each instance is disposed exactly once — the one THIS render captured.
+  // The StrictMode remount re-runs only this effect (never the render), leaving the ref pointing at the
+  // just-disposed editor; the setup detects that and calls `bump()` to force the re-render that lets the
+  // render guard rebuild a live instance. `Editor.dispose()` is idempotent, so no path double-frees.
+  useEffect(() => {
+    if (editor.disposed) {
+      bump();
+      return;
+    }
+    return () => editor.dispose();
+  }, [editor]);
 
   return editor;
 }

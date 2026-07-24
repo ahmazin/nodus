@@ -1,5 +1,5 @@
 /** A ⌘K command palette. Ships a default command set; accepts custom commands too. */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { AlignEdge, Editor } from '@nodus/core';
 import { copyOrDownloadImage, downloadImage } from './clipboard.js';
 import { fuzzyRank } from './fuzzy.js';
@@ -14,6 +14,22 @@ export interface Command {
   group?: string;
   run: () => void;
   when?: (editor: Editor) => boolean;
+}
+
+/** Core command ids the curated palette already surfaces (as `edit.*` / `view.*` entries), so the
+ *  registry-extras pass below doesn't list them twice. */
+const CURATED_COMMAND_IDS = new Set(['undo', 'redo', 'zoomIn', 'zoomOut', 'zoomToFit', 'selectAll', 'delete', 'duplicate']);
+
+/** Match a KeyboardEvent against a hotkey spec like `'mod+k'` (`mod` = ⌘ on macOS / Ctrl elsewhere;
+ *  also accepts `shift`/`alt`). The final token is the key. */
+function matchesHotkey(e: KeyboardEvent, spec: string): boolean {
+  const parts = spec.toLowerCase().split('+').map((p) => p.trim()).filter(Boolean);
+  const key = parts.at(-1) ?? '';
+  const mods = new Set(parts.slice(0, -1));
+  if ((mods.has('mod') || mods.has('meta') || mods.has('cmd') || mods.has('ctrl')) !== (e.metaKey || e.ctrlKey)) return false;
+  if (mods.has('shift') !== e.shiftKey) return false;
+  if (mods.has('alt') !== e.altKey) return false;
+  return e.key.toLowerCase() === key;
 }
 
 export function defaultCommands(editor: Editor): Command[] {
@@ -32,10 +48,12 @@ export function defaultCommands(editor: Editor): Command[] {
     { id: 'tool.select', title: 'Tool: Select', group: 'Tools', run: () => editor.setTool('select') },
     { id: 'tool.connect', title: 'Tool: Connect', group: 'Tools', run: () => editor.setTool('connect') },
     { id: 'tool.create', title: 'Tool: Create node', group: 'Tools', run: () => editor.setTool('create') },
-    { id: 'edit.undo', title: 'Undo', hint: '⌘Z', group: 'Edit', run: () => editor.undo() },
-    { id: 'edit.redo', title: 'Redo', hint: '⇧⌘Z', group: 'Edit', run: () => editor.redo() },
-    { id: 'edit.duplicate', title: 'Duplicate selection', hint: '⌘D', group: 'Edit', when: hasSel, run: () => editor.duplicate() },
-    { id: 'edit.delete', title: 'Delete selection', hint: '⌫', group: 'Edit', when: hasSel, run: () => editor.deleteRecords(editor.selectedIdsArray()) },
+    // Default actions dispatch through the shared command registry (editor.execute) — same code the
+    // host keybindings and context menu run — so behavior and `enabled` gating stay consistent.
+    { id: 'edit.undo', title: 'Undo', hint: '⌘Z', group: 'Edit', run: () => void editor.execute('undo') },
+    { id: 'edit.redo', title: 'Redo', hint: '⇧⌘Z', group: 'Edit', run: () => void editor.execute('redo') },
+    { id: 'edit.duplicate', title: 'Duplicate selection', hint: '⌘D', group: 'Edit', when: hasSel, run: () => void editor.execute('duplicate') },
+    { id: 'edit.delete', title: 'Delete selection', hint: '⌫', group: 'Edit', when: hasSel, run: () => void editor.execute('delete') },
     { id: 'edit.group', title: 'Group selection', hint: '⌘G', group: 'Edit', when: hasSel, run: () => editor.group(editor.selectedIdsArray()) },
     { id: 'edit.front', title: 'Bring to front', group: 'Arrange', when: hasSel, run: () => editor.bringToFront(editor.selectedIdsArray()) },
     { id: 'edit.back', title: 'Send to back', group: 'Arrange', when: hasSel, run: () => editor.sendToBack(editor.selectedIdsArray()) },
@@ -44,7 +62,7 @@ export function defaultCommands(editor: Editor): Command[] {
     { id: 'arrange.distributeV', title: 'Distribute vertically', group: 'Arrange', when: () => selectedNodeIds().length >= 3, run: () => editor.distribute(selectedNodeIds(), 'v') },
     { id: 'arrange.lock', title: 'Lock selection', group: 'Arrange', when: () => { const n = selectedNodeIds(); return n.length > 0 && n.some((id) => !editor.isLocked(id)); }, run: () => editor.lock(selectedNodeIds()) },
     { id: 'arrange.unlock', title: 'Unlock selection', group: 'Arrange', when: () => { const n = selectedNodeIds(); return n.length > 0 && n.some((id) => editor.isLocked(id)); }, run: () => editor.unlock(selectedNodeIds()) },
-    { id: 'edit.selectAll', title: 'Select all', hint: '⌘A', group: 'Edit', run: () => editor.selectAll() },
+    { id: 'edit.selectAll', title: 'Select all', hint: '⌘A', group: 'Edit', run: () => void editor.execute('selectAll') },
     { id: 'export.copyImage', title: 'Copy as image', group: 'Export', run: () => void copyOrDownloadImage(editor, { selection: hasSel() }) },
     { id: 'export.downloadPng', title: 'Download PNG', group: 'Export', run: () => void downloadImage(editor, 'diagram.png', { selection: hasSel() }) },
     { id: 'view.fit', title: 'Zoom to fit', group: 'View', run: () => editor.zoomToFit(60) },
@@ -53,14 +71,30 @@ export function defaultCommands(editor: Editor): Command[] {
     ...editor.layouts.size
       ? [...editor.layouts.keys()].map((id): Command => ({ id: `layout.${id}`, title: `Layout: ${id}`, group: 'Layout', run: () => void editor.layout(id, { direction: 'LR' }) }))
       : [],
+    // Surface any commands registered on the editor (e.g. by plugins) that the curated set above
+    // doesn't already cover, so the registry is the single source of truth for extensibility.
+    ...editor.commands
+      .list()
+      .filter((c) => !CURATED_COMMAND_IDS.has(c.id))
+      .map((c): Command => ({
+        id: c.id,
+        title: c.label,
+        group: 'Commands',
+        when: (e) => e.commands.isEnabled(c.id, e),
+        run: () => void editor.execute(c.id),
+      })),
   ];
 }
 
 export interface CommandPaletteProps {
   editor: Editor;
   commands?: Command[];
-  /** Hotkey to toggle (default true = ⌘K / Ctrl+K). */
-  hotkey?: boolean;
+  /** Hotkey spec that toggles the palette, e.g. `'mod+k'` (the default — ⌘K / Ctrl+K), `'mod+shift+p'`.
+   *  Pass `false` to disable the built-in hotkey (open it yourself via the `nodus:open-command-palette`
+   *  window event). */
+  hotkey?: string | false;
+  className?: string;
+  style?: CSSProperties;
 }
 
 const LIST_ID = 'nodus-command-list';
@@ -131,7 +165,7 @@ function commandBadge(group: string | undefined): string {
   return GROUP_BADGES[group] ?? group.slice(0, 2).toUpperCase();
 }
 
-export function CommandPalette({ editor, commands, hotkey = true }: CommandPaletteProps): ReactElement | null {
+export function CommandPalette({ editor, commands, hotkey = 'mod+k', className, style }: CommandPaletteProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
@@ -143,9 +177,10 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
   useEffect(() => { injectGlobalStyles(); }, []);
 
   useEffect(() => {
-    if (!hotkey) return;
+    if (hotkey === false) return;
+    const spec = hotkey;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      if (matchesHotkey(e, spec)) {
         e.preventDefault();
         setOpen((o) => !o);
       }
@@ -214,8 +249,9 @@ export function CommandPalette({ editor, commands, hotkey = true }: CommandPalet
     <UiTokensProvider tokens={t}>
       <div
         data-nodus-ui=""
+        className={className}
         onPointerDown={() => setOpen(false)}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '14vh', zIndex: 1000 }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '14vh', zIndex: 1000, ...style }}
       >
         <Panel
           elevated

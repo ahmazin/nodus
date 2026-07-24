@@ -412,7 +412,10 @@ function main() {
       typeof m.InfraCanvas === 'function' && typeof m.installInfraPreset === 'function' && m.darkInfraTheme != null);
     await probe('layout-dagre-resolves', '@nodus/layout-dagre', (m) => m.dagreLayout != null);
     await probe('react-entry-resolves', '@nodus/react', (m) =>
-      typeof m.Nodus === 'function' && typeof m.useValue === 'function');
+      // Nodus is a forwardRef exotic component (an object with .render), not a plain function.
+      typeof m.useValue === 'function' &&
+      m.Nodus != null &&
+      (typeof m.Nodus === 'function' || typeof m.Nodus.render === 'function'));
     console.log('##RESULTS## ' + JSON.stringify(out));
   `,
   );
@@ -458,6 +461,19 @@ function main() {
     probe.code === 0,
     probe.code === 0 ? 'both flavors typecheck' : (probe.stdout || probe.stderr).trim().split('\n')[0],
   );
+
+  // --- RSC boundary directive: @nodus/react's shipped bundles must LEAD with 'use client' —
+  //     esbuild strips module-level directives when bundling, so the build prepends it post-hoc
+  //     (tsup onSuccess); this asserts the mechanism keeps working in the actual tarball.
+  for (const flavor of ['index.js', 'index.cjs']) {
+    const f = join(consumer, 'node_modules', '@nodus', 'react', 'dist', flavor);
+    const head = existsSync(f) ? readFileSync(f, 'utf8').slice(0, 200) : '';
+    record(
+      `react dist ${flavor} ships 'use client'`,
+      head.includes("'use client'") || head.includes('"use client"'),
+      head ? '' : 'file missing',
+    );
+  }
 
   // --- cli bin smoke: the packed bin must execute from the tarball (shebang intact, dist imports
   //     resolve against the consumer's node_modules). Usage text on stdout/stderr is the assertion;

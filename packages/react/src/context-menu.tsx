@@ -1,5 +1,5 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
 import type { AlignEdge, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
 import { DEFAULT_FLOW } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
@@ -88,7 +88,7 @@ export function contextMenuItems(editor: Editor, target: RenderItem | null): Men
   const isGroup = rec?.typeName === 'node' && rec.type === 'group';
   const items: MenuItem[] = [
     { label: 'Edit label', run: () => editor.beginEdit(id) },
-    { label: 'Duplicate', run: () => { if (!editor.isSelected(id)) editor.select([id]); editor.duplicate(); } },
+    { label: 'Duplicate', run: () => { if (!editor.isSelected(id)) editor.select([id]); void editor.execute('duplicate'); } },
   ];
   if (isGroup) items.push({ label: 'Ungroup', run: () => editor.ungroup(id) });
   else if (sel.length > 1 && editor.isSelected(id)) items.push({ label: 'Group selection', run: () => editor.group(sel) });
@@ -102,10 +102,14 @@ export function contextMenuItems(editor: Editor, target: RenderItem | null): Men
 
 export interface NodusContextMenuProps {
   editor: Editor;
+  /** Menu x position in pixels, relative to the `<Nodus>` host element's top-left (not the page). */
   x: number;
+  /** Menu y position in pixels, relative to the `<Nodus>` host element's top-left (not the page). */
   y: number;
   target: RenderItem | null;
   onClose: () => void;
+  className?: string;
+  style?: CSSProperties;
 }
 
 const MENU_ID = 'nodus-context-menu';
@@ -127,7 +131,7 @@ export function nextMenuIndex(current: number, count: number, key: string): numb
   }
 }
 
-export function NodusContextMenu({ editor, x, y, target, onClose }: NodusContextMenuProps): ReactElement {
+export function NodusContextMenu({ editor, x, y, target, onClose, className, style }: NodusContextMenuProps): ReactElement {
   const items = contextMenuItems(editor, target);
   const t = useUiTokens(editor);
   const [active, setActive] = useState(0);
@@ -169,7 +173,8 @@ export function NodusContextMenu({ editor, x, y, target, onClose }: NodusContext
           aria-activedescendant={items.length ? `${MENU_ID}-item-${active}` : undefined}
           onKeyDown={onKeyDown}
           onPointerDown={(e) => e.stopPropagation()}
-          style={{ position: 'absolute', left: x, top: y, minWidth: 172, outline: 'none' }}
+          className={className}
+          style={{ position: 'absolute', left: x, top: y, minWidth: 172, outline: 'none', ...style }}
         >
           {items.map((it, i) => (
             <UiMenuItem

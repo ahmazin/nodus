@@ -6,20 +6,25 @@
  */
 
 import {
+  forwardRef,
   useEffect,
-  useLayoutEffect,
+  useImperativeHandle,
   useRef,
   useState,
   type CSSProperties,
   type ReactElement,
 } from 'react';
 import { useValue } from './use-value.js';
+import { useIsomorphicLayoutEffect } from './ui/use-isomorphic-layout-effect.js';
 import { registerCanvas, unregisterCanvas } from './canvas-registry.js';
 import {
   effect,
   worldToScreen,
+  type Camera,
+  type ChangeInfo,
   type Ctx2D,
   type Editor,
+  type Id,
   type NodeRecord,
   type RenderItem,
 } from '@nodus/core';
@@ -33,14 +38,41 @@ export interface NodusProps {
   style?: CSSProperties;
   /** Show the built-in right-click context menu (default true). */
   contextMenu?: boolean;
+  /** Where keyboard shortcuts (undo, nudge, zoom, …) listen. `'host'` (default) attaches keydown/keyup
+   *  to the canvas host element, so shortcuts fire only while it (or its children) hold focus — the
+   *  correct choice when several editors, or other focusable UI, share the page. `'window'` attaches
+   *  them to `window` (legacy app-wide behavior). Read once at mount; changing it later has no effect
+   *  until the `editor` prop changes. */
+  keyboardScope?: 'host' | 'window';
   /** Node type to insert when an image is pasted from the system clipboard (e.g. `'diagram.image'`).
    *  Omit to ignore pasted images. */
   imageNodeType?: string;
   /** Node type to insert when plain text is pasted from the system clipboard. Omit to ignore text. */
   textNodeType?: string;
+  /** Called once per editor instance, after the host has mounted and wired the editor to the canvas. */
+  onMount?: (editor: Editor) => void;
+  /** Called on every document mutation (the engine's `change` event). */
+  onChange?: (info: ChangeInfo) => void;
+  /** Called when the selection changes, with the new selected ids. */
+  onSelectionChange?: (ids: Id[]) => void;
+  /** Called when the camera (pan/zoom) changes. */
+  onCameraChange?: (camera: Camera) => void;
 }
 
-export function Nodus({ editor, className, style, contextMenu = true, imageNodeType, textNodeType }: NodusProps): ReactElement {
+/** Imperative handle exposed via `ref` on `<Nodus>`. */
+export interface NodusHandle {
+  /** The underlying `<canvas>` element, or `null` before mount / after unmount. */
+  canvas: HTMLCanvasElement | null;
+  /** The host `<div>` that owns focus and sizing, or `null` before mount / after unmount. */
+  host: HTMLDivElement | null;
+  /** Move keyboard focus to the canvas host (so shortcuts and Tab traversal target this editor). */
+  focus(): void;
+}
+
+export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
+  { editor, className, style, contextMenu = true, keyboardScope = 'host', imageNodeType, textNodeType, onMount, onChange, onSelectionChange, onCameraChange },
+  ref,
+): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; target: RenderItem | null } | null>(null);
@@ -51,11 +83,51 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
   imageTypeRef.current = imageNodeType;
   const textTypeRef = useRef(textNodeType);
   textTypeRef.current = textNodeType;
+  // Keyboard scope is read once at effect setup (see below); the ref just carries the latest prop there.
+  const keyboardScopeRef = useRef(keyboardScope);
+  keyboardScopeRef.current = keyboardScope;
+  // Integration callbacks live in refs so a parent passing fresh closures every render never forces the
+  // subscription effect to tear down and resubscribe.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+  const onCameraChangeRef = useRef(onCameraChange);
+  onCameraChangeRef.current = onCameraChange;
+  const onMountRef = useRef(onMount);
+  onMountRef.current = onMount;
+  // Tracks which instance `onMount` already fired for, so StrictMode's double-invoked effect fires it
+  // exactly once per editor instance.
+  const mountedForRef = useRef<Editor | null>(null);
 
-  useLayoutEffect(() => {
+  useImperativeHandle(ref, (): NodusHandle => ({
+    get canvas() { return canvasRef.current; },
+    get host() { return hostRef.current; },
+    focus() { hostRef.current?.focus({ preventScroll: true }); },
+  }), []);
+
+  // Integration props → editor events. Keyed on `editor` only (callbacks are read through refs), so the
+  // subscription is set up once per instance and torn down on unmount / instance swap.
+  useEffect(() => {
+    if (mountedForRef.current !== editor) {
+      mountedForRef.current = editor;
+      onMountRef.current?.(editor);
+    }
+    const offs = [
+      editor.on('change', (e) => onChangeRef.current?.(e.info)),
+      editor.on('selection', (e) => onSelectionChangeRef.current?.(e.ids)),
+      editor.on('camera', (e) => onCameraChangeRef.current?.(e.camera)),
+    ];
+    return () => { for (const off of offs) off(); };
+  }, [editor]);
+
+  useIsomorphicLayoutEffect(() => {
     const host = hostRef.current;
     const canvas = canvasRef.current;
     if (!host || !canvas) return;
+    // Read at mount: this effect re-runs only when `editor` changes, so a later `keyboardScope` prop
+    // change is intentionally ignored until then (documented on the prop).
+    const keyScope = keyboardScopeRef.current;
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
     registerCanvas(editor, canvas);
     injectGlobalStyles(); // idempotent: focus rings + chrome base styles, app-wide
@@ -245,26 +317,28 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
         }
         return;
       }
+      // Keybindings stay here; the ACTION is dispatched through the shared command registry
+      // (editor.commands, installed by the core) so the host, command palette, and context menu run
+      // the exact same code and honor each command's `enabled` guard.
       const meta = e.metaKey || e.ctrlKey;
       if (meta && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        if (e.shiftKey) editor.redo();
-        else editor.undo();
+        void editor.execute(e.shiftKey ? 'redo' : 'undo');
         return;
       }
       if (meta && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
-        editor.redo();
+        void editor.execute('redo');
         return;
       }
 
       // ---- zoom shortcuts (use e.code so they're layout-independent; preventDefault stops the
       //      browser's own page zoom so the canvas zooms instead) ----
-      if (meta && (e.code === 'Equal' || e.code === 'NumpadAdd')) { e.preventDefault(); editor.zoomBy(1.2); return; }
-      if (meta && (e.code === 'Minus' || e.code === 'NumpadSubtract')) { e.preventDefault(); editor.zoomBy(1 / 1.2); return; }
-      if (meta && (e.code === 'Digit0' || e.code === 'Numpad0')) { e.preventDefault(); editor.zoomBy(1 / editor.camera.z); return; } // reset to 100%
-      if (!meta && e.shiftKey && e.code === 'Digit1') { e.preventDefault(); editor.zoomToFit(); return; }
-      if (!meta && e.shiftKey && e.code === 'Digit2') { e.preventDefault(); editor.zoomToSelection(); return; }
+      if (meta && (e.code === 'Equal' || e.code === 'NumpadAdd')) { e.preventDefault(); void editor.execute('zoomIn'); return; }
+      if (meta && (e.code === 'Minus' || e.code === 'NumpadSubtract')) { e.preventDefault(); void editor.execute('zoomOut'); return; }
+      if (meta && (e.code === 'Digit0' || e.code === 'Numpad0')) { e.preventDefault(); editor.zoomBy(1 / editor.camera.z); return; } // reset to 100% (no command)
+      if (!meta && e.shiftKey && e.code === 'Digit1') { e.preventDefault(); void editor.execute('zoomToFit'); return; }
+      if (!meta && e.shiftKey && e.code === 'Digit2') { e.preventDefault(); editor.zoomToSelection(); return; } // no command
 
       if (editor.editingAtom.peek()) return; // let the textarea handle keys
 
@@ -305,6 +379,9 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       if (editor.editingAtom.peek()) return; // editing a label → let the textarea paste
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return; // a real field
+      // 'host' scope: the paste listener is on window, so ignore pastes unless this editor's host owns
+      // focus — otherwise pasting into another editor / page region would drop a node into this one.
+      if (keyScope === 'host' && !host.contains(document.activeElement)) return;
       const consumed = pasteFromSystem(editor, e.clipboardData, {
         ...(imageTypeRef.current ? { imageNodeType: imageTypeRef.current } : {}),
         ...(textTypeRef.current ? { textNodeType: textTypeRef.current } : {}),
@@ -318,8 +395,15 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
     canvas.addEventListener('dblclick', onDblClick);
     canvas.addEventListener('contextmenu', onContextMenu);
     canvas.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    // Keyboard shortcuts attach to the host div ('host', default — fires only while this editor holds
+    // focus) or to window ('window', legacy app-wide). Paste stays a window listener in both scopes.
+    if (keyScope === 'window') {
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup', onKeyUp);
+    } else {
+      host.addEventListener('keydown', onKeyDown);
+      host.addEventListener('keyup', onKeyUp);
+    }
     window.addEventListener('paste', onPaste);
 
     return () => {
@@ -337,8 +421,13 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       canvas.removeEventListener('dblclick', onDblClick);
       canvas.removeEventListener('contextmenu', onContextMenu);
       canvas.removeEventListener('wheel', onWheel);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      if (keyScope === 'window') {
+        window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('keyup', onKeyUp);
+      } else {
+        host.removeEventListener('keydown', onKeyDown);
+        host.removeEventListener('keyup', onKeyUp);
+      }
       window.removeEventListener('paste', onPaste);
     };
   }, [editor]);
@@ -360,7 +449,7 @@ export function Nodus({ editor, className, style, contextMenu = true, imageNodeT
       )}
     </div>
   );
-}
+});
 
 /** Inline label editor: a positioned textarea tracking the node's world→screen transform. */
 function EditOverlay({ editor }: { editor: Editor }): ReactElement | null {

@@ -59,6 +59,13 @@ async function main() {
   assert(initial.nodes === 10 && initial.edges === 10, 'sample model loaded (10 nodes, 10 edges)');
   await page.screenshot({ path: join(OUT, 'browser-1-initial.png') });
 
+  // C1/F2: useNodusEditor must survive StrictMode's dev mount→unmount→remount — a LIVE editor, not a
+  // disposed one, is what `window.__editor` ends up pointing at.
+  assert(
+    await page.evaluate(() => window.__editor.disposed === false),
+    'editor is live after StrictMode remount (useNodusEditor)',
+  );
+
   // canvas geometry helper: world -> client pixel
   const worldToClient = async (wx, wy) =>
     page.evaluate(
@@ -80,6 +87,15 @@ async function main() {
   await page.waitForTimeout(150);
   let s = await snap(page);
   assert(s.nodes === 11, 'clicking canvas created a node (11 total)');
+  assert(
+    await page.evaluate(() => {
+      const ed = window.__editor;
+      const ns = ed.store.nodes();
+      const n = ns[ns.length - 1];
+      return ed.sceneIndex.hitTest({ x: n.x + n.w / 2, y: n.y + n.h / 2 }, 5 / ed.camera.z)?.id === n.id;
+    }),
+    'the newly created node hit-tests on a live editor',
+  );
 
   console.log('3) select + drag a node ...');
   await page.getByTestId('tool-select').click();
@@ -451,6 +467,50 @@ async function main() {
   await page.locator('[data-testid="cloud-recent-aws:ebs"]').click();
   await page.waitForTimeout(120);
   assert((await snap(page)).nodes === beforeRecent + 1, 'clicking a recent re-places it as a node');
+
+  console.log('9b) keyboard-scope isolation (twin harness, keyboardScope="host") ...');
+  await page.goto(URL + '?harness=twin', { waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () => window.__editorA && window.__editorB && !window.__editorA.disposed && !window.__editorB.disposed,
+    { timeout: 10000 },
+  );
+  await page.waitForTimeout(300);
+  const twin = () =>
+    page.evaluate(() => ({ a: window.__editorA.store.nodes().length, b: window.__editorB.store.nodes().length }));
+  let tw = await twin();
+  assert(tw.a === 1 && tw.b === 1, `twin harness: A and B each start live with 1 node (a=${tw.a}, b=${tw.b})`);
+  await page.locator('.twin-host-a').focus();
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(120);
+  tw = await twin();
+  assert(tw.a === 0 && tw.b === 1, `Delete with A focused removes A's node only (a=${tw.a}, b=${tw.b})`);
+  const bId = await page.evaluate(() => window.__editorB.store.nodes()[0].id);
+  const bx0 = await page.evaluate((id) => window.__editorB.store.peek(id).x, bId);
+  await page.evaluate((id) => window.__editorB.nudge([id], 25, 0), bId);
+  assert(
+    await page.evaluate((a) => window.__editorB.store.peek(a.id).x === a.x0 + 25, { id: bId, x0: bx0 }),
+    'B node nudged (an undoable action for B)',
+  );
+  await page.locator('.twin-host-b').focus();
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(120);
+  assert(
+    await page.evaluate((a) => window.__editorB.store.peek(a.id).x === a.x0, { id: bId, x0: bx0 }),
+    'Ctrl/Cmd+Z with B focused undoes B',
+  );
+  tw = await twin();
+  assert(tw.a === 0, "A is unaffected by B's undo (still 0 nodes)");
+  const beforeInput = await twin();
+  await page.locator('[data-testid="plain-input"]').focus();
+  await page.keyboard.type(' world');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(80);
+  const afterInput = await twin();
+  assert(
+    afterInput.a === beforeInput.a && afterInput.b === beforeInput.b,
+    'typing/Backspace/undo in a plain input leaves both diagrams unchanged',
+  );
 
   console.log('9) console error check ...');
   assert(errors.length === 0, `no console/page errors (saw ${errors.length})`);

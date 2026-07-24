@@ -12,5 +12,9 @@ export function useValue<T>(get: () => T): T {
     }),
     [],
   );
-  return useSyncExternalStore(subscribe, () => getRef.current());
+  // Signals are DOM-free, so the same peek serves the client snapshot AND the server snapshot
+  // (third arg). Without getServerSnapshot, React 18 throws "Missing getServerSnapshot" on any
+  // server render, taking down every panel that reads engine state.
+  const snapshot = useCallback((): T => getRef.current(), []);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

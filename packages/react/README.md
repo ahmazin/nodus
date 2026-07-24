@@ -12,32 +12,85 @@ pnpm add @nodus/react @nodus/core react react-dom
 
 ## Quickstart
 
-Create an `Editor`, then mount it with `<Nodus>`:
+Own the `Editor` with `useNodusEditor` (it builds the editor once and disposes it on unmount), then
+mount it with `<Nodus>`:
 
 ```tsx
 import { Editor } from '@nodus/core';
-import { Nodus } from '@nodus/react';
-
-const editor = new Editor();
-editor.createNode({ type: 'rect', x: 40, y: 40, label: 'Web' });
+import { useNodusEditor, Nodus } from '@nodus/react';
 
 export function App() {
+  const editor = useNodusEditor(() => {
+    const e = new Editor();
+    e.createNode({ type: 'rect', x: 40, y: 40, label: 'Web' });
+    return e;
+  });
   return <Nodus editor={editor} style={{ position: 'absolute', inset: 0 }} />;
 }
 ```
 
+> Don't `new Editor()` at module scope: it leaks (nothing disposes it) and re-instantiating in
+> render hands `<Nodus>` a fresh identity every frame. `useNodusEditor` fixes both.
+
 `<Nodus>` mounts the canvas, wires pointer / wheel / keyboard events to the engine's tools, runs a
 signal-reactive `requestAnimationFrame` render loop (it repaints only when the scene actually
 changes), and hosts the inline label editor and (opt-out) context menu.
+
+## Server-side rendering (Next.js, Remix)
+
+The package is a client component — it ships a `'use client'` banner and its hooks read engine
+signals through `useSyncExternalStore` with a server snapshot, so importing it never crashes a
+server render. The canvas itself is a browser surface, though: `<Nodus>` only paints inside a layout
+effect that runs after hydration. Two ways to keep it client-only:
+
+```tsx
+// 1. Next.js App Router — a client-component boundary is enough (the banner marks the module):
+'use client';
+import { useNodusEditor, Nodus } from '@nodus/react';
+
+// 2. Pages Router / any framework — skip SSR for the canvas entirely:
+import dynamic from 'next/dynamic';
+const Nodus = dynamic(() => import('@nodus/react').then((m) => m.Nodus), { ssr: false });
+```
 
 ```tsx
 interface NodusProps {
   editor: Editor;
   className?: string;
   style?: React.CSSProperties;
-  contextMenu?: boolean; // default true
+  contextMenu?: boolean;                 // default true
+  keyboardScope?: 'host' | 'window';     // default 'host' — see below
+  onMount?: (editor: Editor) => void;    // once per editor instance
+  onChange?: (info: ChangeInfo) => void;
+  onSelectionChange?: (ids: Id[]) => void;
+  onCameraChange?: (camera: Camera) => void;
 }
 ```
+
+`onMount`/`onChange`/`onSelectionChange`/`onCameraChange` subscribe to the engine's events; you can pass
+fresh closures each render without causing a resubscribe. `<Nodus>` also forwards a `ref` exposing a
+`NodusHandle`:
+
+```tsx
+import { useRef } from 'react';
+import { Nodus, type NodusHandle } from '@nodus/react';
+
+const ref = useRef<NodusHandle>(null);
+// ref.current?.canvas  → the <canvas> element
+// ref.current?.host    → the focusable host <div>
+// ref.current?.focus() → move keyboard focus to this editor
+<Nodus ref={ref} editor={editor} />
+```
+
+### Keyboard scope
+
+By default (`keyboardScope="host"`) keyboard shortcuts — undo/redo, nudge, zoom, Tab traversal — listen
+on the canvas host element, so they only fire while this editor (or its chrome) holds focus. That's the
+right choice when several `<Nodus>` instances, or other focusable UI, share a page. Pass
+`keyboardScope="window"` for the legacy app-wide behavior (shortcuts fire regardless of focus). The scope
+is read once at mount. (Paste always listens on `window`, but in `'host'` scope it ignores pastes unless
+the host owns focus.) The default actions dispatch through the shared command registry
+(`editor.commands` / `editor.execute`), the same one the command palette and context menu use.
 
 ## Reading engine state in React — `useValue`
 
@@ -65,7 +118,10 @@ changes has to read a signal via `.get()` inside `useValue` — otherwise it sil
 Drop-in, editor-aware components — each takes `editor` and manages its own state through the store:
 
 - **`<Properties>`** — style / geometry / flow inspector for the current selection.
-- **`<CommandPalette>`** — ⌘K palette (`defaultCommands` provided; extend with your own `Command[]`).
+- **`<CommandPalette>`** — command palette. `hotkey` sets the toggle shortcut (default `'mod+k'` — ⌘K /
+  Ctrl+K; pass `false` to disable it and open via the `nodus:open-command-palette` window event). Beyond
+  its curated `defaultCommands`, it surfaces anything registered on `editor.commands` (e.g. by plugins),
+  and its default actions dispatch through `editor.execute`.
 - **`<NodusContextMenu>`** — right-click menu (`contextMenuItems` builds the default set).
 - **`<Minimap>`** — viewport overview with click-to-pan.
 - **`<FlowControls>` / `<FlowScaleEditor>`** — animated-flow authoring for edges (style, direction,
@@ -95,8 +151,14 @@ function Toolbar({ editor }: { editor: Editor }) {
 ```
 
 Primitives: `Panel`, `Button`, `IconButton`, `Field`, `Row`, `Menu`, `MenuItem`, `Divider`. Tokens:
-`uiTokens`, `uiTokensFor`, `useUiTokens`, `modeOfTheme`. Call `injectGlobalStyles()` once to install
-the `:focus-visible` rings and reduced-motion stylesheet.
+`uiTokens`, `uiTokensFor`, `useUiTokens`, `modeOfTheme`.
+
+`injectGlobalStyles()` installs the chrome's cross-cutting rules — `:focus-visible` rings, the
+`prefers-reduced-motion` block, and minimal `[data-nodus-ui]` resets. It is idempotent, and the
+panels call it themselves on mount, so you rarely call it directly. **It makes no network request:**
+text falls back to the system UI font via the `--nodus-font` variable. Web fonts are opt-in — pass
+`injectGlobalStyles({ webFonts: true })` to additionally load Space Grotesk / JetBrains Mono from
+`fonts.googleapis.com`, or set `--nodus-font` to your own self-hosted family and leave it off.
 
 ## PNG export
 

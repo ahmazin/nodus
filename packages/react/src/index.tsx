@@ -1,3 +1,9 @@
+'use client';
+// ^ Marks this package as a React Server Components boundary module (Next.js App Router). It applies
+// directly to the source-first dev loop (Vite serves this file). esbuild STRIPS it when bundling the
+// dist ("Module level directives cause errors when bundled"), so tsup.config.ts re-prepends it to the
+// built output in an onSuccess hook — see the comment there. Keep this here regardless.
+
 /**
  * @nodus/react — a thin React binding for the Nodus engine. This module is the package barrel:
  * the `<Nodus>` host lives in `nodus-host.tsx`; panels, the design-system `ui/*` surface, and the
@@ -7,7 +13,9 @@
 import { type Editor, type Id } from '@nodus/core';
 
 // host
-export { Nodus, type NodusProps } from './nodus-host.js';
+export { Nodus, type NodusProps, type NodusHandle } from './nodus-host.js';
+// Canvas registry: map an editor → its live <canvas> (e.g. to drive custom export/screenshot flows).
+export { getCanvas, registerCanvas } from './canvas-registry.js';
 
 // signal → React bridge
 export { useValue } from './use-value.js';
