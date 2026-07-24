@@ -1,6 +1,6 @@
 # @nodus/preset-diagrams
 
-General diagram node/edge types for [Nodus](../../README.md), plus builders that turn friendly specs
+General diagram node/edge types for [Nodus](https://github.com/OWNER/nodus), plus builders that turn friendly specs
 into records. Ships types for flowcharts (`pill` / `process` / `decision`), state machines (`state`),
 ERDs (`table`), org charts (`card`), and image nodes (`icon`), a theme that colours each type, and
 `buildFlowchart` / `buildStateMachine` / `buildERD` / `buildOrgChart`. Use it when you want classic
@@ -11,6 +11,9 @@ diagram shapes rather than the infra preset.
 ```bash
 pnpm add @nodus/preset-diagrams @nodus/core
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> engine instance.
 
 ## Usage
 
@@ -53,8 +56,8 @@ and the image-node helpers (from `./image`).
 
 ## See also
 
-- [`@nodus/from-mermaid`](../from-mermaid/README.md) — reuses these builders to import Mermaid text.
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) · [`@nodus/core`](../core/README.md)
+- [`@nodus/from-mermaid`](https://github.com/OWNER/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

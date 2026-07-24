@@ -1,6 +1,6 @@
 # @nodus/layout-force
 
-A force-directed `LayoutEngine` for [Nodus](../../README.md), built on
+A force-directed `LayoutEngine` for [Nodus](https://github.com/OWNER/nodus), built on
 [d3-force](https://github.com/d3/d3-force) with rectangular collision. Tuned for general graphs where
 hierarchy isn't meaningful (networks, clusters, relationship maps). Runs the simulation to convergence
 synchronously inside the async call, then returns world-space top-left positions. Bundles `d3-force`.
@@ -10,6 +10,9 @@ synchronously inside the async call, then returns world-space top-left positions
 ```bash
 pnpm add @nodus/layout-force @nodus/core
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the adapter shares your app's single
+> engine instance (a duplicate core is two registries and won't interoperate).
 
 ## Usage
 
@@ -26,9 +29,10 @@ graph are pinned. The engine id is `'force'`. `forceLayout` is also the default 
 
 ## See also
 
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md#3-layouts) — the layout extension axis.
-- Sibling adapters: [`@nodus/layout-dagre`](../layout-dagre/README.md) ·
-  [`@nodus/layout-tree`](../layout-tree/README.md) · [`@nodus/layout-elk`](../layout-elk/README.md).
+- [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
+- Sibling adapters: [`@nodus/layout-dagre`](https://github.com/OWNER/nodus/tree/main/packages/layout-dagre) ·
+  [`@nodus/layout-tree`](https://github.com/OWNER/nodus/tree/main/packages/layout-tree) ·
+  [`@nodus/layout-elk`](https://github.com/OWNER/nodus/tree/main/packages/layout-elk).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

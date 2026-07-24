@@ -67,10 +67,20 @@ serializer, so a React app can export the current view or round-trip selections 
 
 ## Server-side rendering
 
-> **TODO(C2)** — SSR safety (a `getServerSnapshot` for `useValue`, an isomorphic layout effect, and a
-> `'use client'` banner in the published build) is in progress. Until it lands, render `<Nodus>` and
-> the panels client-only (e.g. Next.js `dynamic(..., { ssr: false })`). This section will document the
-> supported SSR/RSC path once it lands.
+`@nodus/react` is a client component: the published build ships a `'use client'` banner, and its hooks
+read engine signals through `useSyncExternalStore` **with a server snapshot** (`getServerSnapshot`), so
+importing it never crashes a server render (Next.js App or Pages Router, Remix). The canvas itself is a
+browser surface — `<Nodus>` only paints inside a layout effect that runs after hydration.
+
+```tsx
+// 1. Next.js App Router — a client-component boundary is enough (the banner marks the module):
+'use client';
+import { Nodus, useNodusEditor } from '@nodus/react';
+
+// 2. Pages Router / any framework — skip SSR for the canvas entirely:
+import dynamic from 'next/dynamic';
+const Nodus = dynamic(() => import('@nodus/react').then((m) => m.Nodus), { ssr: false });
+```
 
 ## Scoping keyboard & clipboard
 
@@ -81,10 +91,21 @@ serializer, so a React app can export the current view or round-trip selections 
 
 ## Fonts & injected styles
 
-> **TODO(C4)** — The remote web-font fetch is being removed from the injected global styles, and an
-> opt-out for style injection added, so mounting a component issues no undisclosed third-party network
-> request. This section will document exactly what is injected and how to self-host or opt out once it
-> lands.
+`injectGlobalStyles()` installs the chrome's cross-cutting rules — `:focus-visible` rings, the
+`prefers-reduced-motion` block, and minimal `[data-nodus-ui]` resets. It is idempotent, and the panels
+call it themselves on mount, so you rarely call it directly.
+
+**It makes no network request by default:** text falls back to the system UI font via the
+`--nodus-font` CSS variable, so mounting a component issues no undisclosed third-party request (no
+CSP/GDPR surprise, works offline). Web fonts are **opt-in**:
+
+```ts
+import { injectGlobalStyles } from '@nodus/react';
+
+// Opt in to Space Grotesk / JetBrains Mono from fonts.googleapis.com:
+injectGlobalStyles({ webFonts: true });
+// …or self-host: set --nodus-font to your own family and leave web fonts off.
+```
 
 ## See also
 

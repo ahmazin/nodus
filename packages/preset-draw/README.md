@@ -1,6 +1,6 @@
 # @nodus/preset-draw
 
-Plain whiteboard shapes for [Nodus](../../README.md) — the "dumb shapes" preset. Rectangle, ellipse,
+Plain whiteboard shapes for [Nodus](https://github.com/OWNER/nodus) — the "dumb shapes" preset. Rectangle, ellipse,
 and diamond nodes, a multi-line text node, `line` / `arrow` edges, a `LineTool`, and `R / E / L / A /
 T` keyboard shortcuts. Everything styles off each element's own style bag (right-click → Style, or a
 properties panel), so shapes are neutral by default and coloured per element. Use it for a general
@@ -11,6 +11,9 @@ whiteboard/drawing surface.
 ```bash
 pnpm add @nodus/preset-draw @nodus/core
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> engine instance.
 
 ## Usage
 
@@ -38,9 +41,9 @@ Node types `rectShape` / `ellipseShape` / `diamondShape` / `textNode` (types `dr
 
 ## See also
 
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) — this package is a compact reference for authoring
+- [Extending Nodus](https://nodus.dev/docs/extending) — this package is a compact reference for authoring
   node **and** edge types.
-- [`@nodus/core`](../core/README.md) · [`@nodus/react`](../react/README.md)
+- [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core) · [`@nodus/react`](https://github.com/OWNER/nodus/tree/main/packages/react)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

@@ -1,9 +1,9 @@
 # @nodus/text-to-diagram
 
-Turn an LLM's structured output into a [Nodus](../../README.md) diagram. You give a model the exported
+Turn an LLM's structured output into a [Nodus](https://github.com/OWNER/nodus) diagram. You give a model the exported
 Anthropic tool definition (`diagramTool`) plus `diagramSystemPrompt`; the model returns a structured
 `DiagramSpec`; you call `recordsFromSpec` to get a renderable diagram (via the
-[infra preset](../preset-infra/README.md)). This package holds **zero LLM or network code** — the
+[infra preset](https://github.com/OWNER/nodus/tree/main/packages/preset-infra)). This package holds **zero LLM or network code** — the
 actual model call stays in your app, so keys and prompts never live in the library.
 
 ## Install
@@ -11,6 +11,9 @@ actual model call stays in your app, so keys and prompts never live in the libra
 ```bash
 pnpm add @nodus/text-to-diagram @nodus/core @nodus/preset-infra
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> engine instance.
 
 ## Usage
 
@@ -75,8 +78,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-infra`](../preset-infra/README.md) — the node types the spec maps to.
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) · [`@nodus/core`](../core/README.md)
+- [`@nodus/preset-infra`](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) — the node types the spec maps to.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

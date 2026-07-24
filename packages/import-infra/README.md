@@ -1,7 +1,7 @@
 # @nodus/import-infra
 
-Import live infrastructure into a [Nodus](../../README.md) diagram. Two converters turn real infra
-descriptions into [infra preset](../preset-infra/README.md) records:
+Import live infrastructure into a [Nodus](https://github.com/OWNER/nodus) diagram. Two converters turn real infra
+descriptions into [infra preset](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) records:
 
 - `fromTerraform(showJson)` — parses `terraform show -json` (state **or** plan); resources become
   nodes, `depends_on` becomes edges.
@@ -13,6 +13,9 @@ descriptions into [infra preset](../preset-infra/README.md) records:
 ```bash
 pnpm add @nodus/import-infra @nodus/core @nodus/preset-infra
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> engine instance.
 
 ## Usage
 
@@ -66,8 +69,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-infra`](../preset-infra/README.md) — the node types the records use.
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) · [`@nodus/core`](../core/README.md)
+- [`@nodus/preset-infra`](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) — the node types the records use.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

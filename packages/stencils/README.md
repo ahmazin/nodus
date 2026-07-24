@@ -1,8 +1,8 @@
 # @nodus/stencils
 
 Reusable **stencils** (element-group fragments) and **templates** (starting diagrams) for
-[Nodus](../../README.md), plus a canonical, git-diffable (de)serializer for stencil libraries.
-Depends only on [`@nodus/core`](../core/README.md) — no framework, no DOM.
+[Nodus](https://github.com/OWNER/nodus), plus a canonical, git-diffable (de)serializer for stencil libraries.
+Depends only on [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core) — no framework, no DOM.
 
 - A **stencil** is a small group of records you drop onto the canvas as a unit (a labeled box, a
   note, a decision shape). Its origin sits near `(0, 0)` so it can be pasted anywhere.
@@ -14,6 +14,9 @@ Depends only on [`@nodus/core`](../core/README.md) — no framework, no DOM.
 ```bash
 pnpm add @nodus/stencils @nodus/core
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so stencils share your app's single
+> engine instance.
 
 ## Usage
 
@@ -43,7 +46,7 @@ const lib = parseLibrary(text);
 
 | Export | Description |
 | --- | --- |
-| `Stencil`, `StencilLibrary`, `Template` | The content types (see [`src/types.ts`](./src/types.ts)). |
+| `Stencil`, `StencilLibrary`, `Template` | The content types (see [`src/types.ts`](https://github.com/OWNER/nodus/blob/main/packages/stencils/src/types.ts)). |
 | `serializeLibrary(lib)` | `StencilLibrary` → canonical JSON text (`stableStringify` + trailing newline). Byte-stable per input. |
 | `parseLibrary(json)` | JSON text → `StencilLibrary`. Throws only on non-library input (invalid JSON, or a top level missing string `name` / array `stencils`); silently drops individual malformed stencils. |
 | `builtinStencils` | A `StencilLibrary` of single-node starters: `Box`, `Note`, `Decision`, `Terminal`. |
@@ -62,7 +65,7 @@ round-trips any well-formed library.
 
 ## See also
 
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) — the engine's extension axes.
-- [`@nodus/core`](../core/README.md) — records, `Snapshot`, `restore`, `stableStringify`.
+- [Extending Nodus](https://nodus.dev/docs/extending) — the engine's extension axes.
+- [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core) — records, `Snapshot`, `restore`, `stableStringify`.
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**

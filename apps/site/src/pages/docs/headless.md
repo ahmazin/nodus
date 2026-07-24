@@ -85,9 +85,43 @@ Rehydrate a saved snapshot with `editor.loadSnapshot(snap, opts?)` — it runs m
 z-counter, and opens the first page (constructing an editor from raw `records` does not do all of
 this, so prefer `loadSnapshot` for persisted documents).
 
-> **TODO(D2)** — `loadSnapshot` will return a **`LoadReport`** (dropped edges, migration errors,
-> unmigrated records, repointed page refs, and structured issues) so a headless caller can detect and
-> log exactly what a load changed. This section will document the report shape once it lands.
+`loadSnapshot` returns a **`LoadReport`** so a headless caller — a CI job, a server-side import — can
+detect and log exactly what a load changed instead of silently accepting a repaired document:
+
+```ts
+const report = editor.loadSnapshot(snapshot);
+// LoadReport:
+//   droppedEdges: number       — edges removed because an endpoint node was missing
+//   migrationErrors: number    — records dropped because a type migration threw
+//   unmigrated: number         — records kept raw (newer type version, or type not registered)
+//   repointedPageRefs: number  — records whose pageId was backfilled/repointed to the first page
+//   issues: SerializationIssue[] — every non-fatal repair, each with a `code` and `message`
+if (report.droppedEdges || report.migrationErrors || report.issues.length) {
+  console.warn('load repaired the document', report);
+}
+```
+
+The same report also rides on the `document:load` event
+(`editor.on('document:load', (e) => e.report)`), and every repaired issue is additionally forwarded to
+the `error` channel as a `warning` — so a UI host can surface them without polling the return value.
+
+### A document newer than your library
+
+If the snapshot's `schemaVersion` is **newer** than the library understands, `loadSnapshot` **throws**
+a `NodusError` with code `'schema-too-new'` rather than silently downgrading the file — a git-native
+format must never rewrite what it can't round-trip. Catch it and tell the user to upgrade:
+
+```ts
+import { isNodusError } from '@nodus/core';
+
+try {
+  editor.loadSnapshot(snapshot);
+} catch (e) {
+  if (isNodusError(e) && e.code === 'schema-too-new') {
+    console.error('This diagram was written by a newer Nodus — upgrade @nodus/core to open it.');
+  } else throw e;
+}
+```
 
 ## See also
 

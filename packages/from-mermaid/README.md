@@ -1,7 +1,7 @@
 # @nodus/from-mermaid
 
-Import a [Mermaid](https://mermaid.js.org/) diagram string into [Nodus](../../README.md) records. It
-reuses the [`@nodus/preset-diagrams`](../preset-diagrams/README.md) builders (so the result renders
+Import a [Mermaid](https://mermaid.js.org/) diagram string into [Nodus](https://github.com/OWNER/nodus) records. It
+reuses the [`@nodus/preset-diagrams`](https://github.com/OWNER/nodus/tree/main/packages/preset-diagrams) builders (so the result renders
 with the diagram node types + theme) and lays the graph out under any registered layout engine.
 Deliberately scoped to the three subsets that cover the common cases: `flowchart` / `graph`,
 `stateDiagram(-v2)`, and `erDiagram`. Unknown lines are skipped, never thrown.
@@ -13,6 +13,9 @@ pnpm add @nodus/from-mermaid @nodus/core @nodus/preset-diagrams
 # for the default layout used by importMermaid:
 pnpm add @nodus/layout-elk
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> engine instance.
 
 ## Usage
 
@@ -67,8 +70,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-diagrams`](../preset-diagrams/README.md) — the node/edge types and builders behind the import.
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md) · [`@nodus/core`](../core/README.md)
+- [`@nodus/preset-diagrams`](https://github.com/OWNER/nodus/tree/main/packages/preset-diagrams) — the node/edge types and builders behind the import.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

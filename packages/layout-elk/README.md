@@ -1,7 +1,7 @@
 # @nodus/layout-elk
 
 An [ELK](https://github.com/kieler/elkjs) (Eclipse Layout Kernel) `LayoutEngine` for
-[Nodus](../../README.md), via `elkjs`. Supports ELK's layered, orthogonal, and nested algorithms —
+[Nodus](https://github.com/OWNER/nodus), via `elkjs`. Supports ELK's layered, orthogonal, and nested algorithms —
 the highest-quality routing of the four adapters. Uses the bundled ELK build (async, runs everywhere
 including Node); in a browser you can offload the work to a Web Worker.
 
@@ -10,6 +10,9 @@ including Node); in a browser you can offload the work to a Web Worker.
 ```bash
 pnpm add @nodus/layout-elk @nodus/core
 ```
+
+> `@nodus/core` is a **peer dependency** — install it alongside so the adapter shares your app's single
+> engine instance (a duplicate core is two registries and won't interoperate).
 
 ## Usage
 
@@ -28,10 +31,11 @@ engine and the default export. The engine id is `'elk'`.
 
 ## See also
 
-- [`docs/EXTENDING.md`](../../docs/EXTENDING.md#3-layouts) — the layout extension axis.
-- Used as the default layout by [`@nodus/from-mermaid`](../from-mermaid/README.md).
-- Sibling adapters: [`@nodus/layout-dagre`](../layout-dagre/README.md) ·
-  [`@nodus/layout-tree`](../layout-tree/README.md) · [`@nodus/layout-force`](../layout-force/README.md).
+- [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
+- Used as the default layout by [`@nodus/from-mermaid`](https://github.com/OWNER/nodus/tree/main/packages/from-mermaid).
+- Sibling adapters: [`@nodus/layout-dagre`](https://github.com/OWNER/nodus/tree/main/packages/layout-dagre) ·
+  [`@nodus/layout-tree`](https://github.com/OWNER/nodus/tree/main/packages/layout-tree) ·
+  [`@nodus/layout-force`](https://github.com/OWNER/nodus/tree/main/packages/layout-force).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>
