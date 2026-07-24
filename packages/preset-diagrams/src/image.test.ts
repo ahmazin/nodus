@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DrawApi, Editor, type Ctx2D, type NodeRecord, type ResolvedTokens } from '@nodus/core';
 import {
+  IMAGE_CACHE_CAP,
   clearImageCache,
   getImage,
+  imageCacheSize,
   imageNode,
   installDiagrams,
   setImageDecoder,
   setImageInvalidator,
+  type DecodedImage,
   type ImageNodeProps,
 } from '@nodus/preset-diagrams';
 
@@ -142,5 +145,69 @@ describe('image cache', () => {
     fire(); // decode completes → invalidator repaints
     expect(repaints).toBe(1);
     expect(getImage('data:async')).toBe(img); // now ready
+  });
+});
+
+// The decode cache is module-global and shared across editors; the audit (F22) required it be BOUNDED
+// (so a long paste-many-images session can't grow without limit) and CLEARABLE (so it resets).
+describe('image cache bounding (F22)', () => {
+  it('is LRU-bounded: size never exceeds the cap, evicting the oldest on overflow', () => {
+    const decoded: string[] = [];
+    setImageDecoder((src) => {
+      decoded.push(src);
+      return { width: 4, height: 4 };
+    });
+
+    // Fill well past the cap with distinct sources.
+    for (let i = 0; i < IMAGE_CACHE_CAP + 20; i++) getImage(`data:src-${i}`);
+    expect(imageCacheSize()).toBe(IMAGE_CACHE_CAP); // capped, not IMAGE_CACHE_CAP + 20
+    expect(imageCacheSize()).toBeLessThanOrEqual(IMAGE_CACHE_CAP);
+
+    // The oldest source (src-0) was evicted → requesting it again re-decodes.
+    const beforeReq = decoded.length;
+    getImage('data:src-0');
+    expect(decoded.length).toBe(beforeReq + 1);
+
+    // A recently-used source is still resident → no re-decode.
+    const beforeHit = decoded.length;
+    getImage(`data:src-${IMAGE_CACHE_CAP + 19}`); // the most recently inserted
+    expect(decoded.length).toBe(beforeHit);
+  });
+
+  it('a cache hit refreshes recency, protecting a hot entry from eviction', () => {
+    const decoded: string[] = [];
+    setImageDecoder((src) => {
+      decoded.push(src);
+      return { width: 4, height: 4 };
+    });
+
+    getImage('data:hot'); // insert first (would be the oldest / first eviction victim)
+    // Fill the rest of the cap with other sources, touching `hot` before the final overflow.
+    for (let i = 0; i < IMAGE_CACHE_CAP - 1; i++) getImage(`data:cold-${i}`);
+    getImage('data:hot'); // touch → most-recently-used
+    getImage('data:overflow'); // overflow: evicts the true oldest (cold-0), NOT hot
+
+    const before = decoded.length;
+    getImage('data:hot');
+    expect(decoded.length).toBe(before); // still cached — recency protected it
+  });
+
+  it('clearImageCache empties the cache', () => {
+    setImageDecoder(() => ({ width: 4, height: 4 }));
+    getImage('data:a');
+    getImage('data:b');
+    expect(imageCacheSize()).toBeGreaterThan(0);
+    clearImageCache();
+    expect(imageCacheSize()).toBe(0);
+  });
+});
+
+describe('DecodedImage export (F36)', () => {
+  it('the DecodedImage type is importable from the package barrel', () => {
+    // Type-level assertion: this annotation only compiles if `DecodedImage` is exported from the
+    // barrel (the `export *` from image.ts). tsc is the gate; the runtime check just uses the value.
+    const probe: DecodedImage = { width: 2, height: 3 };
+    expect(probe.width).toBe(2);
+    expect(probe.height).toBe(3);
   });
 });

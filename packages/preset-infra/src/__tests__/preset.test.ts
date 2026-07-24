@@ -123,3 +123,15 @@ describe('reveal mode', () => {
     expect((ed.store.nodes()[0] as NodeRecord).visual.state).toBe('accent');
   });
 });
+
+// E3 rotation-capability audit conclusion for the infra preset: the six symbol-forward stencil nodes
+// are upright by design (an infra diagram reads by icon; a rotated server/db glyph is never wanted), so
+// none opt into rotation. That matches core's capabilitiesOf default (canRotate:false) — no explicit
+// declaration needed. This guard locks the decision.
+describe('rotation capability (E3 audit)', () => {
+  it('no infra stencil node opts into rotation', () => {
+    for (const util of infraNodeUtils) {
+      expect(util.capabilities?.canRotate).not.toBe(true);
+    }
+  });
+});

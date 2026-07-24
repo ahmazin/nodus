@@ -34,10 +34,19 @@ const shapePorts = (): Port[] => [
   { id: 'b', kind: 'both', anchor: { x: 0.5, y: 1 } },
 ];
 
+// Freeform whiteboard shapes are meant to rotate — that's core to this "dumb shapes" preset (its
+// `draw.text` deliberately opts OUT with canRotate:false, which only reads as an exception because its
+// siblings rotate). Declare it EXPLICITLY: core's E3 change resolves an unset canRotate through
+// `capabilitiesOf` to the DEFAULT_CAPABILITIES value (false), so relying on the old accidental-true
+// would silently drop the rotate handle from every whiteboard shape. Partial merge keeps the other
+// capabilities (connect/resize/edit) at their default-true.
+const WHITEBOARD_CAPS: NonNullable<NodeUtil['capabilities']> = { canRotate: true };
+
 export const rectShape: NodeUtil = {
   type: 'draw.rect',
   getDefaultProps: () => ({}),
   getDefaultSize: () => ({ w: 140, h: 90 }),
+  capabilities: WHITEBOARD_CAPS,
   getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
   getPorts: shapePorts,
   draw: (api, n, t) => {
@@ -52,6 +61,7 @@ export const ellipseShape: NodeUtil = {
   type: 'draw.ellipse',
   getDefaultProps: () => ({}),
   getDefaultSize: () => ({ w: 140, h: 100 }),
+  capabilities: WHITEBOARD_CAPS,
   getGeometry: (n) => new Ellipse2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
   getPorts: shapePorts,
   draw: (api, n, t) => {
@@ -76,6 +86,7 @@ export const diamondShape: NodeUtil = {
   type: 'draw.diamond',
   getDefaultProps: () => ({}),
   getDefaultSize: () => ({ w: 150, h: 100 }),
+  capabilities: WHITEBOARD_CAPS,
   getGeometry: (n): Geometry2d => new Polygon2d(diamondPoints(n)),
   getPorts: shapePorts,
   draw: (api, n, t) => {

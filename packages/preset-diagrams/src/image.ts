@@ -29,8 +29,11 @@ export interface ImageNodeProps {
   fit?: 'contain' | 'cover';
 }
 
-/** A decoded image handle. Structurally matches `HTMLImageElement` / `ImageBitmap` / napi `Image`. */
-interface DecodedImage {
+/**
+ * A decoded image handle. Structurally matches `HTMLImageElement` / `ImageBitmap` / napi `Image`.
+ * Exported so a host that plugs in its own {@link ImageDecoder} can type the value it returns.
+ */
+export interface DecodedImage {
   readonly width: number;
   readonly height: number;
 }
@@ -63,7 +66,42 @@ function browserDecoder(): ImageDecoder | undefined {
 
 let decoder: ImageDecoder | undefined = browserDecoder();
 let invalidate: () => void = () => {};
+
+/**
+ * Module-scoped decode cache, shared by {@link imageNode} across every Editor in the process. Sharing
+ * is SAFE: a decoded bitmap is immutable and keyed by its exact source bytes (a `data:` URI or URL),
+ * so two editors that paste the same image decode it once and read identical pixels. The hazards the
+ * audit (F22) flagged were (1) UNBOUNDED growth — a long session pasting many distinct images would
+ * retain every decode forever — and (2) no reset between test runs. Both are fixed here: the map is
+ * LRU-capped at {@link IMAGE_CACHE_CAP} (oldest evicted on overflow) and {@link clearImageCache} empties it.
+ *
+ * Why module-scoped rather than per-editor: a {@link NodeUtil} is registered without any Editor
+ * reference — its `draw`/geometry callbacks receive only DrawApi/NodeRecord/tokens — so there is no
+ * per-editor context to thread a per-editor cache through. A bounded, clearable module cache is the
+ * proportionate fix: it mirrors core A10's instance-isolation intent (bound the shared state, make it
+ * resettable) without an unwarranted redesign of the NodeUtil signature.
+ */
 const cache = new Map<string, DecodedImage | null>();
+
+/**
+ * Upper bound on distinct decoded sources held at once. A decoded handle is cheap to retain (pixels
+ * live in the platform image object, not copied here), so 64 comfortably covers a busy board while
+ * still capping a pathological "paste hundreds of distinct images" session. Exported so a
+ * memory-conscious host — and the cache tests — can reference the bound.
+ */
+export const IMAGE_CACHE_CAP = 64;
+
+/** Insert/refresh `src → img` as most-recently-used, evicting the oldest entry once past the cap. A
+ *  `Map` iterates in insertion order, so delete-then-set moves a key to the newest slot and the first
+ *  key is always the LRU eviction victim. */
+function cacheSet(src: string, img: DecodedImage | null): void {
+  cache.delete(src);
+  cache.set(src, img);
+  if (cache.size > IMAGE_CACHE_CAP) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+}
 
 /** Register how image sources decode in this environment (headless hosts plug in Skia here). Passing
  *  `null` restores the browser default. Clears the decode cache so sources re-decode. */
@@ -79,23 +117,31 @@ export function setImageInvalidator(fn: () => void): void {
 }
 
 /** Decoded image for `src`, or `undefined` until it is ready / if it cannot be decoded here. Decodes
- *  each distinct source at most once. */
+ *  each distinct source at most once; a cache hit refreshes the entry's LRU recency. */
 export function getImage(src: string): DecodedImage | undefined {
   if (!src) return undefined;
   const cached = cache.get(src);
-  if (cached !== undefined) return cached && cached.width > 0 ? cached : undefined;
+  if (cached !== undefined) {
+    cacheSet(src, cached); // touch: keep a hot image from being evicted under cap pressure
+    return cached && cached.width > 0 ? cached : undefined;
+  }
   if (!decoder) {
-    cache.set(src, null);
+    cacheSet(src, null);
     return undefined;
   }
   const img = decoder(src, invalidate) ?? null;
-  cache.set(src, img);
+  cacheSet(src, img);
   return img && img.width > 0 ? img : undefined;
 }
 
-/** Drop cached decodes (mainly for tests / memory pressure). */
+/** Drop all cached decodes (call on memory pressure, or between tests). */
 export function clearImageCache(): void {
   cache.clear();
+}
+
+/** Number of entries currently held in the decode cache — for diagnostics and the cache tests. */
+export function imageCacheSize(): number {
+  return cache.size;
 }
 
 /** Longest side of the default node size for a freshly-inserted image (keeps big images on-screen). */

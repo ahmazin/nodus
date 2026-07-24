@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Editor } from '@nodus/core';
-import { buildERD, buildFlowchart, buildOrgChart, buildStateMachine, installDiagrams } from '@nodus/preset-diagrams';
+import { buildERD, buildFlowchart, buildOrgChart, buildStateMachine, diagramNodeUtils, imageNode, installDiagrams } from '@nodus/preset-diagrams';
 
 function load(recs: ReturnType<typeof buildFlowchart>): Editor {
   const ed = new Editor();
@@ -52,5 +52,22 @@ describe('preset-diagrams builders', () => {
     const org = buildOrgChart({ people: [{ id: 'ceo', label: 'CEO' }, { id: 'cto', label: 'CTO', reportsTo: 'ceo' }, { id: 'eng', label: 'Eng', reportsTo: 'cto' }] });
     expect(org.filter((r) => r.typeName === 'node')).toHaveLength(3);
     expect(org.filter((r) => r.typeName === 'edge')).toHaveLength(2);
+  });
+});
+
+// E3 rotation-capability audit conclusion for this preset: rotation is OPT-IN here — only the media
+// node (`diagram.image`) declares canRotate:true. The structured shapes (flowchart/ERD/org/state/icon)
+// stay non-rotatable by intent, which is exactly what core's capabilitiesOf default (false) gives them,
+// so no explicit declaration is added. This guard locks that decision against accidental drift.
+describe('rotation capability (E3 audit)', () => {
+  it('the image media node opts into rotation', () => {
+    expect(imageNode.capabilities?.canRotate).toBe(true);
+  });
+
+  it('structured diagram shapes do NOT opt into rotation (non-rotatable is the intended default)', () => {
+    for (const util of diagramNodeUtils) {
+      if (util.type === 'diagram.image') continue;
+      expect(util.capabilities?.canRotate).not.toBe(true);
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Editor } from '@nodus/core';
-import { drawShortcut, installDrawTools } from '@nodus/preset-draw';
+import { diamondShape, drawShortcut, ellipseShape, installDrawTools, rectShape, textNode } from '@nodus/preset-draw';
 
 describe('preset-draw', () => {
   it('registers shapes, edges, and the line tool', () => {
@@ -64,5 +64,21 @@ describe('preset-draw', () => {
     const tid = ed.createNode({ type: 'draw.text', label: 'line 1\nline 2', x: 0, y: 0, w: 120, h: 40 });
     expect(ed.isMultilineEdit(tid)).toBe(true);
     expect(ed.isMultilineEdit(ed.store.nodes()[0]!.id)).toBe(false); // ellipse is single-line
+  });
+});
+
+// E3 rotation-capability audit: core's `capabilitiesOf` will resolve an unset `canRotate` to the
+// DEFAULT_CAPABILITIES value (false), so whiteboard shapes must declare rotation EXPLICITLY or lose
+// their rotate handle. (`capabilitiesOf` may not be exported yet — core #36 — so assert the declared
+// capability object directly, which is what that helper reads.)
+describe('rotation capability (E3 audit)', () => {
+  it('freeform whiteboard shapes declare canRotate:true so rotation survives the default flip', () => {
+    for (const util of [rectShape, ellipseShape, diamondShape]) {
+      expect(util.capabilities?.canRotate).toBe(true);
+    }
+  });
+
+  it('text stays upright — it opts out with an explicit canRotate:false', () => {
+    expect(textNode.capabilities?.canRotate).toBe(false);
   });
 });
