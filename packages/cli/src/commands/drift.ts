@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { restore, type NodeRecord, type NodusRecord, type Snapshot } from '@nodus/core';
 import { computeDrift, fromKubernetes, fromTerraform, type DriftResult } from '@nodus/import-infra';
+import { sanitizeText } from './sanitize.js';
 
 export interface DriftCliReport {
   result: DriftResult;
@@ -53,9 +54,11 @@ function importSource(json: unknown, source: SourceKind): NodusRecord[] {
 
 /** One resource named by its diagram label, falling back to its source address (`props.key`) then id. */
 function describe(n: NodeRecord): string {
+  // `label`/`props.key`/`id` are attacker-controlled (loaded verbatim from a `.nodus.json`); strip
+  // control characters before interpolating them into the terminal report (CWE-117).
   const key = typeof n.props?.['key'] === 'string' ? (n.props['key'] as string) : undefined;
-  if (n.label && key) return `${n.label} (${key})`;
-  return n.label ?? key ?? String(n.id);
+  if (n.label && key) return `${sanitizeText(n.label)} (${sanitizeText(key)})`;
+  return sanitizeText(n.label ?? key ?? String(n.id));
 }
 
 function buildText(result: DriftResult, note?: string): string {
@@ -76,7 +79,9 @@ function buildText(result: DriftResult, note?: string): string {
     }
     if (result.changed.length > 0) {
       lines.push('Changed:');
-      for (const c of result.changed) lines.push(`  ~ ${describe(c.to)}   ${c.fields.join(', ')}`);
+      // `c.fields` carries `props.<name>` entries whose <name> is an attacker-controlled props KEY
+      // NAME (from `driftedFields`), so sanitize each field name too — not just `describe` (CWE-117).
+      for (const c of result.changed) lines.push(`  ~ ${describe(c.to)}   ${c.fields.map(sanitizeText).join(', ')}`);
     }
   }
   if (note) lines.push(note);

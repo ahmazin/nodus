@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Editor, serializeRecords, toCanonicalString } from '@nodus/core';
+import { Editor, serializeRecords, toCanonicalString, type NodeRecord } from '@nodus/core';
 import { fromTerraform } from '@nodus/import-infra';
 import { diffReport, fmt } from './index.js';
 import { driftReport } from './commands/drift.js';
@@ -182,6 +182,95 @@ describe('@nodus/cli', () => {
       // Explicitly forcing the same detection gives the same result.
       const forced = driftReport(diagram, writeSource('k8s2.json', k8s), { source: 'kubernetes' });
       expect(forced.result.total).toBe(auto.result.total);
+    });
+  });
+
+  // A record's `label`, `id`, `props.key`, and even a props KEY NAME are read verbatim from an
+  // attacker-supplied `.nodus.json`; the diff/drift reports must not let embedded CR/LF/ESC/ANSI
+  // bytes rewrite the terminal a reviewer trusts (CWE-117 terminal/log injection).
+  describe('output sanitization (terminal/log injection)', () => {
+    // Detect any C0/C1 control char (incl. CR/LF/ESC/DEL) without embedding one in this source file.
+    const hasControlChar = (s: string): boolean =>
+      [...s].some((c) => {
+        const cp = c.codePointAt(0) ?? 0;
+        return cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f);
+      });
+    const snapshot = (records: unknown[]): unknown => ({ schemaVersion: 1, document: { records } });
+    const labeledNode = (id: string, label: string, props: Record<string, unknown> = {}): unknown => ({
+      id, typeName: 'node', version: 0, type: 'rect', x: 0, y: 0, w: 10, h: 10, z: 'a0', label, visual: { state: 'solid' }, props,
+    });
+    const CR = String.fromCharCode(0x0d);
+    const ESC = String.fromCharCode(0x1b);
+    // The report's own line breaks are legitimate structure; assert no control char (CR/ESC/…)
+    // survives WITHIN any rendered line — that is the terminal-injection vector.
+    const expectNoControlInAnyLine = (text: string): void => {
+      for (const line of text.split('\n')) expect(hasControlChar(line)).toBe(false);
+    };
+
+    it('diff strips control characters from an untrusted label but keeps the printable text', () => {
+      // CR + `ESC[2K` (erase-line) would overwrite the printed diff line in an ANSI terminal.
+      const evil = `safe${CR}${ESC}[2Kforged`;
+      const before = join(dir, 'empty.nodus.json');
+      const after = join(dir, 'evil.nodus.json');
+      writeFileSync(before, JSON.stringify(snapshot([])));
+      writeFileSync(after, JSON.stringify(snapshot([labeledNode('node:evil', evil)])));
+
+      const report = diffReport(before, after); // the node reads as "added" -> printed via describe()
+
+      expectNoControlInAnyLine(report.text); // no raw CR/ESC survives into the report
+      expect(report.text).toContain('node:evil'); // the id is still shown
+      expect(report.text).toContain('safe'); // printable remainder preserved
+      expect(report.text).toContain('forged');
+    });
+
+    it('diff leaves an ordinary label (spaces + non-control unicode) unchanged', () => {
+      const before = join(dir, 'empty2.nodus.json');
+      const after = join(dir, 'clean.nodus.json');
+      writeFileSync(before, JSON.stringify(snapshot([])));
+      writeFileSync(after, JSON.stringify(snapshot([labeledNode('node:ok', 'My Service αβ 服务')])));
+      const report = diffReport(before, after);
+      expect(report.text).toContain('"My Service αβ 服务"'); // rendered byte-for-byte
+    });
+
+    it('drift strips control characters from an untrusted label and props.key', () => {
+      const diagram = join(dir, 'drift-evil.nodus.json');
+      const source = join(dir, 'empty.tf.json');
+      // A source-managed node (string props.key) with control chars in BOTH its label and its key.
+      writeFileSync(
+        diagram,
+        JSON.stringify(snapshot([labeledNode('node:evil', `db${CR}${ESC}[2Kforged`, { key: `aws_db.evil${ESC}[31m` })])),
+      );
+      writeFileSync(source, JSON.stringify({ format_version: '1.0', values: { root_module: { resources: [] } } }));
+
+      const report = driftReport(diagram, source); // node absent from source -> "removed" -> describe()
+      expect(report.drifted).toBe(true);
+      expectNoControlInAnyLine(report.text);
+      expect(report.text).toContain('forged'); // printable remainder preserved
+    });
+
+    it('drift strips control characters from a props KEY NAME (the `props.<name>` field-list sink)', () => {
+      // Route through the CHANGED section's `c.fields` (NOT describe): match a source-managed node by
+      // its props.key, then add an EXTRA props key whose NAME carries control chars. `driftedFields`
+      // emits `props.<name>` for it, which buildText joins into the "Changed" line.
+      const src = tfShowJson([{ address: 'aws_instance.web', type: 'aws_instance', name: 'web' }]);
+      const records = fromTerraform(src);
+      const managed = records.find(
+        (r): r is NodeRecord => r.typeName === 'node' && typeof r.props?.['key'] === 'string',
+      );
+      expect(managed).toBeDefined();
+      managed!.props[`evil${ESC}[31m${CR}HACKED`] = '1'; // control chars live in the KEY NAME
+
+      const diagram = join(dir, 'drift-keyname.nodus.json');
+      const source = join(dir, 'keyname.tf.json');
+      writeFileSync(diagram, JSON.stringify(serializeRecords(records)));
+      writeFileSync(source, JSON.stringify(src)); // same source -> only the injected key drifts
+
+      const report = driftReport(diagram, source);
+      expect(report.drifted).toBe(true);
+      expect(report.result.changed.length).toBeGreaterThan(0); // classified as a content change
+      expectNoControlInAnyLine(report.text); // the `props.<name>` field name is sanitized in-line
+      expect(report.text).toContain('Changed:');
+      expect(report.text).toContain('HACKED'); // printable remainder of the key name preserved
     });
   });
 });

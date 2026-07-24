@@ -337,6 +337,12 @@ function pointAtDistance(route: Vec2[], seg: number[], d: number): Vec2 {
   return route[route.length - 1]!;
 }
 
+// Upper bound on packet markers drawn per edge per frame. `flow.count` is untrusted, author-controlled
+// data (round-trips through *.nodus.json), so without a cap a single crafted edge (e.g. `count: 5e8`,
+// or a non-finite value) would issue that many arc fills every animation frame and freeze the tab. The
+// ceiling is far above any legible marker density, so real diagrams are unaffected.
+const MAX_FLOW_MARKERS = 10000;
+
 /** Draw animated flow markers (packets or marching dashes) along an edge's route with the given
  *  (already data-resolved) `flow` spec. `time` is ms; caller has set the world transform. */
 export function paintFlowMarkers(ctx: Ctx2D, item: RenderItem, theme: Theme, time: number, flow: FlowSpec): void {
@@ -375,7 +381,7 @@ export function paintFlowMarkers(ctx: Ctx2D, item: RenderItem, theme: Theme, tim
     ctx.stroke();
   } else {
     const size = flow.size ?? 3;
-    const count = Math.max(1, flow.count ?? Math.round(total / 90));
+    const count = Math.min(MAX_FLOW_MARKERS, Math.max(1, flow.count ?? Math.round(total / 90)));
     const spacing = total / count;
     const advance = (((t * speed) % spacing) + spacing) % spacing;
     ctx.fillStyle = color;

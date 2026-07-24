@@ -78,3 +78,39 @@ describe('renderSVG animateFlow — flow.color is XSS-safe', () => {
     expect(svg).toContain('&quot;');
   });
 });
+
+describe('renderSVG animateFlow — packet count is bounded (DoS)', () => {
+  // `flow.count` is author-controlled and round-trips through the deserialized edge record with no
+  // scale, so it reaches the packet loop unclamped. Without an upper bound, a crafted count drives the
+  // loop to emit one <circle> per packet with no cap — exhausting memory during animated SVG export.
+  function diagramWithFlowCount(count: number): Editor {
+    const ed = new Editor({ viewport: { w: 400, h: 200 } });
+    const a = ed.createNode({ type: 'rect', x: 20, y: 20, w: 80, h: 40 });
+    const b = ed.createNode({ type: 'rect', x: 260, y: 20, w: 80, h: 40 });
+    ed.connect({ kind: 'outline', nodeId: a }, { kind: 'outline', nodeId: b });
+    const eid = ed.store.edges()[0]!.id;
+    ed.setFlow([eid], { style: 'dots', count });
+    return ed;
+  }
+
+  const circleCount = (svg: string): number => (svg.match(/<circle\b/g) ?? []).length;
+
+  it('emits exactly `count` packets for a small, legitimate count', () => {
+    const svg = renderSVG(diagramWithFlowCount(7), { animateFlow: true });
+    expect(circleCount(svg)).toBe(7);
+  });
+
+  it('clamps an unbounded count to the module cap (10000)', () => {
+    // Without the clamp this loops ~5e8 times building <circle> strings and OOMs before returning.
+    const svg = renderSVG(diagramWithFlowCount(5e8), { animateFlow: true });
+    expect(circleCount(svg)).toBe(10000);
+  });
+
+  it('neutralises a non-finite (Infinity) count to a bounded, finite number of packets', () => {
+    const svg = renderSVG(diagramWithFlowCount(Number.POSITIVE_INFINITY), { animateFlow: true });
+    const n = circleCount(svg);
+    expect(Number.isFinite(n)).toBe(true);
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).toBeLessThanOrEqual(10000);
+  });
+});

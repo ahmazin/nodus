@@ -193,3 +193,41 @@ describe('flow rate pill — zoom LOD gate', () => {
     expect(spy.calls).toBeGreaterThan(0);
   });
 });
+
+describe('flow marker count is clamped (per-frame DoS guard)', () => {
+  // `flow.count` is untrusted, author-controlled data that round-trips through *.nodus.json. The
+  // marker pass draws one arc per count on EVERY animation frame, so a crafted `count: 5e8` (or a
+  // non-finite value) would issue hundreds of millions of fills per frame and freeze the tab. The
+  // sink clamps to this ceiling so the loop can never be driven unbounded (mirrors the module-local
+  // MAX_FLOW_MARKERS in renderer/paint.ts).
+  const MAX_FLOW_MARKERS = 10000;
+  const build = (count: number) => {
+    const ed = new Editor();
+    const a = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100 });
+    const b = ed.createNode({ type: 'rect', x: 500, y: 0, w: 100, h: 100 });
+    const e = ed.connect({ kind: 'outline', nodeId: a }, { kind: 'outline', nodeId: b })!;
+    ed.setFlow([e], { style: 'dots', count });
+    return ed;
+  };
+
+  it('caps a hostile huge count at MAX_FLOW_MARKERS instead of drawing it verbatim', () => {
+    const ed = build(500_000_000);
+    const ctx = mockCtx();
+    ed.paintFlow(ctx, 1, 0);
+    expect(ctx.arcs.length).toBe(MAX_FLOW_MARKERS);
+  });
+
+  it('caps a non-finite (Infinity) count — which would otherwise loop forever', () => {
+    const ed = build(Number.POSITIVE_INFINITY);
+    const ctx = mockCtx();
+    ed.paintFlow(ctx, 1, 0);
+    expect(ctx.arcs.length).toBe(MAX_FLOW_MARKERS);
+  });
+
+  it('leaves a normal author-chosen count untouched (no behavior change below the cap)', () => {
+    const ed = build(12);
+    const ctx = mockCtx();
+    ed.paintFlow(ctx, 1, 0);
+    expect(ctx.arcs.length).toBe(12);
+  });
+});

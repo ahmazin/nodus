@@ -71,6 +71,12 @@ function n(v: number): string {
   return Object.is(r, -0) ? '0' : String(r);
 }
 
+/** Upper bound on packet `<circle>` elements emitted per edge during animated export. `flow.count`
+ *  is author-controlled and round-trips through the deserialized edge record with no upper bound, so
+ *  without a cap a crafted diagram could drive the packet loop to emit an unbounded number of
+ *  elements and exhaust memory. Kept module-local on purpose (the canvas sink has its own cap). */
+const MAX_FLOW_MARKERS = 10000;
+
 /** Escape a string for safe interpolation into an SVG attribute value — mirrors `escapeAttr` in
  *  svg-context (which escapes node labels/hrefs). Needed because `flow.color` is author-controlled and
  *  is otherwise dropped raw into `stroke=`/`fill=`, which is a stored-XSS vector once the exported
@@ -127,7 +133,12 @@ function flowAnimationSVG(editor: Editor, region: Box, ratio: number): string {
       );
     } else {
       const size = flow.size ?? 3;
-      const count = Math.max(1, flow.count ?? Math.round(total / 90));
+      // Clamp the author-controlled packet count to a bounded maximum so the loop below can never be
+      // driven to emit an unbounded number of <circle> elements (memory-exhaustion DoS on export). A
+      // non-finite/NaN/Infinity count falls back to the derived default before clamping.
+      const derived = Math.round(total / 90);
+      const rawCount = flow.count ?? derived;
+      const count = Math.min(MAX_FLOW_MARKERS, Math.max(1, Number.isFinite(rawCount) ? rawCount : derived));
       const spacing = total / count;
       const dur = Math.max(0.1, total / speed);
       const rev = dir < 0 ? ` keyPoints="1;0" keyTimes="0;1" calcMode="linear"` : '';

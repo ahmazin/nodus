@@ -5,14 +5,17 @@
  */
 import { readFileSync } from 'node:fs';
 import { diff, restore, stableStringify, type DiffResult, type Id, type NodusRecord, type Snapshot } from '@nodus/core';
+import { sanitizeText } from './sanitize.js';
 
 function loadRecords(file: string): NodusRecord[] {
   return restore(JSON.parse(readFileSync(file, 'utf8')) as Snapshot).records;
 }
 
 function describe(r: NodusRecord): string {
+  // `label`/`id`/`typeName` are attacker-controlled (loaded verbatim from a `.nodus.json`); strip
+  // control characters before interpolating them into the terminal report (CWE-117).
   const label = (r as { label?: string }).label;
-  return `${r.typeName} ${label ? `"${label}" ` : ''}${r.id}`;
+  return `${sanitizeText(r.typeName)} ${label ? `"${sanitizeText(label)}" ` : ''}${sanitizeText(String(r.id))}`;
 }
 
 function short(v: unknown): string {
