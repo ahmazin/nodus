@@ -21,8 +21,9 @@ import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import { Editor, type CreateCanvas } from '@nodus/core';
 import { installInfraPreset } from '@nodus/preset-infra';
 
-// 1. Load system fonts BEFORE painting (see the prerequisite below).
-GlobalFonts.loadSystemFonts();
+// 1. Load system fonts BEFORE painting (see the prerequisite below). @napi-rs/canvas's types omit
+//    loadSystemFonts, so reach it through a narrow cast — the same as the `nodus` CLI does.
+(GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();
 
 // 2. Register the node/edge types the document uses.
 const editor = new Editor();
@@ -30,7 +31,7 @@ installInfraPreset(editor);
 editor.createNode({ type: 'infra.service', label: 'API', x: 0, y: 0 });
 
 // 3. Inject the canvas factory and export.
-const create: CreateCanvas = (w, h) => createCanvas(w, h) as ReturnType<CreateCanvas>;
+const create: CreateCanvas = (w, h) => createCanvas(w, h) as unknown as ReturnType<CreateCanvas>;
 const png: Uint8Array = await editor.toPNG(create, { pixelRatio: 2, background: true });
 ```
 

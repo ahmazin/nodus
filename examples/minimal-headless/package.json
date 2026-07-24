@@ -1,0 +1,16 @@
+{
+  "name": "@nodus-examples/minimal-headless",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render a Nodus diagram to a PNG in Node with @napi-rs/canvas — no browser.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@nodus/core": "workspace:*",
+    "@nodus/preset-infra": "workspace:*",
+    "@napi-rs/canvas": "^0.1.60"
+  }
+}

@@ -92,9 +92,10 @@ and hosts the inline label editor. The full interactive demo is in
 [`examples/browser`](./examples/browser) (`pnpm dev` → http://localhost:5188). See
 [`@nodus/react`](./packages/react#readme) for panels, hooks, the design system, and PNG export.
 
-> **React SSR / RSC:** the binding is client-only for now — under Next.js or another SSR framework,
-> render `<Nodus>` and the panels client-side (e.g. `dynamic(() => …, { ssr: false })`). Full SSR
-> support is in progress; see the [React binding guide](./apps/site/src/pages/docs/react.md).
+> **React SSR / RSC:** `@nodus/react` ships a `'use client'` banner and a server snapshot for its
+> hooks, so importing it never crashes a server render. The canvas paints after hydration; when you
+> need it fully client-only (e.g. Next.js Pages Router) use `dynamic(() => …, { ssr: false })`. See
+> the [React binding guide](./apps/site/src/pages/docs/react.md#server-side-rendering).
 
 ## Git-native diagrams
 

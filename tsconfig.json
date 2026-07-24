@@ -69,11 +69,15 @@
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/src/**/*.tsx",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "examples/minimal-*/src/**/*.ts",
+    "examples/minimal-*/src/**/*.tsx"
   ],
   "exclude": [
     "**/node_modules",
     "**/dist",
-    "examples"
+    "examples/browser",
+    "examples/infra",
+    "examples/output"
   ]
 }

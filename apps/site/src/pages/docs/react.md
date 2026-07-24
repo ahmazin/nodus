@@ -84,10 +84,23 @@ const Nodus = dynamic(() => import('@nodus/react').then((m) => m.Nodus), { ssr: 
 
 ## Scoping keyboard & clipboard
 
-> **TODO(C3)** — A `keyboard` scope option to bind shortcuts to the host element (rather than
-> `window`), so mounting `<Nodus>` never intercepts undo/zoom/delete from the embedding app's inputs
-> and two instances don't cross-receive shortcuts, is in progress. This section will document the
-> scoping API once it lands.
+By default (`keyboardScope="host"`) keyboard shortcuts — undo/redo, nudge, zoom, Tab traversal —
+listen on the canvas **host element**, so they fire only while this editor (or its chrome) holds
+focus. That is the safe default for embedding: mounting `<Nodus>` never steals undo/zoom/delete from
+the host app's own inputs, and two editors on one page never cross-receive each other's shortcuts —
+each responds only while it is focused.
+
+Pass `keyboardScope="window"` for the legacy app-wide behavior (shortcuts fire regardless of focus).
+The scope is read once at mount; changing the prop later has no effect until the `editor` prop changes.
+
+```tsx
+<Nodus editor={editor} />                        // default 'host' — scoped to focus, safe to embed
+<Nodus editor={editor} keyboardScope="window" /> // app-wide shortcuts (a single full-page editor)
+```
+
+Paste always listens on `window` (the clipboard event only fires there), but in `'host'` scope a
+paste is ignored unless this editor's host contains the focused element — so pasting into one of the
+host app's own fields is never captured by the canvas.
 
 ## Fonts & injected styles
 

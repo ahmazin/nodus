@@ -66,7 +66,7 @@ const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);
 
 // mutate through the one channel (undo + scene index + events stay in sync)
-editor.createNode({ type: 'lambda', label: 'Auth', props: { x: 120, y: 80 } });
+editor.createNode({ type: 'infra.service', label: 'Auth', x: 120, y: 80 });
 
 // paint to any Ctx2D surface (DOM canvas or Skia) via editor.paintRegion(...)
 ```

@@ -78,9 +78,72 @@ coordinates** and drives the store through the same `apply` channel as everythin
 `@nodus/plugin-freehand`'s `FreehandTool` is the canonical example (it uses `capture: 'later'` on each
 pointer-move and calls `editor.mark()` on pointer-up, collapsing a whole stroke into one undo entry).
 
-> **TODO(E1)** — Plugin & tool **lifecycle guarantees** (idempotent install, reversible dispose,
-> enter/exit ordering, and the stable `EngineHost` boundary) plus the engine **command registry** are
-> being finalized in the core. This section will document the guaranteed lifecycle once it lands.
+## Plugin lifecycle
+
+`editor.use(plugin)` installs a plugin and returns a `Dispose` that removes everything it added. Three
+guarantees make plugins safe to install, re-install, and remove:
+
+- **Idempotent by `plugin.id`.** Installing the same id twice — a React StrictMode double-invoke, an
+  HMR reload — does not double-register: the second `use()` warns and returns the *existing* disposer.
+  `editor.installedPlugins()` lists the installed ids.
+- **Reversible.** Every `EngineHost` register/subscribe call returns its own `Dispose`, and the host
+  records them, so the disposer `use()` hands back unwinds the plugin's entire footprint — node/edge
+  types, tools, routers, layouts, overlays, event and store subscriptions, commands — in **reverse**
+  registration order, then runs the plugin's own returned disposer. Calling it twice is a no-op.
+- **Fail-safe install.** If `register()` throws, the error is emitted on the observable `error` channel
+  (tagged with the plugin id) and re-thrown as `Plugin "<id>" failed to install: …`; whatever the
+  plugin registered before throwing keeps working, so the editor is never left half-installed.
+
+```ts
+export interface Plugin {
+  id: string;
+  register(host: EngineHost): Dispose | void;
+}
+
+const dispose = editor.use(myPlugin);
+editor.installedPlugins();   // ['my-plugin', …]
+dispose();                   // unwinds everything myPlugin registered, in reverse order
+```
+
+### The `EngineHost` boundary — two tiers
+
+`register(host)` receives an `EngineHost` — a **stable** surface with a deliberate escape hatch:
+
+- **`EngineHost` itself is the stable public API** to build against: `registerNodeType`,
+  `registerEdgeType`, `registerTool`, `registerRouter`, `registerLayout`, `addOverlay`, `setTheme`,
+  `on` (event bus), `onChange` (raw store changes), `onBeforeChange` (a before-apply interceptor that
+  transforms or vetoes changes), and `registerCommand`. Each register/subscribe call returns a
+  `Dispose` — tools and routers unregister with the same parity as node types (a `registerTool`
+  disposer removes the tool, resetting to `select` if it was active; a `registerRouter` disposer
+  unregisters the router).
+- **`host.editor` is an escape hatch** to the full `Editor` for advanced needs, with **no stability
+  promise** — members tagged `@internal` (host-wiring internals) may change between minor versions.
+  Prefer the stable surface; reach into `editor` only when you must.
+
+## Commands
+
+The engine has a **command registry** — the single home for named actions (undo, delete, zoom-to-fit,
+your own) — so hosts, the command palette (⌘K), and menus invoke one canonical action instead of each
+rebinding it. A command is `{ id, label, run(editor, args?), enabled?(editor) }`.
+
+```ts
+const dispose = editor.registerCommand({
+  id: 'export.png',
+  label: 'Export as PNG',
+  run: (editor) => savePng(editor),
+  enabled: (editor) => editor.store.nodes().length > 0,
+});
+
+editor.commands.list();                           // every registered command
+editor.commands.isEnabled('export.png', editor);  // safe to poll — unknown id → false, never throws
+await editor.execute('export.png');               // unknown id → NodusError('unknown-command')
+```
+
+`editor.registerCommand` returns a `Dispose`; an unknown id passed to `execute` is a programmer error
+(throws `NodusError('unknown-command')`), while a known-but-disabled command is a benign no-op. Plugins
+contribute commands through `host.registerCommand(cmd)` (same registry, auto-removed on teardown), and
+the core installs a default set via `installDefaultCommands(editor)` unless you opt out with
+`new Editor({ builtins: false })`.
 
 ## Registration is validated
 
