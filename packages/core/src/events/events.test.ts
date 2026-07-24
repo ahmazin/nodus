@@ -4,7 +4,7 @@
  * `error` channel; an `error` event nobody listens for is not silently dropped. Each `it` (and the
  * `@ts-expect-error`, checked by `pnpm typecheck`) fails on the pre-change bus.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EventBus, type NodusEvent } from './index.js';
 import { Editor } from '../editor/index.js';
 import type { Id } from '../model.js';
@@ -63,6 +63,29 @@ describe('EventBus — handler isolation & error re-surfacing', () => {
     bus.emit({ type: 'error', error: new Error('nobody listening'), context: { phase: 'build' }, severity: 'error' });
     expect(seen).toHaveLength(1);
     expect((seen[0] as Error).message).toBe('nobody listening');
+  });
+});
+
+describe('EventBus — warning-aware default unhandled sink (A2 polish)', () => {
+  it('the default sink logs an unsubscribed severity:error but drops a severity:warning', () => {
+    const bus = new EventBus(); // default onUnhandledError
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      bus.emit({ type: 'error', error: new Error('warn-drop-me'), context: { phase: 'register' }, severity: 'warning' });
+      expect(spy).not.toHaveBeenCalled(); // a no-subscriber warning is droppable by default
+      bus.emit({ type: 'error', error: new Error('err-log-me'), context: { phase: 'listener' }, severity: 'error' });
+      expect(spy).toHaveBeenCalled(); // a no-subscriber error still logs
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('a CUSTOM onUnhandledError receives BOTH warnings and errors', () => {
+    const seen: string[] = [];
+    const bus = new EventBus({ onUnhandledError: (e) => seen.push(e.severity) });
+    bus.emit({ type: 'error', error: new Error('w'), context: { phase: 'register' }, severity: 'warning' });
+    bus.emit({ type: 'error', error: new Error('e'), context: { phase: 'listener' }, severity: 'error' });
+    expect(seen).toEqual(['warning', 'error']); // custom sink sees everything
   });
 });
 

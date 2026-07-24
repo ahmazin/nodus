@@ -71,9 +71,13 @@ type Handler = (event: NodusEvent) => void;
 
 export interface EventBusOptions {
   /**
-   * Invoked when an `error` event is emitted with NO `error` and NO wildcard subscriber, so it would
-   * otherwise vanish silently. Also the sink for an `error`-handler that itself throws (re-dispatching
-   * would loop). Default: a deduped `console.error`.
+   * Sink for an `error` event that has NO `error` and NO wildcard subscriber (it would otherwise
+   * vanish), and for an `error`-handler that itself throws (re-dispatching would loop). A CUSTOM sink
+   * receives EVERY such event regardless of severity. The DEFAULT sink is a deduped `console.error`
+   * that logs only `severity: 'error'` — an unsubscribed `severity: 'warning'` (e.g. a registry
+   * override, a load repair) is dropped by default, so warnings never spam a console no one wired up.
+   * (Warnings are still delivered to any `on('error')`/`'*'` subscriber — this only concerns the
+   * no-subscriber fallback.)
    */
   onUnhandledError?: (event: NodusErrorEvent) => void;
 }
@@ -81,6 +85,8 @@ export interface EventBusOptions {
 // Bounded dedupe so a persistently-failing handler doesn't flood the console with identical lines.
 const loggedUnhandled = new Set<string>();
 function defaultUnhandledError(event: NodusErrorEvent): void {
+  // A no-subscriber warning is droppable by default (don't spam an unwired console); only real errors log.
+  if (event.severity !== 'error') return;
   const err = event.error;
   const key = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   if (loggedUnhandled.has(key)) return;

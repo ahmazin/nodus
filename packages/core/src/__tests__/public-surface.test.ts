@@ -160,6 +160,115 @@ const PRESET_DIAGRAMS_SURFACE: string[] = [
   'tableNode',
 ];
 
+// @nodus/react — value exports (components, hooks, helpers). Imports cleanly under vitest's esbuild
+// interop (the raw-tsx gifenc issue does not affect the test env).
+const REACT_SURFACE: string[] = [
+  'ArrowIcon',
+  'BranchBar',
+  'Button',
+  'CircleIcon',
+  'CloseIcon',
+  'CloudIconPicker',
+  'CodePanel',
+  'CommandPalette',
+  'ConnectIcon',
+  'DEFAULT_FLOW',
+  'DEFAULT_SCALE',
+  'DEFAULT_SHORTCUTS',
+  'DiamondIcon',
+  'Divider',
+  'EraserIcon',
+  'Field',
+  'FitIcon',
+  'FlowControls',
+  'FlowScaleEditor',
+  'HandIcon',
+  'HelpIcon',
+  'IconButton',
+  'ImageIcon',
+  'LayersPanel',
+  'LineIcon',
+  'Menu',
+  'MenuItem',
+  'Minimap',
+  'MinusIcon',
+  'MoonIcon',
+  'Nodus',
+  'NodusContextMenu',
+  'OpenIcon',
+  'Panel',
+  'PenIcon',
+  'PlusIcon',
+  'Properties',
+  'RedoIcon',
+  'ReviewModal',
+  'Row',
+  'SaveIcon',
+  'SelectIcon',
+  'ShapeIcon',
+  'ShortcutsButton',
+  'ShortcutsDialog',
+  'SquareIcon',
+  'StencilLibrary',
+  'SunIcon',
+  'TemplatesGallery',
+  'TextIcon',
+  'ThemeToggle',
+  'ToolPalette',
+  'Toolbar',
+  'UiTokensProvider',
+  'UndoIcon',
+  'UndoRedo',
+  'ZoomControls',
+  'applySource',
+  'buildEmbedSnippet',
+  'buildLayerTree',
+  'buildRampCss',
+  'buildShareUrl',
+  'canCopyImage',
+  'canonicalOf',
+  'clearAutosave',
+  'computeBranch',
+  'contextMenuItems',
+  'copyImage',
+  'copyOrDownloadImage',
+  'copyShareLink',
+  'copySvg',
+  'decodeScene',
+  'defaultCommands',
+  'downloadImage',
+  'editorToCanonical',
+  'editorToSource',
+  'encodeScene',
+  'exportFlowGIF',
+  'filterCatalog',
+  'getCanvas',
+  'injectGlobalStyles',
+  'loadSceneFromLocation',
+  'modeOfTheme',
+  'openFromFile',
+  'parseSnapshot',
+  'parseSource',
+  'registerCanvas',
+  'renderPngBlob',
+  'restoreAutosave',
+  'saveToFile',
+  'sceneFromHash',
+  'serializeDocument',
+  'showToast',
+  'sourceMatchesEditor',
+  'uiTokens',
+  'uiTokensFor',
+  'unifiedDiff',
+  'useAutosave',
+  'useBranch',
+  'useCurrentTool',
+  'useNodusEditor',
+  'useUiTokens',
+  'useUiTokensContext',
+  'useValue',
+];
+
 describe('public surface — @nodus/core', () => {
   it('exports exactly the checked-in set (no accidental additions/removals)', async () => {
     const ns = await import('@nodus/core');
@@ -167,22 +276,16 @@ describe('public surface — @nodus/core', () => {
   });
 });
 
-// The preset-diagrams + react snapshots are gated on a cross-lane migration: preset-diagrams/index.ts,
-// preset-infra/facade.ts and react/stencil-library.tsx still `import { makeId } from '@nodus/core'`,
-// which B5 removed — those must move to `sessionIdFactory()` (flagged to the lead). react additionally
-// needs its source-path gifenc import resolved. Un-skip once the tree links; the preset-diagrams list
-// is already generated and ready.
-describe.skip('public surface — @nodus/preset-diagrams (pending makeId→sessionIdFactory migration)', () => {
+describe('public surface — @nodus/preset-diagrams', () => {
   it('exports exactly the checked-in set', async () => {
     const ns = await import('@nodus/preset-diagrams');
     expect(Object.keys(ns).sort()).toEqual([...PRESET_DIAGRAMS_SURFACE].sort());
   });
 });
 
-describe.skip('public surface — @nodus/react (pending makeId migration + gifenc source resolution)', () => {
+describe('public surface — @nodus/react', () => {
   it('exports exactly the checked-in set', async () => {
     const ns = await import('@nodus/react');
-    // TODO: generate the checked-in list once @nodus/react imports cleanly in the test env.
-    expect(Object.keys(ns).sort().length).toBeGreaterThan(0);
+    expect(Object.keys(ns).sort()).toEqual([...REACT_SURFACE].sort());
   });
 });

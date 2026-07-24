@@ -128,4 +128,13 @@ describe('A12 — one hydration path + LoadReport', () => {
     ed.loadSnapshot(snap([rawNode('node:a', 'rect')]));
     expect(report).toMatchObject({ droppedEdges: 0, migrationErrors: 0, issues: [] });
   });
+
+  it('forwards a repaired load issue to the error channel with phase "load"', () => {
+    const ed = new Editor();
+    const phases: unknown[] = [];
+    ed.on('error', (e) => phases.push(e.context.phase));
+    // a duplicate id is repaired (last wins) and reported → forwarded as a load-phase warning
+    ed.loadSnapshot(snap([rawNode('node:dup', 'rect'), rawNode('node:dup', 'rect')]));
+    expect(phases).toContain('load');
+  });
 });
