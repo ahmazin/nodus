@@ -1,0 +1,18 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["packages/core/src/index.ts", "packages/react/src/index.tsx"],
+  "tsconfig": "tsconfig.json",
+  "out": "apps/site/public/api",
+  "name": "Nodus API",
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeExternals": true,
+  "includeVersion": false,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "Docs": "/docs/",
+    "GitHub": "https://github.com/OWNER/nodus"
+  },
+  "hideGenerator": true,
+  "treatWarningsAsErrors": false
+}

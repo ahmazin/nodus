@@ -13,3 +13,4 @@ vendor/icons/
 # tooling caches / transient agent worktrees
 .serena/
 .claude/
+apps/site/public/api/
