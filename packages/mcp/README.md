@@ -78,3 +78,8 @@ import { DiagramSession, dispatch } from '@nodus/mcp';
 const session = new DiagramSession({ dataDir: './diagrams' });
 const result = await dispatch(session, 'import_mermaid', { source: 'graph LR\n A --> B' });
 ```
+
+## Stability
+
+Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
+[stability policy](https://github.com/OWNER/nodus/blob/main/docs/stability.md).

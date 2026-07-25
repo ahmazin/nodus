@@ -126,11 +126,6 @@ export const textNode: NodeUtil = {
   getDefaultSize: () => ({ w: 180, h: 40 }),
   capabilities: { canConnect: true, canResize: true, canEdit: true, canRotate: false, multiline: true },
   getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
-  measure: (node) => {
-    // grow height to fit lines at the current width; width stays as-is
-    const lines = (node.label ?? '').split('\n');
-    return { w: node.w, h: Math.max(28, lines.length * 20 + 12) };
-  },
   draw: (api, n, t) => {
     const text = t.labelOverride ?? n.label ?? '';
     const lines = wrapText(api, text, n.w - 8, t.fontSize);

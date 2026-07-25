@@ -77,8 +77,11 @@ describe('2. restore — defensive against malformed shapes', () => {
       }).not.toThrow();
       expect(res.records).toEqual([]);
     }
-    // 42 and {} are non-arrays and report; a missing/undefined records field is not an error.
-    expect(issues.filter((i) => i.code === 'non-array-records')).toHaveLength(2);
+    // ALL three report now — including the null/missing records field. Every legitimate envelope
+    // carries document.records (serializeRecords always writes it), so silence here made an
+    // accidental `{}` indistinguishable from a deliberately-empty diagram (audit-closure F24 leg;
+    // the old expectation of 2 encoded exactly that hole).
+    expect(issues.filter((i) => i.code === 'non-array-records')).toHaveLength(3);
   });
 });
 

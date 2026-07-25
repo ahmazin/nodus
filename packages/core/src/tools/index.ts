@@ -6,6 +6,7 @@
  */
 
 import { isEdge, isNode } from '../model.js';
+import { NodusError } from '../errors/index.js';
 import type { Box, Endpoint, Id, NodeRecord, Vec2 } from '../model.js';
 import type { RenderItem } from '../scene-index/index.js';
 import type { Editor, ResizeHandle } from '../editor/index.js';
@@ -764,7 +765,17 @@ export class ToolManager {
     for (const t of tools) this.register(t);
   }
 
+  /** Notified when a registration overrides an existing tool id (soft warning, same contract as the
+   *  type/router registries — two plugins colliding on a tool id must be observable, not silent). */
+  onOverride?: (id: string) => void;
+
   register(tool: ToolNode): void {
+    if (!tool || typeof tool.id !== 'string' || tool.id.length === 0 || typeof tool.bind !== 'function') {
+      throw new NodusError('invalid-util', `Cannot register tool: expected a ToolNode with a non-empty string 'id'.`, {
+        context: { got: tool === null ? 'null' : typeof tool },
+      });
+    }
+    if (this.tools.has(tool.id)) this.onOverride?.(tool.id);
     tool.bind(this.editor);
     this.tools.set(tool.id, tool);
   }

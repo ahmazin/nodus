@@ -37,7 +37,10 @@ rule everything depends on:
 
 - Reading **`.get()`** inside a reactive context **registers a dependency**.
 - **`.peek()`** reads **without** subscribing.
-- `transact` batches writes and **rolls back all of them** if the body throws.
+- `transact` batches writes and **rolls back the atom values** if the body throws. The rollback is
+  values-only — it cannot un-notify listeners or rewind external side effects, which is why
+  `store.apply` refuses to run inside a raw `transact()`. To group several edits into one undo
+  entry, use the blessed **`editor.transaction(fn)`** instead.
 
 In React, `useValue(fn)` re-runs `fn` and re-renders when any signal it read via `.get()` changes. A
 panel that must react to document mutations reads `editor.sceneIndex.version.get()` inside `useValue`.

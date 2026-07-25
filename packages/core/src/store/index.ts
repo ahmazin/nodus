@@ -359,10 +359,18 @@ export class Store {
 
     const info: ChangeInfo = { changes: applied, inverse: inverse.reverse(), source, capture };
     // Listeners receive `ChangeInfo` by reference and MUST NOT mutate it. In development, freeze the
-    // arrays so an accidental mutation throws loudly instead of silently corrupting undo/other listeners.
+    // arrays AND each Change (plus its record/patch payload, one level) so an accidental mutation —
+    // including `changes[0].record.x = …`, which would silently corrupt the undo stack's shared
+    // references — throws loudly. Dev-only: production skips the freeze entirely for hot-path speed.
     if (IS_DEV) {
-      Object.freeze(info.changes);
-      Object.freeze(info.inverse);
+      for (const arr of [info.changes, info.inverse]) {
+        for (const c of arr) {
+          if ('record' in c) Object.freeze(c.record);
+          if ('patch' in c) Object.freeze(c.patch);
+          Object.freeze(c);
+        }
+        Object.freeze(arr);
+      }
     }
     if (applied.length > 0) {
       // Snapshot the listener set so a listener that (un)subscribes or calls a mutation helper (which

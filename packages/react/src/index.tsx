@@ -23,7 +23,7 @@ export { useNodusEditor } from './use-nodus-editor.js';
 
 // panels
 export { Minimap, type MinimapProps } from './minimap.js';
-export { CommandPalette, defaultCommands, type Command, type CommandPaletteProps } from './command-palette.js';
+export { CommandPalette, defaultCommands, OPEN_COMMAND_PALETTE_EVENT, type Command, type CommandPaletteProps } from './command-palette.js';
 export { NodusContextMenu, contextMenuItems, type MenuItem as ContextMenuItem, type NodusContextMenuProps } from './context-menu.js';
 export { Properties, type PropertiesProps } from './properties.js';
 export { FlowControls, type FlowControlsProps } from './flow-controls.js';

@@ -51,13 +51,20 @@ export interface FmtResult {
 export function canonicalizeFile(file: string): CanonicalizeResult {
   const original = readFileSync(file, 'utf8');
   const snap = JSON.parse(original) as Snapshot;
-  const before = Array.isArray((snap as Snapshot | null)?.document?.records) ? snap.document.records.length : 0;
+  // A file whose JSON parses to null / a non-object (e.g. literal `null` or `[]`) must flow the
+  // typed lossy path — restore() reports 'invalid-snapshot' — never a raw TypeError on the
+  // `snap.typeVersions` deref below.
+  const isObject = snap !== null && typeof snap === 'object' && !Array.isArray(snap);
+  const before = isObject && Array.isArray(snap.document?.records) ? snap.document.records.length : 0;
   const issues: SerializationIssue[] = [];
   const onError = (i: SerializationIssue): void => {
     issues.push(i);
   };
   const restored = restore(snap, { onError });
-  const canonical = toCanonicalString(serializeRecords(restored.records, { typeVersions: snap.typeVersions }), { onError });
+  const canonical = toCanonicalString(
+    serializeRecords(restored.records, { typeVersions: isObject ? snap.typeVersions : undefined }),
+    { onError },
+  );
   return { canonical, original, dropped: before - restored.records.length, issues };
 }
 

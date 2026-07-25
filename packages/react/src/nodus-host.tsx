@@ -44,6 +44,10 @@ export interface NodusProps {
    *  them to `window` (legacy app-wide behavior). Read once at mount; changing it later has no effect
    *  until the `editor` prop changes. */
   keyboardScope?: 'host' | 'window';
+  /** Inject the (zero-network, `[data-nodus-ui]`-scoped) base stylesheet on mount (default true).
+   *  Pass `false` when the embedding app supplies its own styling for the Nodus chrome. Read once
+   *  at mount, like `keyboardScope`. */
+  injectStyles?: boolean;
   /** Node type to insert when an image is pasted from the system clipboard (e.g. `'diagram.image'`).
    *  Omit to ignore pasted images. */
   imageNodeType?: string;
@@ -70,7 +74,7 @@ export interface NodusHandle {
 }
 
 export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
-  { editor, className, style, contextMenu = true, keyboardScope = 'host', imageNodeType, textNodeType, onMount, onChange, onSelectionChange, onCameraChange },
+  { editor, className, style, contextMenu = true, keyboardScope = 'host', injectStyles = true, imageNodeType, textNodeType, onMount, onChange, onSelectionChange, onCameraChange },
   ref,
 ): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -86,6 +90,8 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
   // Keyboard scope is read once at effect setup (see below); the ref just carries the latest prop there.
   const keyboardScopeRef = useRef(keyboardScope);
   keyboardScopeRef.current = keyboardScope;
+  const injectStylesRef = useRef(injectStyles);
+  injectStylesRef.current = injectStyles;
   // Integration callbacks live in refs so a parent passing fresh closures every render never forces the
   // subscription effect to tear down and resubscribe.
   const onChangeRef = useRef(onChange);
@@ -130,7 +136,7 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
     const keyScope = keyboardScopeRef.current;
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
     registerCanvas(editor, canvas);
-    injectGlobalStyles(); // idempotent: focus rings + chrome base styles, app-wide
+    if (injectStylesRef.current !== false) injectGlobalStyles(); // idempotent: focus rings + chrome base styles, app-wide
 
     // Enable the static-layer cache: hover / selection / marquee / flow frames blit a cached bitmap
     // of the unchanged scene instead of re-painting every node. Pixel-identical to a direct paint.

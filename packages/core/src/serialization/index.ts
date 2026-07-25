@@ -28,7 +28,8 @@ export interface SerializationIssue {
     | 'bad-schema-version'
     | 'non-finite-number'
     | 'excess-nesting'
-    | 'invalid-snapshot';
+    | 'invalid-snapshot'
+    | 'unknown-field';
   message: string;
   /** The offending value, when one can be attached (the raw entry, the duplicate id, the number). */
   value?: unknown;
@@ -245,6 +246,31 @@ function num(v: unknown, fallback = 0): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }
 
+// The exact top-level keys each normalizer consumes. Anything else on a stored record is DROPPED
+// by the whitelist rebuild below — the whitelist is deliberate (canonical bytes stay closed), but
+// the drop must never be silent: restore() reports an 'unknown-field' issue per record so `fmt`
+// treats the rewrite as lossy and third-party annotations can't vanish without a signal. The
+// sanctioned extension slots for foreign data are `props` and `meta` (see docs: schema.md).
+const NODE_FIELDS = new Set(['id', 'typeName', 'version', 'type', 'x', 'y', 'w', 'h', 'rotation', 'locked', 'hidden', 'z', 'parentId', 'pageId', 'visual', 'style', 'label', 'props', 'meta']);
+const EDGE_FIELDS = new Set(['id', 'typeName', 'version', 'type', 'from', 'to', 'visual', 'style', 'flow', 'pageId', 'label', 'props', 'meta']);
+const PAGE_FIELDS = new Set(['id', 'typeName', 'version', 'name', 'index', 'style']);
+
+function reportUnknownFields(
+  r: Record<string, unknown>,
+  known: ReadonlySet<string>,
+  onError: ((issue: SerializationIssue) => void) | undefined,
+): void {
+  if (!onError) return;
+  const unknown = Object.keys(r).filter((k) => !known.has(k));
+  if (unknown.length) {
+    onError({
+      code: 'unknown-field',
+      message: `record ${String(r.id)}: dropping unrecognized field(s) ${unknown.join(', ')} (use props/meta for extension data)`,
+      value: unknown,
+    });
+  }
+}
+
 function normalizeNode(r: Record<string, unknown>): NodeRecord | null {
   if (typeof r.id !== 'string' || typeof r.type !== 'string') return null;
   const visual = (r.visual as NodeRecord['visual']) ?? { state: 'solid' };
@@ -322,8 +348,8 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
 
   // Guard a null / non-object snapshot (bad JSON.parse result, wrong argument) — reading
   // `input.schemaVersion` on it would throw a raw TypeError. Report it and return an empty result.
-  if (input === null || typeof input !== 'object') {
-    onError?.({ code: 'invalid-snapshot', message: 'snapshot is not an object; nothing to restore', value: input });
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    onError?.({ code: 'invalid-snapshot', message: 'snapshot is not an envelope object; nothing to restore', value: input });
     return { records: [], droppedEdges: 0, migrationErrors: 0, unmigrated: 0, repointedPageRefs: 0 };
   }
 
@@ -349,15 +375,22 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
     onError?.({ code: 'bad-schema-version', message: `schemaVersion ${String(rawSchema)} is outside the supported range [0, ${SCHEMA_VERSION}]; loading as ${SCHEMA_VERSION}`, value: rawSchema });
   }
 
-  // records must be an array: a non-array (number/object) is not iterable and would throw.
+  // records must be an array. Every legitimate envelope carries `document.records` (serializeRecords
+  // always writes it), so a MISSING document/records is malformed too — report it, or an accidental
+  // `{}` becomes indistinguishable from a deliberately-empty diagram and readers "succeed" on garbage.
   const rawRecords: unknown = input.document?.records;
   let raw: unknown[];
   if (Array.isArray(rawRecords)) {
     raw = rawRecords;
   } else {
-    if (rawRecords !== undefined && rawRecords !== null) {
-      onError?.({ code: 'non-array-records', message: 'document.records is not an array; treating as empty', value: rawRecords });
-    }
+    onError?.({
+      code: 'non-array-records',
+      message:
+        rawRecords === undefined || rawRecords === null
+          ? 'envelope has no document.records array; treating as empty'
+          : 'document.records is not an array; treating as empty',
+      value: rawRecords,
+    });
     raw = [];
   }
 
@@ -427,13 +460,22 @@ export function restore(input: Snapshot, opts?: RestoreOptions): RestoreResult {
     // 3. normalize (validates the migrated record)
     if (r.typeName === 'node') {
       const n = normalizeNode(r);
-      if (n) add(n);
+      if (n) {
+        add(n);
+        reportUnknownFields(r, NODE_FIELDS, onError);
+      }
     } else if (r.typeName === 'edge') {
       const e = normalizeEdge(r);
-      if (e) add(e);
+      if (e) {
+        add(e);
+        reportUnknownFields(r, EDGE_FIELDS, onError);
+      }
     } else if (r.typeName === 'page') {
       const p = normalizePage(r);
-      if (p) add(p);
+      if (p) {
+        add(p);
+        reportUnknownFields(r, PAGE_FIELDS, onError);
+      }
     }
   }
 

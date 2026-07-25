@@ -54,9 +54,12 @@ const NODUS_PACKAGES = [
   'preset-diagrams',
   'preset-draw',
   'import-infra',
+  'from-mermaid',
   'layout-dagre',
+  'layout-elk',
   'react',
   'cli',
+  'mcp',
 ];
 
 // Every publishable package (private !== true), derived from the workspace so the list can't
@@ -92,6 +95,7 @@ const EXTERNALS = {
   'react-dom': ['packages/react'],
   gifenc: ['packages/react'],
   yaml: ['packages/import-infra'],
+  elkjs: ['packages/layout-elk'],
 };
 
 // ---------------------------------------------------------------------------
@@ -485,6 +489,19 @@ function main() {
     'cli bin executes from packed tarball',
     usageOk,
     usageOk ? 'usage banner printed' : (binRes.stderr || binRes.stdout).trim().split('\n').slice(-1)[0] || `exit ${binRes.code}`,
+  );
+
+  // --- mcp bin boot smoke: the packed MCP server must at least BOOT from the tarball without a
+  //     module-resolution crash (the broken-publish class F44 targets). A stdio MCP server waits on
+  //     stdin, so run it bounded with closed stdin: a healthy build exits/idles with no
+  //     ERR_MODULE/Cannot-find on stderr; a broken dist crashes immediately with one.
+  const mcpBin = join(consumer, 'node_modules', '@nodus', 'mcp', 'dist', 'bin.js');
+  const mcpRes = run('node', [mcpBin], { cwd: consumer, timeout: 8_000 });
+  const bootCrash = /ERR_MODULE_NOT_FOUND|Cannot find (module|package)|SyntaxError/.test(mcpRes.stderr);
+  record(
+    'mcp bin boots from packed tarball (no module crash)',
+    existsSync(mcpBin) && !bootCrash,
+    bootCrash ? mcpRes.stderr.trim().split('\n').slice(-1)[0] : existsSync(mcpBin) ? 'booted without import errors' : 'bin missing',
   );
 
   finish();

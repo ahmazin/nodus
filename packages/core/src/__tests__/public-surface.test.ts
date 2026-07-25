@@ -135,6 +135,7 @@ const CORE_SURFACE: string[] = [
 const PRESET_DIAGRAMS_SURFACE: string[] = [
   'IMAGE_CACHE_CAP',
   'ROW_H',
+  'addImageInvalidator',
   'buildERD',
   'buildFlowchart',
   'buildOrgChart',
@@ -195,6 +196,7 @@ const REACT_SURFACE: string[] = [
   'MoonIcon',
   'Nodus',
   'NodusContextMenu',
+  'OPEN_COMMAND_PALETTE_EVENT',
   'OpenIcon',
   'Panel',
   'PenIcon',

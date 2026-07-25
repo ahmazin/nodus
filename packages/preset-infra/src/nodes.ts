@@ -40,9 +40,6 @@ function infraNodeUtil(kind: InfraKind): NodeUtil {
     type,
     getDefaultProps: () => ({ kind }),
     getDefaultSize: () => ({ w: STENCIL.DEFAULT_W, h: STENCIL.NODE_H }),
-    measure(node: NodeRecord): { w: number; h: number } {
-      return measureStencil(node.label ?? kind);
-    },
     getGeometry(node: NodeRecord): Geometry2d {
       return new Rectangle2d({ x: node.x, y: node.y, w: node.w, h: node.h });
     },

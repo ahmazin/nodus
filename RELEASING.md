@@ -39,13 +39,14 @@ record — then commit it.
 ### 3. Publish (maintainer)
 
 ```bash
-pnpm verify:all           # typecheck + test + verify:render + verify:dist — must be green FIRST
-pnpm release              # = pnpm build && changeset publish
+pnpm docs:api             # regenerate the typedoc API reference the site serves at /api/
+pnpm release              # = pnpm verify:all && changeset publish
 ```
 
-`changeset publish` builds fresh `dist/` output and publishes every package whose version is ahead of
-npm, then creates the git tags. Run `pnpm verify:all` immediately before releasing: `pnpm release`
-does not gate on it, so a red tree will otherwise publish broken artifacts.
+`pnpm release` gates on `verify:all` (typecheck + test + verify:render + verify:dist), so a red tree
+cannot publish. `changeset publish` then publishes every package whose version is ahead of npm and
+creates the git tags. The API reference under `apps/site/public/api/` is generated output
+(gitignored) — regenerate it before any site deploy.
 
 ## Configuration (`.changeset/config.json`)
 

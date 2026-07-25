@@ -113,6 +113,22 @@ function SelectionCount({ editor }: { editor: Editor }) {
 The footgun to know: `.get()` subscribes, `.peek()` does not. A panel that must react to document
 changes has to read a signal via `.get()` inside `useValue` — otherwise it silently stops updating.
 
+The second footgun: the getter must return a **stable reference or a primitive**. Snapshots are
+compared with `Object.is`, so `useValue(() => editor.selectedIdsArray())` — a fresh array every
+call — never compares equal and re-renders forever. Select a primitive (`.size`, an id, a version
+counter) or derive a string key (`ids.join(',')`) and parse it outside the getter.
+
+## Styling & opt-out
+
+`<Nodus>` injects a small, zero-network, `[data-nodus-ui]`-scoped base stylesheet on mount
+(idempotent). Pass `injectStyles={false}` to skip it entirely and bring your own styles; web fonts
+are always a separate opt-in (`injectGlobalStyles({ webFonts: true })`).
+
+## Stability
+
+Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
+[stability policy](https://github.com/OWNER/nodus/blob/main/docs/stability.md).
+
 ## Panels
 
 Drop-in, editor-aware components — each takes `editor` and manages its own state through the store:

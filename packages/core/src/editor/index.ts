@@ -502,6 +502,13 @@ export class Editor implements EngineHost {
     return transformed ? out : undefined; // undefined = passthrough when nothing needed normalizing
   }
 
+  /**
+   * Build a fully-wired editor: store → scene index → history → event bus, with the built-in
+   * rect/line/group types and default commands registered unless `builtins: false`. When
+   * `opts.records` is given, they hydrate through the SAME path as {@link loadSnapshot}
+   * (migrations, z-seed, first page activated) — never a raw store load. Safe headless: nothing
+   * here touches the DOM.
+   */
   constructor(opts: EditorOptions = {}) {
     // Id factory + store first: the store advances this factory on load, so both must share the one
     // instance. `this.events` (a field initializer) is already set, so the store's onError closure is safe.
@@ -547,6 +554,14 @@ export class Editor implements EngineHost {
     });
     this.history = new History((changes, o) => this.store.apply(changes, o), opts.history?.limit);
     this.toolManager = new ToolManager(this, defaultTools());
+    // Override observability parity across ALL registration axes (F14): routers and tools report
+    // id collisions through the same warning channel as node/edge types and layouts.
+    this.routers.onOverride = (id) => this.reportRegistryOverride('router', id);
+    this.toolManager.onOverride = (id) => this.reportRegistryOverride('tool', id);
+    // Animation-callback faults surface on the error channel like every other third-party fault
+    // (F13); the clock's console fallback only applies to a standalone clock outside an editor.
+    this.animClock.onError = (err) =>
+      this.events.emit({ type: 'error', error: err, context: { phase: 'effect', source: 'animation' }, severity: 'error' });
 
     if (opts.builtins !== false) {
       this.nodes.register(rectNodeUtil);
@@ -669,6 +684,12 @@ export class Editor implements EngineHost {
     // The runtime event name is the real string; cast past the strict overloads to the bus impl.
     return this.events.on(type as '*', handler as (event: NodusEvent) => void);
   }
+  /**
+   * Subscribe to every committed document mutation (one synchronous, post-commit call per
+   * {@link Store.apply}, with `ChangeInfo` delivered by reference — do not mutate it). Prefer
+   * {@link on | on('change')} for UI; this raw feed suits persistence/sync layers. Returns the
+   * unsubscribe function. Whole-document replacement arrives via `document:load`, not here.
+   */
   onChange(handler: StoreListener): Dispose {
     return this.store.listen(handler);
   }
@@ -711,9 +732,11 @@ export class Editor implements EngineHost {
       // the editor keeps operating; we simply don't push a disposer for the failed install.
       const label = typeof id === 'string' && id.length > 0 ? JSON.stringify(id) : '<unknown>';
       this.events.emit({ type: 'error', error: err, context: { phase: 'plugin', pluginId: id }, severity: 'error' });
-      throw new Error(`Plugin ${label} failed to install: ${err instanceof Error ? err.message : String(err)}`, {
-        cause: err,
-      });
+      throw new NodusError(
+        'plugin-install-failed',
+        `Plugin ${label} failed to install: ${err instanceof Error ? err.message : String(err)}`,
+        { context: { pluginId: id }, cause: err },
+      );
     }
     if (typeof raw === 'function') bundle.push(raw); // the plugin's own disposer runs last (unwound first)
 
@@ -781,6 +804,13 @@ export class Editor implements EngineHost {
     );
   }
 
+  /**
+   * Create one node as a single undo entry and return its id. `type` defaults to `'rect'`;
+   * position/size default to 0,0 and the util's `getDefaultSize()` (120×56 fallback). The caller's
+   * partial `props` are merged OVER the util's `getDefaultProps()` — unspecified defaults survive.
+   * @throws NodusError `'unknown-node-type'` if the type has no registered util, and
+   *   `'invalid-props'` if the util's `validateProps` rejects the merged props.
+   */
   createNode(partial: Partial<NodeRecord> & { type?: string }, opts?: ApplyOptions): Id<'node'> {
     const type = partial.type ?? 'rect';
     const util = this.nodes.get(type);
@@ -964,19 +994,14 @@ export class Editor implements EngineHost {
   }
 
   // ==========================================================================
-  // WS-0 command contract — transform / arrange / lock / zoom helpers.
-  //
-  // Signatures are FROZEN here so the UI shell (WS-D/E) can build against them while WS-B owns the
-  // full implementations. Bodies below are minimal-but-safe: real where trivially correct, no-op
-  // stubs (never throwing) where they need model/tool support WS-B must add. See markers.
+  // Transform / arrange / lock / zoom command helpers. Signatures are part of the stable façade;
+  // bodies are safe under every input (no-throw on empty/locked selections).
   // ==========================================================================
 
   /**
-   * Rotate each node in place by `radians` (added to its own `rotation`). Nodes whose `NodeUtil`
-   * sets `capabilities.canRotate === false` are skipped.
-   *
-   * WS-B: implement group-centroid rotation — rotating a multi-selection about its shared center
-   * (moving each node's x/y too), not just spinning each node about its own center.
+   * Rotate each node in place by `radians` (added to its own `rotation`). Nodes whose resolved
+   * capabilities disable rotation are skipped. Current limitation: each node spins about its own
+   * center — multi-selection rotation about the shared centroid is a planned enhancement.
    */
   rotate(ids: Id[], radians: number, opts?: ApplyOptions): void {
     if (!radians) return;
@@ -1513,6 +1538,12 @@ export class Editor implements EngineHost {
     }
   }
 
+  /**
+   * Create one edge between two endpoints (node/outline/point) as a single undo entry and return
+   * its id. `type` defaults to `'line'`. Routing/reflow is derived — moving either endpoint's node
+   * reflows the edge automatically.
+   * @throws NodusError `'unknown-edge-type'` if the type has no registered util.
+   */
   connect(from: Endpoint, to: Endpoint, type?: string, opts?: ApplyOptions): Id<'edge'> {
     const edgeType = type ?? this.edges.list()[0]?.type ?? 'line';
     if (!this.edges.has(edgeType)) {
@@ -1915,6 +1946,13 @@ export class Editor implements EngineHost {
   // history
   // ==========================================================================
 
+  /**
+   * Close the open undo group. The continuous-gesture contract: apply each increment with
+   * `capture: 'later'`, then call `mark()` ONCE on release/blur — the whole gesture collapses into
+   * a single undo entry. Discrete actions use the default `capture: 'immediately'` and never need
+   * this. Prefer {@link transaction} for programmatic grouping.
+   * @throws NodusError `'editor-disposed'` after {@link dispose}.
+   */
   mark(): void {
     this.assertLive();
     this.history.mark();
@@ -1984,6 +2022,13 @@ export class Editor implements EngineHost {
   // layout
   // ==========================================================================
 
+  /**
+   * Run a registered auto-layout over the ACTIVE page (hidden nodes excluded; locked nodes passed
+   * as `fixed` and never moved regardless of adapter behavior), committing final positions as one
+   * undo entry with a purely-visual glide. A newer `layout()` call or {@link dispose} discards this
+   * run's late result; pass `opts.signal` to abort cooperative engines.
+   * @throws NodusError `'unknown-layout'` if `engineId` has no registered engine.
+   */
   async layout(engineId: string, opts?: LayoutOptions): Promise<void> {
     const engine = this.layouts.get(engineId);
     if (!engine) {
@@ -2031,6 +2076,10 @@ export class Editor implements EngineHost {
     const olds = new Map<Id, { x: number; y: number }>(nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
     const changes: Change[] = [];
     for (const n of nodes) {
+      // Enforce the `fixed` contract editor-side: a locked node's position is never overwritten,
+      // even by an adapter that ignores the graph's `fixed` flag. The lock guarantee cannot depend
+      // on every third-party layout engine being well-behaved.
+      if (n.locked) continue;
       const pos = result.positions[n.id];
       if (pos && (pos.x !== n.x || pos.y !== n.y)) {
         changes.push({ op: 'update', id: n.id, patch: { x: pos.x, y: pos.y } });
@@ -2112,6 +2161,23 @@ export class Editor implements EngineHost {
    * which propagates to the caller (the host should surface "upgrade to open this diagram").
    */
   private hydrateSnapshot(snap: Snapshot): LoadReport {
+    // Guard a null / non-object snapshot BEFORE touching `snap.typeVersions` — matching restore()'s
+    // semantics (empty result + an `invalid-snapshot` issue, no raw TypeError). Also forward the issue.
+    if (snap === null || typeof snap !== 'object') {
+      const issue: SerializationIssue = {
+        code: 'invalid-snapshot',
+        message: 'snapshot is not an object; nothing to load',
+        value: snap,
+      };
+      this.events.emit({
+        type: 'error',
+        error: new Error(issue.message),
+        context: { phase: 'load', issue: issue.code },
+        severity: 'warning',
+      });
+      this.loadedTypeVersions = {};
+      return { records: [], droppedEdges: 0, migrationErrors: 0, unmigrated: 0, repointedPageRefs: 0, issues: [issue] };
+    }
     this.loadedTypeVersions = snap.typeVersions ?? {};
     const issues: SerializationIssue[] = [];
     const result = restore(snap, {
@@ -3075,13 +3141,22 @@ export class Editor implements EngineHost {
     });
     if (canvas.encode) return await canvas.encode('png');
     if (canvas.toBuffer) return canvas.toBuffer('image/png');
-    throw new Error('Export canvas provides neither encode() nor toBuffer()');
+    // The host-provided export canvas is missing a required PNG method — a misconfigured factory is a
+    // programmer error (closest typed code: invalid-util — a host object lacking a required capability).
+    throw new NodusError('invalid-util', 'toPNG: the export canvas provides neither encode() nor toBuffer().', {
+      context: { reason: 'export-canvas' },
+    });
   }
 
   // ==========================================================================
   // interaction dispatch
   // ==========================================================================
 
+  /**
+   * Switch the active tool (running the old tool's `onExit`, the new one's `onEnter`) and emit a
+   * `tool` event. Unknown ids are ignored (tools arrive from UI affordances, where a stale id is an
+   * expected race, not a programmer error). Optional `config` is handed to the tool's `onEnter`.
+   */
   setTool(id: string, config?: Record<string, unknown>): void {
     this.toolManager.setTool(id, config);
     this.events.emit({ type: 'tool', id });
@@ -3212,6 +3287,13 @@ export class Editor implements EngineHost {
     this.events.emit({ type: 'hover', id });
   }
 
+  /**
+   * Idempotent teardown: cancels pan momentum and all tweens (no `onDone`), exits the active tool,
+   * drops the layer cache, then runs every registered disposer (plugins included) in REVERSE
+   * registration order. Afterwards {@link disposed} is `true` and the interaction/load/history/paint
+   * entry points throw `'editor-disposed'`; raw programmatic `store.apply` is documented-unsupported
+   * post-dispose. React hosts get this automatically via `useNodusEditor`.
+   */
   dispose(): void {
     if (this._disposed) return; // idempotent — a second dispose() is a no-op
     this._disposed = true;

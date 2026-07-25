@@ -336,6 +336,21 @@ describe('@nodus/cli', () => {
       expect(errs.some((l) => l.includes('refused') && l.includes('--force'))).toBe(true);
     });
 
+    it('a file parsing to null/array never raw-TypeErrors: typed lossy refusal, file untouched (F24)', async () => {
+      for (const content of ['null', '[]']) {
+        const file = join(dir, `degenerate-${content.length}.nodus.json`);
+        writeFileSync(file, content);
+        const [r] = fmt([file]);
+        expect(r!.lossy).toBe(true); // invalid-snapshot issue → lossy path, not a crash
+        expect(r!.issues.some((i) => i.code === 'invalid-snapshot' || i.code === 'non-array-records')).toBe(true);
+        expect(r!.wrote).toBe(false);
+        expect(readFileSync(file, 'utf8')).toBe(content); // byte-for-byte untouched
+        const code = await main(['fmt', file]);
+        expect(code).toBe(2);
+        expect(readFileSync(file, 'utf8')).toBe(content);
+      }
+    });
+
     it('--force writes the lossy canonicalization and reports exactly what was dropped (exit 0)', async () => {
       const file = join(dir, 'forced.nodus.json');
       const original = JSON.stringify(danglingSnap);

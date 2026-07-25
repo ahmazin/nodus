@@ -137,6 +137,21 @@ Type-specific behavior is registered on the editor — never a `switch`-on-type 
 4. **Plugins** — `editor.use(plugin)`; a plugin gets an `EngineHost` to register
    types/tools/themes/layouts/overlays and to hook the store and event bus.
 
+## Headless rendering
+
+The engine renders identically without a DOM: inject any Canvas-2D factory (Node uses
+`@napi-rs/canvas`) and call `editor.toPNG(createCanvas)` — remember `GlobalFonts.loadSystemFonts()`
+first or labels render as boxes, and register the node types your document uses before loading it.
+The full recipe (fonts, presets, `LoadReport` diagnostics) lives in the
+[headless guide](https://nodus.dev/docs/headless).
+
+## Stability
+
+Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only; canonical
+serialization bytes are themselves a breaking-change surface. Details in
+[stability policy](https://github.com/OWNER/nodus/blob/main/docs/stability.md) and
+[RELEASING](https://github.com/OWNER/nodus/blob/main/RELEASING.md).
+
 ## Git-native serialization
 
 Serialization is deterministic and canonical — stable key order, normalized numbers — so diagrams

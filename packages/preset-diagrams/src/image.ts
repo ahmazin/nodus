@@ -65,7 +65,12 @@ function browserDecoder(): ImageDecoder | undefined {
 }
 
 let decoder: ImageDecoder | undefined = browserDecoder();
-let invalidate: () => void = () => {};
+const invalidators = new Set<() => void>();
+let legacyInvalidator: (() => void) | null = null;
+const invalidate = (): void => {
+  legacyInvalidator?.();
+  for (const fn of invalidators) fn();
+};
 
 /**
  * Module-scoped decode cache, shared by {@link imageNode} across every Editor in the process. Sharing
@@ -110,10 +115,20 @@ export function setImageDecoder(next: ImageDecoder | null): void {
   cache.clear();
 }
 
-/** Register a repaint trigger, called when an async decode completes (default: no-op). Hosts wire this
- *  to their frame loop so decoded images appear without needing an unrelated interaction. */
+/** Register a repaint trigger, called when an async decode completes. MULTI-CAST: every registered
+ *  invalidator fires, so two editors/hosts on one page each get their repaint — one host can never
+ *  steal another's trigger. Returns a disposer that removes exactly this registration. */
+export function addImageInvalidator(fn: () => void): () => void {
+  invalidators.add(fn);
+  return () => {
+    invalidators.delete(fn);
+  };
+}
+
+/** Legacy single-slot form of {@link addImageInvalidator}: REPLACES the previous `set*` registration
+ *  (but never touches `add*` registrations). Prefer `addImageInvalidator` in multi-editor pages. */
 export function setImageInvalidator(fn: () => void): void {
-  invalidate = fn;
+  legacyInvalidator = fn;
 }
 
 /** Decoded image for `src`, or `undefined` until it is ready / if it cannot be decoded here. Decodes

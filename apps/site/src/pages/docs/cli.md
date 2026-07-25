@@ -48,8 +48,8 @@ Flags: `--out <file>`, `--preset infra|draw|diagrams`, `--scale <n>`, `--no-bg`,
 A **semantic** diff between two diagram files — reports which nodes and edges changed, not byte noise:
 
 ```bash
-pnpm nodus diff HEAD~1 architecture.nodus.json      # what changed
-pnpm nodus diff a.nodus.json b.nodus.json --json    # machine-readable
+pnpm nodus diff HEAD~1:architecture.nodus.json architecture.nodus.json   # working tree vs a git rev
+pnpm nodus diff a.nodus.json b.nodus.json --json                         # machine-readable
 ```
 
 ## Diagrams in CI

@@ -47,6 +47,13 @@ interface BaseRecord<TN> {
 type NodusRecord = NodeRecord | EdgeRecord | PageRecord;
 ```
 
+> **Field whitelist — where extension data belongs.** On load, each record is rebuilt from exactly
+> the fields listed below; anything else is **dropped and reported** as an `unknown-field` issue
+> (so `nodus fmt` refuses the rewrite as lossy instead of silently deleting it). The sanctioned
+> slots for third-party/tool data are **`props`** (interpreted by the registered util) and
+> **`meta`** (host scratch, round-trips untouched) — put custom annotations there, never at the
+> record's top level.
+
 | Record | `typeName` | Key fields |
 | --- | --- | --- |
 | **Node** | `'node'` | `type` (registry key, e.g. `infra.db`), `x` `y` `w` `h`, `rotation?`, `z` (fractional-index **string**), `visual`, `props`, `label?`, `locked?`, `hidden?`, `parentId?`, `pageId?`, `meta?` |

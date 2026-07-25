@@ -166,7 +166,6 @@ export const iconNode: NodeUtil = {
   type: 'icon',
   getDefaultProps: () => ({ icon: 'box' }),
   getDefaultSize: () => ({ w: STENCIL.DEFAULT_W, h: STENCIL.NODE_H }),
-  measure: (n) => measureStencil(n.label ?? ''),
   getGeometry: (n) => new Rectangle2d({ x: n.x, y: n.y, w: n.w, h: n.h }),
   getPorts: rectPorts,
   draw: (api, n, t) => {

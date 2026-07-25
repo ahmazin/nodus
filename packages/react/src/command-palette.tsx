@@ -86,13 +86,22 @@ export function defaultCommands(editor: Editor): Command[] {
   ];
 }
 
+/** The window event name a default-configured palette listens on to open programmatically. */
+export const OPEN_COMMAND_PALETTE_EVENT = 'nodus:open-command-palette';
+
 export interface CommandPaletteProps {
   editor: Editor;
   commands?: Command[];
   /** Hotkey spec that toggles the palette, e.g. `'mod+k'` (the default — ⌘K / Ctrl+K), `'mod+shift+p'`.
-   *  Pass `false` to disable the built-in hotkey (open it yourself via the `nodus:open-command-palette`
-   *  window event). */
+   *  Pass `false` to disable the built-in hotkey (open it yourself via the open event). */
   hotkey?: string | false;
+  /** Window event name that opens THIS palette (default {@link OPEN_COMMAND_PALETTE_EVENT}).
+   *  With several palettes on one page, give each its own name — the default is shared, so a
+   *  default-name dispatch opens every default-configured palette. */
+  openEventName?: string;
+  /** localStorage key for the recents (MRU) list (default `'nodus:command-palette:recents'`).
+   *  Namespace it per instance/document when two palettes must not share recents. */
+  storageKey?: string;
   className?: string;
   style?: CSSProperties;
 }
@@ -117,11 +126,11 @@ function safeStorage(): Storage | null {
   }
 }
 
-function loadRecents(): string[] {
+function loadRecents(key: string = RECENTS_KEY): string[] {
   const store = safeStorage();
   if (!store) return [];
   try {
-    const raw = store.getItem(RECENTS_KEY);
+    const raw = store.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -131,11 +140,11 @@ function loadRecents(): string[] {
   }
 }
 
-function saveRecents(ids: string[]): void {
+function saveRecents(ids: string[], key: string = RECENTS_KEY): void {
   const store = safeStorage();
   if (!store) return;
   try {
-    store.setItem(RECENTS_KEY, JSON.stringify(ids));
+    store.setItem(key, JSON.stringify(ids));
   } catch {
     // quota exceeded / disabled — recents are best-effort, never fatal
   }
@@ -165,11 +174,11 @@ function commandBadge(group: string | undefined): string {
   return GROUP_BADGES[group] ?? group.slice(0, 2).toUpperCase();
 }
 
-export function CommandPalette({ editor, commands, hotkey = 'mod+k', className, style }: CommandPaletteProps): ReactElement | null {
+export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventName = OPEN_COMMAND_PALETTE_EVENT, storageKey = RECENTS_KEY, className, style }: CommandPaletteProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
-  const [recents, setRecents] = useState<string[]>(() => loadRecents());
+  const [recents, setRecents] = useState<string[]>(() => loadRecents(storageKey));
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const t = useUiTokens(editor);
@@ -189,13 +198,14 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', className, 
     return () => window.removeEventListener('keydown', onKey);
   }, [hotkey]);
 
-  // External open trigger: any chrome (e.g. the top-bar "Search ⌘K" button, Lane E) can open the
-  // palette by dispatching a `nodus:open-command-palette` window event — no prop wiring needed.
+  // External open trigger: any chrome (e.g. a top-bar "Search ⌘K" button) can open the palette by
+  // dispatching the configured window event — no prop wiring needed. Multi-palette pages give each
+  // instance its own `openEventName` so a dispatch targets exactly one.
   useEffect(() => {
     const onOpen = () => setOpen(true);
-    window.addEventListener('nodus:open-command-palette', onOpen);
-    return () => window.removeEventListener('nodus:open-command-palette', onOpen);
-  }, []);
+    window.addEventListener(openEventName, onOpen);
+    return () => window.removeEventListener(openEventName, onOpen);
+  }, [openEventName]);
 
   useEffect(() => {
     if (open) {
@@ -232,7 +242,7 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', className, 
   const run = (c: Command) => {
     const next = pushRecent(recents, c.id);
     setRecents(next);
-    saveRecents(next);
+    saveRecents(next, storageKey);
     c.run();
     setOpen(false);
   };

@@ -67,8 +67,6 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
   getDefaultProps(): P;
   /** Default size for a new node (used when the caller doesn't pass w/h). Default 120×56 if absent. */
   getDefaultSize?(props: P): { w: number; h: number };
-  /** Compute intrinsic size (e.g. from a label). Canvas has no DOM autosize; layout needs sizes. */
-  measure?(node: NodeRecord, theme: Theme): { w: number; h: number };
   /** The ONE declarative geometry (world coords) — the single source for bounds, culling, hit-testing,
    *  and snapping. Everything spatial derives from it, so it must be deterministic per record. */
   getGeometry(node: NodeRecord): Geometry2d;

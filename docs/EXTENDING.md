@@ -61,7 +61,6 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
   readonly type: string;                        // unique key, e.g. 'cylinder'
   getDefaultProps(): P;
   getDefaultSize?(props: P): { w: number; h: number };
-  measure?(node: NodeRecord, theme: Theme): { w: number; h: number };  // intrinsic size (no DOM autosize)
   getGeometry(node: NodeRecord): Geometry2d;    // the single source for hit-test/bounds/cull/snap
   getPorts?(node: NodeRecord): Port[];          // named connection anchors (0..1 within the box)
   draw(api: DrawApi, node: NodeRecord, tokens: ResolvedTokens): void;
@@ -133,7 +132,8 @@ getRoute(_edge, ctx) {
 ### Migrating a custom shape
 
 When you change a custom type's `props` shape, add an up-migration so old documents keep loading.
-A migration is a pure `(props) => props`; the type's version is `migrations.length`.
+Each migration is a `{ id, migrate }` object — a stable string `id` plus a pure `(props) => props`
+step; the type's version is `migrations.length`.
 
 ```ts
 const boxUtil: NodeUtil = {
@@ -142,14 +142,18 @@ const boxUtil: NodeUtil = {
   getGeometry: (n) => rectGeometry(n),
   draw: (api, n, t) => { /* … */ },
   // v0 stored { r }; v1 renamed it to { radius }.
-  migrations: [(p) => ({ radius: p.r })],
+  migrations: [{ id: 'rename-r-to-radius', migrate: (p) => ({ radius: p.r }) }],
 };
 ```
 
-On load, a record written at version `v` runs steps `v … length-1`. The version each type was
-written at is stored once per document in `typeVersions` (canonical, minimal-diff). A migration that
-throws drops only that record (`RestoreResult.migrationErrors`); a document written by a newer client
-is kept raw and never downgraded (`RestoreResult.unmigrated`).
+The `id` sequence is **append-only**: a step's id may never change, reorder, or be removed once
+published — you only append new steps. The engine enforces this at registration and throws
+`NodusError('invalid-migrations')` if a re-registration's ids don't extend the prior sequence, or if a
+step isn't a `{ id, migrate }` object. On load, a record written at version `v` runs steps
+`v … length-1`. The version each type was written at is stored once per document in `typeVersions`
+(canonical, minimal-diff). A migration that throws drops only that record
+(`RestoreResult.migrationErrors`); a document written by a newer client is kept raw and never
+downgraded (`RestoreResult.unmigrated`).
 
 ---
 
@@ -167,7 +171,8 @@ export interface Router {
 }
 ```
 
-Register a custom router on the editor's `RouterRegistry`, then select it per edge:
+Register a custom router with `editor.registerRouter` (or `host.registerRouter` inside a plugin), then
+select it per edge:
 
 ```ts
 const stepRouter: Router = {
@@ -175,7 +180,7 @@ const stepRouter: Router = {
   route: ({ from, to }) => [from, { x: to.x, y: from.y }, to],
 };
 
-editor.routers.register(stepRouter);
+editor.registerRouter(stepRouter);      // returns a Dispose that unregisters it
 editor.setEdgeRouter(edgeId, 'step');   // sets edge.props.router = 'step', one undo entry
 ```
 
@@ -228,17 +233,29 @@ export interface Plugin {
 }
 
 export interface EngineHost {
-  registerNodeType(util: NodeUtil): void;
-  registerEdgeType(util: EdgeUtil): void;
-  registerTool(tool: ToolNode): void;
-  registerLayout(engine: LayoutEngine): void;
+  registerNodeType(util: NodeUtil): Dispose;
+  registerEdgeType(util: EdgeUtil): Dispose;
+  registerTool(tool: ToolNode): Dispose;
+  registerRouter(router: Router): Dispose;
+  registerLayout(engine: LayoutEngine): Dispose;
   setTheme(theme: Theme): void;
   addOverlay(overlay: OverlayLayer): Dispose;   // a canvas layer painted each frame in world space
-  on(type: string, handler: (event: NodusEvent) => void): Dispose;   // event bus
-  onChange(handler: StoreListener): Dispose;     // raw store changes (constraints, snapping, derived data)
-  readonly editor: Editor;
+  on(type: string, handler: (event: NodusEvent) => void): Dispose;   // event bus (narrows by key)
+  onChange(handler: StoreListener): Dispose;     // raw store changes (constraints, snapping)
+  onBeforeChange(fn: BeforeApply): Dispose;      // transform / veto changes before they commit
+  registerCommand(cmd: Command): Dispose;        // contribute a command to the registry
+  readonly editor: Editor;                       // escape hatch — see the two tiers below
 }
 ```
+
+**Every register/subscribe call returns a `Dispose`**, and the host records them, so the disposer
+`editor.use(plugin)` hands back unwinds the plugin's whole footprint in reverse order (installing the
+same `plugin.id` twice is idempotent — the second `use()` returns the existing disposer).
+
+The surface is **two-tier**: `EngineHost` itself (the `register*` / `on*` / `setTheme` methods) is the
+**stable** public API to build against, while `host.editor` is an **escape hatch** to the full `Editor`
+with **no stability promise** — members tagged `@internal` may change between minor versions. Prefer
+the stable surface; reach into `editor` only when you must.
 
 Install with `editor.use(plugin)`:
 

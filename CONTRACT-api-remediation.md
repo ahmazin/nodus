@@ -120,5 +120,14 @@ Class A (13 extension libs): `@nodus/core` → `peerDependencies: "workspace:^"`
 | **docs** | `apps/site/**`, root `README.md`, `docs/**` (new), `examples/minimal-*/**`, remaining `packages/*/README.md` |
 | **fixtures** | `packages/core/src/__tests__/fixtures/**`, `packages/core/src/__tests__/golden-fixtures.test.ts`, `scripts/gen-fixtures.ts` (script file routed through lead) |
 
+## Recorded deliberate deferrals (post-closure; not gaps — decisions)
+
+- **Branded `Id<'edge'>`/`Id<'page'>` params** on the edge/page façade helpers: deferred as a lossless fast-follow (boolean-return + isEdge-guard scaffolding landed in #21; narrowing requires a coordinated one-line react change and is purely additive).
+- **`@nodus/react/shell` subpath** (F25 leg): the generic shell primitives (Panel/Button/Field/…) stay on the root barrel for now; the surface is pinned by the 104-key snapshot, so moving them later is a reviewed, visible change.
+- **`useValue` `isEqual` parameter** (F37 leg): the referential-stability contract is documented on the hook; a comparator parameter is a feature, not a contract, and waits for demand.
+- **Adapter-side `fixed` honoring** in layout-dagre/tree/elk (F38 leg): the editor-side apply filter enforces the lock contract end-to-end regardless of adapter behavior; teaching each adapter to pin fixed nodes natively is a layout-quality enhancement.
+- **Post-dispose programmatic `apply` gating** (F27 leg): interaction/load/history/paint entry points throw `editor-disposed`; raw programmatic writes after dispose remain documented-unsupported rather than guarded (~30 helpers of churn for a documented non-contract).
+- **Automated publish workflow** (F45 leg): publishing stays human-run (`pnpm release`, gated on `verify:all`) pre-1.0; a changesets Action needs NPM_TOKEN/provenance decisions that belong to the human.
+
 ## Gates (every task, owned scope)
 `pnpm typecheck` (whole repo, read-only) · owned tests: `pnpm exec vitest run <owned paths>` · every new contract lands with a test that fails without it · no console.log/debug leftovers · no swallowed errors · public-interface changes update TSDoc + README. Lead runs the full suite (`pnpm test`, `verify:render`, `verify:dist`, browser suites) at integration checkpoints. NEVER weaken or delete a test to pass — message the lead (the one sanctioned rewrite: `hardening.test.ts` schema-999 case per locked decision F5).

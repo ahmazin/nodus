@@ -32,6 +32,15 @@ const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
 export class AnimationClock {
   private tweens = new Set<Tween>();
 
+  /** Routes tween-callback faults; the Editor wires this to its error event channel so animation
+   *  errors surface like every other third-party fault. Unset (standalone clock) → console.error. */
+  onError: ((err: unknown) => void) | null = null;
+
+  private reportError(err: unknown): void {
+    if (this.onError) this.onError(err);
+    else console.error('[nodus] animation callback threw:', err);
+  }
+
   /** Register a tween; returns a cancel fn that removes it without firing `onDone`. */
   add(spec: TweenSpec): () => void {
     const tw: Tween = { ...spec, start: null, done: false };
@@ -49,7 +58,7 @@ export class AnimationClock {
       tw.onTick(value);
       return true;
     } catch (err) {
-      console.error('[nodus] animation callback threw:', err);
+      this.reportError(err);
       tw.done = true;
       return false;
     }
@@ -63,7 +72,7 @@ export class AnimationClock {
     try {
       tw.onDone?.();
     } catch (err) {
-      console.error('[nodus] animation callback threw:', err);
+      this.reportError(err);
     }
     tw.done = true;
   }
