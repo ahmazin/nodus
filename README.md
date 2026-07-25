@@ -1,17 +1,39 @@
-# Nodus
+<div align="center">
 
-A **git-native, headless, extensible diagram engine** for TypeScript — think Excalidraw, but built to
-be customized and to store its diagrams as text you can code-review. Nodus owns *model → layout →
-render → interact* on a Canvas-2D surface and gets out of your way for everything else. The
-infra-architecture tool that seeded this project (**InfraCanvas**) now ships as one preset on top of
-the general core.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/nodus-logo-dark.svg" />
+  <img src="./assets/nodus-logo-light.svg" alt="Nodus" width="300" />
+</picture>
 
-> Working name: **Nodus** (`@nodus/*`). See [`packages/`](./packages) for the monorepo.
+<br />
 
-![A rendered infra diagram](./examples/output/demo-infra.png)
+**Git-native diagrams you can code-review.**
 
-*(Rendered headlessly by [`scripts/render-demo.ts`](./scripts/render-demo.ts) — dark canvas, per-type
-accent glows, evaluation rings, and orthogonal arrowed connectors.)*
+A **headless, framework-agnostic, extensible diagram engine** for TypeScript — think Excalidraw, but
+built to be customized and to store its diagrams as text that diffs cleanly and reviews in a PR. Nodus
+owns *model → layout → render → interact* on a Canvas-2D surface and gets out of your way for
+everything else. The infra-architecture tool that seeded it (**InfraCanvas**) now ships as one
+[preset](./packages/preset-infra) on top of the general core.
+
+<br />
+
+[![CI](https://github.com/ahmazin/nodus/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmazin/nodus/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-c4f24e)](./LICENSE)
+[![TypeScript: strict](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)](./tsconfig.json)
+[![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-c4f24e)](./docs/stability.md)
+![pnpm workspace](https://img.shields.io/badge/pnpm-workspace-f69220?logo=pnpm&logoColor=white)
+
+</div>
+
+<div align="center">
+  <img src="./examples/output/demos/cloud.png" alt="A cloud architecture diagram rendered headlessly by Nodus" width="840" />
+</div>
+
+<p align="center">
+  <sub><em>A cloud architecture rendered headlessly by <a href="./scripts/demos.ts"><code>scripts/demos.ts</code></a>
+  (<code>pnpm demos</code>) — real cloud glyphs, neon node tiles, and orthogonal connectors on a dark canvas.
+  Identical code paints to the browser and to Skia in Node.</em></sub>
+</p>
 
 ---
 
@@ -97,6 +119,16 @@ and hosts the inline label editor. The full interactive demo is in
 > need it fully client-only (e.g. Next.js Pages Router) use `dynamic(() => …, { ssr: false })`. See
 > the [React binding guide](./apps/site/src/pages/docs/react.md#server-side-rendering).
 
+<div align="center">
+  <img src="./examples/output/verify-clean.png" alt="The Nodus editor: toolbar, tool-rail, minimap, and a live infra diagram" width="880" />
+</div>
+
+<p align="center">
+  <sub><em>The same engine, interactive: the <a href="./examples/browser"><code>examples/browser</code></a>
+  playground — toolbar, tool-rail, live minimap, cloud-icon insert, and multi-select — driven entirely
+  through the public <code>Editor</code> API. Run <code>pnpm dev</code> → http://localhost:5188.</em></sub>
+</p>
+
 ## Git-native diagrams
 
 `@nodus/core` serializes deterministically — stable key order, normalized numbers — so a diagram is a
@@ -169,10 +201,13 @@ pnpm build         # tsup per package, in dependency order (ESM + CJS + .d.ts)
 There is **no lint step** — `tsc` with `strict` + `noUncheckedIndexedAccess` is the correctness gate.
 The dev loop is source-first: no `pnpm build` is needed while developing.
 
-CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) runs `typecheck` + `test` +
-`verify:render` on every PR, plus a headless-Chromium interaction E2E
-([`scripts/browser-verify.mjs`](./scripts/browser-verify.mjs)) that drives the live Vite app and
-asserts create/drag/undo/rename/auto-layout with zero console errors.
+CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) gates every PR and every push to
+`main`/`mainline` with four jobs: `typecheck` + the full `test` suite + a headless-Skia `verify:render`;
+a **dist-consumption** job that packs real npm tarballs and imports them from *outside* the workspace
+(the one path the source-first dev loop never exercises); a **changeset** check so consumer-visible
+changes ship with release notes; and a headless-Chromium interaction E2E
+([`scripts/browser-verify.mjs`](./scripts/browser-verify.mjs)) that drives the live Vite app and asserts
+create/drag/undo/rename/auto-layout with zero console errors. The badge above tracks the `CI` workflow.
 
 ## Architecture
 
