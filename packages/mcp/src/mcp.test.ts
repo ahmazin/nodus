@@ -256,6 +256,89 @@ describe('nodus-mcp: flow', () => {
   });
 });
 
+describe('nodus-mcp: new tools (audit remediation)', () => {
+  it('import_terraform builds an infra diagram from `terraform show -json`', async () => {
+    const s = new DiagramSession({ dataDir });
+    const show = { values: { root_module: { resources: [
+      { address: 'aws_cloudfront_distribution.cdn', type: 'aws_cloudfront_distribution', name: 'cdn', depends_on: [] },
+      { address: 'aws_lambda_function.api', type: 'aws_lambda_function', name: 'api', depends_on: ['aws_cloudfront_distribution.cdn'] },
+      { address: 'aws_dynamodb_table.orders', type: 'aws_dynamodb_table', name: 'orders', depends_on: ['aws_lambda_function.api'] },
+    ] } } };
+    const r = asJson(await call(s, 'import_terraform', { source: JSON.stringify(show) }));
+    expect(r.preset).toBe('infra');
+    expect(r.nodes).toBe(3);
+    expect(r.edges).toBe(2);
+  });
+
+  it('import_kubernetes builds an infra diagram from a manifest', async () => {
+    const s = new DiagramSession({ dataDir });
+    const yaml = 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: orders\nspec:\n  replicas: 2';
+    const r = asJson(await call(s, 'import_kubernetes', { source: yaml }));
+    expect(r.preset).toBe('infra');
+    expect(r.nodes).toBeGreaterThanOrEqual(1);
+  });
+
+  it('author_from_spec builds a diagram from a structured DiagramSpec', async () => {
+    const s = new DiagramSession({ dataDir });
+    const spec = { nodes: [{ id: 'gw', type: 'edge', label: 'API Gateway' }, { id: 'svc', type: 'service', label: 'Orders' }], edges: [{ from: 'gw', to: 'svc' }] };
+    const r = asJson(await call(s, 'author_from_spec', { spec }));
+    expect(r.nodes).toBe(2);
+    expect(r.edges).toBe(1);
+  });
+
+  it('diff_docs reports what changed between a saved doc and the current diagram', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph LR\n A --> B' });
+    await call(s, 'save_doc', { name: 'diffbase' });
+    await call(s, 'add_node', { label: 'C' }); // mutate current
+    const d = asJson(await call(s, 'diff_docs', { base: 'diffbase' }));
+    expect(d.added).toBeGreaterThanOrEqual(1); // C is new vs the baseline
+    expect(d.removed).toBe(0);
+    const missing = await call(s, 'diff_docs', { base: 'no-such-doc' });
+    expect(missing.isError).toBe(true);
+  });
+
+  it('update_edge relabels + reroutes an existing edge without delete+recreate', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'add_node', { label: 'A' });
+    await call(s, 'add_node', { label: 'B' });
+    const eid = asJson(await call(s, 'connect_nodes', { from: 'A', to: 'B' })).id;
+    const u = asJson(await call(s, 'update_edge', { edge: eid, label: 'flows', router: 'orthogonal' }));
+    expect(u.changed).toBe(2);
+    expect(asJson(await call(s, 'list_elements')).edges[0].label).toBe('flows');
+    const bad = await call(s, 'update_edge', { edge: eid, router: 'squiggle' });
+    expect(bad.isError).toBe(true);
+  });
+
+  it('set_theme switches themes and rejects an unknown one', async () => {
+    const s = new DiagramSession({ dataDir });
+    expect(asJson(await call(s, 'set_theme', { theme: 'light' })).ok).toBe(true);
+    expect((await call(s, 'set_theme', { theme: 'nope' })).isError).toBe(true);
+  });
+
+  it('export_svg returns scalable SVG text', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph LR\n A --> B' });
+    const r = await call(s, 'export_svg', {});
+    expect(r.isError).toBeUndefined();
+    expect(r.content.some((c) => (c.text ?? '').includes('<svg'))).toBe(true);
+  });
+
+  it('layout exposes tree + force (and elk) engines, not just dagre', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph TD\n A-->B\n A-->C', layout: 'none' });
+    for (const engine of ['tree', 'force', 'elk']) {
+      expect(asJson(await call(s, 'layout', { engine })).ok).toBe(true);
+    }
+  });
+
+  it('the draw preset path works (add a draw.rect)', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'new_diagram', { preset: 'draw' });
+    expect((await call(s, 'add_node', { label: 'R', type: 'draw.rect' })).isError).toBeUndefined();
+  });
+});
+
 describe('nodus-mcp: stdio transport (JSON-RPC over the wire)', () => {
   // Drive the REAL runStdioServer over in-memory pipes and collect its JSON-RPC responses. This is the
   // surface a client actually talks to (initialize/tools-list/tools-call/notifications/errors) — the

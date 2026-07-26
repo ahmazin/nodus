@@ -283,12 +283,21 @@ importers:
       '@nodus/from-mermaid':
         specifier: workspace:^
         version: link:../from-mermaid
+      '@nodus/import-infra':
+        specifier: workspace:^
+        version: link:../import-infra
       '@nodus/layout-dagre':
         specifier: workspace:^
         version: link:../layout-dagre
       '@nodus/layout-elk':
         specifier: workspace:^
         version: link:../layout-elk
+      '@nodus/layout-force':
+        specifier: workspace:^
+        version: link:../layout-force
+      '@nodus/layout-tree':
+        specifier: workspace:^
+        version: link:../layout-tree
       '@nodus/preset-diagrams':
         specifier: workspace:^
         version: link:../preset-diagrams
@@ -298,6 +307,9 @@ importers:
       '@nodus/preset-infra':
         specifier: workspace:^
         version: link:../preset-infra
+      '@nodus/text-to-diagram':
+        specifier: workspace:^
+        version: link:../text-to-diagram
 
   packages/persistence:
     devDependencies:

@@ -6,13 +6,17 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
-import { Editor, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord } from '@nodus/core';
+import { Editor, diff, renderSVG, themePack, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord, type NodusRecord, type Vec2 } from '@nodus/core';
 import { diagramsTheme, installDiagrams } from '@nodus/preset-diagrams';
 import { installInfraPreset } from '@nodus/preset-infra';
 import { installDrawTools } from '@nodus/preset-draw';
 import { importMermaid } from '@nodus/from-mermaid';
 import { dagreLayout } from '@nodus/layout-dagre';
 import { elkLayout } from '@nodus/layout-elk';
+import { treeLayout } from '@nodus/layout-tree';
+import { forceLayout } from '@nodus/layout-force';
+import { fromKubernetes, fromTerraform } from '@nodus/import-infra';
+import { recordsFromSpec, type DiagramSpec } from '@nodus/text-to-diagram';
 
 export type Preset = 'diagrams' | 'infra' | 'draw';
 
@@ -79,6 +83,8 @@ export class DiagramSession {
     }
     this.editor.registerLayout(dagreLayout);
     this.editor.registerLayout(elkLayout);
+    this.editor.registerLayout(treeLayout);
+    this.editor.registerLayout(forceLayout);
     this.preset = preset;
   }
 
@@ -142,7 +148,7 @@ export const TOOLS = [
     inputSchema: S(
       {
         source: { type: 'string', description: 'The Mermaid diagram text.' },
-        layout: { type: 'string', enum: ['dagre', 'elk', 'none'], description: 'Layout engine (default dagre).' },
+        layout: { type: 'string', enum: ['dagre', 'elk', 'tree', 'force', 'none'], description: 'Layout engine (default dagre).' },
         direction: { type: 'string', enum: ['TB', 'LR', 'RL', 'BT'] },
       },
       ['source'],
@@ -171,7 +177,7 @@ export const TOOLS = [
   {
     name: 'layout',
     description: 'Auto-layout the whole diagram. engine "dagre" (fast, default) or "elk" (layered/orthogonal).',
-    inputSchema: S({ engine: { type: 'string', enum: ['dagre', 'elk'] }, direction: { type: 'string', enum: ['TB', 'LR', 'RL', 'BT'] } }),
+    inputSchema: S({ engine: { type: 'string', enum: ['dagre', 'elk', 'tree', 'force'] }, direction: { type: 'string', enum: ['TB', 'LR', 'RL', 'BT'] } }),
   },
   {
     name: 'list_elements',
@@ -228,6 +234,41 @@ export const TOOLS = [
     name: 'load_doc',
     description: 'Load a previously saved diagram by name (or list saved names if omitted).',
     inputSchema: S({ name: { type: 'string' } }),
+  },
+  {
+    name: 'import_terraform',
+    description: 'Build an infra diagram from `terraform show -json` output (plan/state as JSON). Switches to the infra preset. Pass the JSON as a string.',
+    inputSchema: S({ source: { type: 'string', description: '`terraform show -json` output (JSON text).' } }, ['source']),
+  },
+  {
+    name: 'import_kubernetes',
+    description: 'Build an infra diagram from Kubernetes manifests (YAML or JSON, one or many resources). Switches to the infra preset.',
+    inputSchema: S({ source: { type: 'string', description: 'Kubernetes YAML or JSON.' } }, ['source']),
+  },
+  {
+    name: 'diff_docs',
+    description: 'Semantic diff between two diagram versions: a saved doc (base) vs another saved doc or the current editor (compare). Returns added / removed / changed records — the git-native "code-review your diagram" view.',
+    inputSchema: S({ base: { type: 'string', description: 'saved doc name (the baseline)' }, compare: { type: 'string', description: 'saved doc name; omit to compare against the current in-memory diagram' } }, ['base']),
+  },
+  {
+    name: 'update_edge',
+    description: 'Edit an existing edge (by id or label): relabel, choose its router (straight/orthogonal/bezier), and/or set waypoints — without delete+recreate.',
+    inputSchema: S({ edge: { type: 'string' }, label: { type: 'string' }, router: { type: 'string', enum: ['straight', 'orthogonal', 'bezier'] }, waypoints: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'], additionalProperties: false } } }, ['edge']),
+  },
+  {
+    name: 'set_theme',
+    description: 'Switch the render theme (affects export_png / export_svg): one of pis, light, blueprint, neon, paper.',
+    inputSchema: S({ theme: { type: 'string', enum: ['pis', 'light', 'blueprint', 'neon', 'paper'] } }, ['theme']),
+  },
+  {
+    name: 'export_svg',
+    description: 'Render the diagram to a scalable SVG (vector text — diffs and embeds cleanly). Saves a file and returns the SVG text.',
+    inputSchema: S({ path: { type: 'string' }, background: { type: 'boolean' } }),
+  },
+  {
+    name: 'author_from_spec',
+    description: 'Build an infra diagram from a structured DiagramSpec ({ nodes:[{id,label,type?}], edges:[{from,to,label?}] }) — an LLM-native authoring schema. Switches to the infra preset.',
+    inputSchema: S({ spec: { type: 'object', description: 'a DiagramSpec: { nodes: [...], edges: [...] }' } }, ['spec']),
   },
 ] as const;
 
@@ -410,6 +451,102 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
         }
         ed.loadSnapshot(JSON.parse(raw), { fit: true });
         return json({ ok: true, name: docName, nodes: ed.store.nodes().length });
+      }
+      case 'import_terraform': {
+        const src = args.source;
+        let showJson: unknown;
+        if (typeof src === 'string') {
+          try { showJson = JSON.parse(src); } catch { return fail('source must be `terraform show -json` output (a JSON string)'); }
+        } else if (src != null && typeof src === 'object') {
+          showJson = src;
+        } else {
+          return fail('source is required (terraform show -json output)');
+        }
+        let records: NodusRecord[];
+        try { records = fromTerraform(showJson); } catch (e) { return fail(`terraform import failed: ${e instanceof Error ? e.message : String(e)}`); }
+        session.reset('infra'); // records are infra-typed; ensure the infra node types are registered
+        session.editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
+        return json({ ok: true, ...session.summary() });
+      }
+      case 'import_kubernetes': {
+        const src = args.source;
+        if (typeof src !== 'string' || !src.trim()) return fail('source is required (Kubernetes YAML or JSON)');
+        let records: NodusRecord[];
+        try { records = fromKubernetes(src); } catch (e) { return fail(`kubernetes import failed: ${e instanceof Error ? e.message : String(e)}`); }
+        session.reset('infra');
+        session.editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
+        return json({ ok: true, ...session.summary() });
+      }
+      case 'diff_docs': {
+        const readRecords = (docName: string): NodusRecord[] | null => {
+          if (!NAME_RE.test(docName)) return null;
+          let raw: string;
+          try { raw = readFileSync(join(session.docsDir, `${docName}.json`), 'utf8'); } catch { return null; }
+          return (JSON.parse(raw) as { document?: { records?: NodusRecord[] } }).document?.records ?? [];
+        };
+        const baseName = String(args.base ?? '');
+        if (!baseName) return fail('base (a saved doc name) is required');
+        const baseRecs = readRecords(baseName);
+        if (!baseRecs) return fail(`no saved doc named "${baseName}"`);
+        let compareRecs: NodusRecord[];
+        if (args.compare != null) {
+          const cmp = readRecords(String(args.compare));
+          if (!cmp) return fail(`no saved doc named "${args.compare}"`);
+          compareRecs = cmp;
+        } else {
+          compareRecs = ed.toJSON({ exportedBy: 'nodus-mcp' }).document.records as NodusRecord[];
+        }
+        const d = diff(baseRecs, compareRecs);
+        return json({ base: baseName, compare: args.compare != null ? String(args.compare) : '(current)', added: d.added.length, removed: d.removed.length, changed: d.changed.length, detail: d });
+      }
+      case 'update_edge': {
+        const id = session.resolveEdge(String(args.edge ?? ''));
+        if (!id) return fail(`no edge matching "${args.edge}"`);
+        let changed = 0;
+        if (args.label != null) { ed.setEdgeLabel(id, String(args.label)); changed++; }
+        if (args.router != null) {
+          const r = String(args.router);
+          if (r !== 'straight' && r !== 'orthogonal' && r !== 'bezier') return fail(`unknown router "${r}" (allowed: straight, orthogonal, bezier)`);
+          ed.setEdgeRouter(id, r);
+          changed++;
+        }
+        if (args.waypoints != null) {
+          if (!Array.isArray(args.waypoints)) return fail('waypoints must be an array of { x, y }');
+          const pts: Vec2[] = args.waypoints.map((p) => ({ x: finiteNum((p as { x?: unknown }).x) ?? 0, y: finiteNum((p as { y?: unknown }).y) ?? 0 }));
+          ed.setWaypoints(id, pts);
+          changed++;
+        }
+        return json({ ok: true, id, changed });
+      }
+      case 'set_theme': {
+        const themeName = String(args.theme ?? '');
+        const theme = themePack[themeName];
+        if (!theme) return fail(`unknown theme "${themeName}" (allowed: ${Object.keys(themePack).join(', ')})`);
+        ed.setTheme(theme);
+        return json({ ok: true, theme: themeName });
+      }
+      case 'export_svg': {
+        if (!ed.sceneIndex.contentBounds()) return fail('nothing to export — the diagram is empty');
+        const svg = renderSVG(ed);
+        let path: string;
+        if (args.path != null) {
+          const contained = containedPath(String(args.path), [process.cwd(), session.exportsDir, session.docsDir]);
+          if (!contained) return fail(`refusing to write outside the working directory or data dir: ${args.path}`);
+          path = contained;
+        } else {
+          path = join(session.exportsDir, `diagram-${++session.exportSeq}.svg`);
+        }
+        writeFileSync(path, svg);
+        return { content: [{ type: 'text', text: `Saved SVG (${svg.length} bytes) to ${path}` }, { type: 'text', text: svg }] };
+      }
+      case 'author_from_spec': {
+        const spec = args.spec;
+        if (spec == null || typeof spec !== 'object') return fail('spec is required (a DiagramSpec: { nodes: [...], edges: [...] })');
+        let records: NodusRecord[];
+        try { records = recordsFromSpec(spec as DiagramSpec); } catch (e) { return fail(`invalid spec: ${e instanceof Error ? e.message : String(e)}`); }
+        session.reset('infra'); // recordsFromSpec produces infra-typed records
+        session.editor.loadSnapshot({ schemaVersion: 1, document: { records } }, { fit: true });
+        return json({ ok: true, ...session.summary() });
       }
       default:
         return fail(`unknown tool "${name}"`);
