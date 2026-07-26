@@ -26,13 +26,14 @@ everything else. The infra-architecture tool that seeded it (**InfraCanvas**) no
 </div>
 
 <div align="center">
-  <img src="./examples/output/demos/cloud.png" alt="A cloud architecture diagram rendered headlessly by Nodus" width="840" />
+  <img src="./examples/output/playground-flow.gif" alt="The Nodus playground's default infrastructure diagram with live flow animation" width="840" />
 </div>
 
 <p align="center">
-  <sub><em>A cloud architecture rendered headlessly by <a href="./scripts/demos.ts"><code>scripts/demos.ts</code></a>
-  (<code>pnpm demos</code>) — real cloud glyphs, neon node tiles, and orthogonal connectors on a dark canvas.
-  Identical code paints to the browser and to Skia in Node.</em></sub>
+  <sub><em>The playground's default diagram with <strong>live flow</strong> — animated packets tracing traffic across the graph,
+  over real cloud glyphs and per-type accent colors on a dark canvas. Captured from the running editor by
+  <a href="./scripts/capture-flow-gif.mjs"><code>scripts/capture-flow-gif.mjs</code></a>; the same
+  <code>paintRegion(…, {flow, time})</code> path drives headless PNG/SVG/GIF export.</em></sub>
 </p>
 
 ---
