@@ -1,8 +1,9 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DiagramSession, TOOLS, dispatch } from '@nodus/mcp';
+import { DiagramSession, TOOLS, dispatch, runStdioServer } from '@nodus/mcp';
 
 const dataDir = mkdtempSync(join(tmpdir(), 'nodus-mcp-'));
 const call = (s: DiagramSession, name: string, args: Record<string, unknown> = {}) => dispatch(s, name, args);
@@ -228,6 +229,82 @@ describe('nodus-mcp: flow', () => {
     await call(s, 'set_flow', { style: 'dots', color: '#ff00ff' });
     const flowed = imgOf(await call(s, 'export_png', {}));
     expect(flowed).not.toBe(plain); // the packets add pixels
+  });
+});
+
+describe('nodus-mcp: stdio transport (JSON-RPC over the wire)', () => {
+  // Drive the REAL runStdioServer over in-memory pipes and collect its JSON-RPC responses. This is the
+  // surface a client actually talks to (initialize/tools-list/tools-call/notifications/errors) — the
+  // audit flagged it as having zero behavioral coverage.
+  type Rpc = Record<string, unknown>;
+  const drive = (lines: string[]): Promise<Rpc[]> =>
+    new Promise((resolveDone) => {
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const responses: Rpc[] = [];
+      let buf = '';
+      output.on('data', (c: Buffer | string) => {
+        buf += c.toString();
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) !== -1) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (line) responses.push(JSON.parse(line) as Rpc);
+        }
+      });
+      runStdioServer(new DiagramSession({ dataDir }), { input, output, onExit: () => setImmediate(() => resolveDone(responses)) });
+      for (const l of lines) input.write(`${l}\n`);
+      input.end();
+    });
+  const byId = (res: Rpc[], id: number | null) => res.find((r) => r.id === id) as { id: unknown; result?: any; error?: any } | undefined;
+
+  it('REGRESSION: a lone `null` line does not wedge the loop — the message after it still processes', async () => {
+    const res = await drive([
+      JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+      'null', // pre-fix killer: JSON.parse('null') destructure-crashed handle() and poisoned the queue
+      JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+    ]);
+    expect(byId(res, 1)).toBeDefined(); // handshake answered
+    expect(byId(res, 2)).toBeDefined(); // and the message AFTER the null still got through (was silently dropped before)
+    expect(byId(res, 2)!.result.tools.length).toBe(TOOLS.length);
+    // the null line itself is answered as Invalid Request (id null), not a crash
+    expect(res.some((r) => r.id === null && (r.error as { code?: number })?.code === -32600)).toBe(true);
+  });
+
+  it('initialize returns a supported protocolVersion + serverInfo.version from package.json', async () => {
+    const [r] = await drive([JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })]);
+    const result = (r as { result: any }).result;
+    expect(result.protocolVersion).toBe('2025-06-18'); // echoes a supported requested version
+    expect(result.serverInfo.name).toBe('nodus-mcp');
+    expect(result.serverInfo.version).toMatch(/^\d+\.\d+\.\d+/); // sourced from package.json, not hardcoded
+    expect(result.capabilities.tools).toBeDefined();
+  });
+
+  it('version negotiation: an unsupported client version is answered with the server’s own', async () => {
+    const [r] = await drive([JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '1999-01-01' } })]);
+    expect((r as { result: any }).result.protocolVersion).toBe('2025-06-18');
+  });
+
+  it('tools/list returns the full tool set; tools/call routes to dispatch', async () => {
+    const res = await drive([
+      JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_elements', arguments: {} } }),
+    ]);
+    expect(byId(res, 1)!.result.tools).toHaveLength(TOOLS.length);
+    expect(byId(res, 2)!.result.content[0].type).toBe('text');
+  });
+
+  it('notification (no id) → no reply; unknown method → -32601; bad envelope → -32600; bad JSON → -32700', async () => {
+    const res = await drive([
+      JSON.stringify({ jsonrpc: '2.0', method: 'ping' }),                  // notification → no reply
+      JSON.stringify({ jsonrpc: '2.0', id: 10, method: 'does_not_exist' }), // unknown method
+      JSON.stringify({ jsonrpc: '2.0', id: 11 }),                          // no method → invalid request
+      '{ not json',                                                        // parse error
+    ]);
+    expect(res.find((r) => r.id === undefined)).toBeUndefined();           // the notification produced nothing
+    expect(byId(res, 10)!.error.code).toBe(-32601);
+    expect(byId(res, 11)!.error.code).toBe(-32600);
+    expect(res.some((r) => r.id === null && (r.error as { code?: number }).code === -32700)).toBe(true);
   });
 });
 
