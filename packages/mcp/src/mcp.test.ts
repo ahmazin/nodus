@@ -156,6 +156,18 @@ describe('nodus-mcp: review regressions', () => {
     expect(del.isError).toBe(true);
     expect(del.content[0]!.text).toMatch(/ambiguous/i);
   });
+
+  it('update_node moves x/y; resolution fails cleanly on an unknown ref', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'add_node', { label: 'M', x: 0, y: 0 });
+    await call(s, 'update_node', { node: 'M', x: 120, y: 34 });
+    const n = asJson(await call(s, 'list_elements')).nodes[0];
+    expect(n.x).toBe(120);
+    expect(n.y).toBe(34);
+    const bad = await call(s, 'connect_nodes', { from: 'M', to: 'ghost' });
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0]!.text).toMatch(/no node matching/);
+  });
 });
 
 describe('nodus-mcp: layout + export', () => {

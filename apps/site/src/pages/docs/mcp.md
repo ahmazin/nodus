@@ -14,26 +14,33 @@ The server drives a live editor session. Tools group into authoring, layout/flow
 
 | Area          | Tools                                                                              |
 | ------------- | ---------------------------------------------------------------------------------- |
-| **Author**    | `new_diagram`, `add_node`, `connect_nodes`, `update_node`, `delete_elements`       |
-| **Import**    | `import_mermaid`                                                                    |
-| **Inspect**   | `list_elements`                                                                     |
-| **Layout**    | `layout`                                                                            |
+| **Author**    | `new_diagram`, `add_node`, `connect_nodes`, `update_node`, `update_edge`, `delete_elements`, `author_from_spec` |
+| **Import**    | `import_mermaid`, `import_terraform`, `import_kubernetes`                           |
+| **Inspect**   | `list_elements`, `diff_docs`                                                        |
+| **Layout**    | `layout` (dagre · elk · tree · force)                                               |
 | **Flow**      | `set_flow`, `set_flow_metric`                                                       |
-| **Export/IO** | `export_png`, `export_json`, `save_doc`, `load_doc`                                 |
+| **Style**     | `set_theme`                                                                         |
+| **Export/IO** | `export_png`, `export_svg`, `export_json`, `save_doc`, `load_doc`                   |
 
 Because the underlying serialization is canonical, `export_json` / `save_doc` output is git-diffable —
 an agent's edits review like any other change.
 
 ## Usage
 
-Wire it into any MCP-capable client as a stdio server. For example, in a client's MCP config:
+Wire it into any MCP-capable client as a stdio server. It isn't published to npm yet, so build it from
+the repo and point your client at the compiled entry:
+
+```bash
+pnpm --filter @nodus/mcp build   # produces packages/mcp/dist/bin.js
+```
 
 ```json
 {
   "mcpServers": {
     "nodus": {
-      "command": "npx",
-      "args": ["-y", "@nodus/mcp"]
+      "command": "node",
+      "args": ["/absolute/path/to/nodus/packages/mcp/dist/bin.js"],
+      "env": { "NODUS_MCP_DATA": "/absolute/path/to/diagrams" }
     }
   }
 }

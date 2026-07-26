@@ -17,13 +17,19 @@ renders PNGs with Skia via `@napi-rs/canvas`.
 | `connect_nodes` | Connect two nodes — `from`/`to` may be ids **or labels** — with an optional edge label. |
 | `update_node` | Rename, move, or set the visual state of a node. |
 | `delete_elements` | Delete nodes/edges by id or node label (edges cascade). |
-| `layout` | Auto-layout the whole graph with `dagre` (default) or `elk`. |
+| `layout` | Auto-layout the whole graph with `dagre` (default), `elk`, `tree`, or `force`. |
 | `list_elements` | Inspect the current nodes and edges. |
 | `set_flow` | Animate flow (traveling packets) along edges. For **data-driven** flow, give a `scale` mapping a metric → speed/color. |
 | `set_flow_metric` | Push live metric values (throughput/health) that drive data-driven flow. Ephemeral — never touches the saved document. |
 | `export_png` | Render to PNG (a **traffic snapshot** with flow packets when flow is set) — saves a file and returns the image inline so the agent can see it. |
 | `export_json` | Return the versioned, git-trackable Nodus JSON snapshot. |
 | `save_doc` / `load_doc` | Persist/restore named diagrams under the server data dir. |
+| `import_terraform` / `import_kubernetes` | Turn `terraform show -json` or a Kubernetes manifest into an infra diagram. |
+| `author_from_spec` | Build from a structured `DiagramSpec` (an LLM-native authoring schema). |
+| `diff_docs` | Semantic diff — a saved doc vs another doc or the current diagram (added/removed/changed). |
+| `update_edge` | Relabel, re-route (`straight`/`orthogonal`/`bezier`), or set waypoints on an existing edge. |
+| `set_theme` | Switch the render theme (`pis`/`light`/`blueprint`/`neon`/`paper`). |
+| `export_svg` | Scalable vector export — SVG text that diffs and embeds cleanly. |
 
 ## Run it
 
@@ -82,4 +88,4 @@ const result = await dispatch(session, 'import_mermaid', { source: 'graph LR\n A
 ## Stability
 
 Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
-[stability policy](https://github.com/OWNER/nodus/blob/main/docs/stability.md).
+[stability policy](https://github.com/ahmazin/nodus/blob/main/docs/stability.md).
