@@ -132,6 +132,30 @@ describe('nodus-mcp: review regressions', () => {
     expect(Number.isFinite(n.x)).toBe(true);
     expect(n.y).toBe(5);
   });
+
+  it('export_png clamps an absurd pixelRatio instead of attempting an oversized allocation', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph LR\n A --> B' });
+    const r = await call(s, 'export_png', { pixelRatio: 100000, inline: false }); // pre-fix: multi-GB Skia alloc
+    expect(r.isError).toBeUndefined(); // clamped to 8x
+    expect(r.content[0]!.text).toMatch(/Saved PNG/);
+  });
+
+  it('a mistyped (non-array) refs arg is tolerated, not a cryptic "refs.map is not a function"', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'add_node', { label: 'A' });
+    const r = asJson(await call(s, 'delete_elements', { refs: 'A' })); // schema says array; client sent a string
+    expect(r.deleted).toBe(0); // coerced to [] rather than throwing
+  });
+
+  it('an ambiguous label ref is reported, not silently resolved to the first match', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'add_node', { label: 'DB' });
+    await call(s, 'add_node', { label: 'DB' }); // duplicate label
+    const del = await call(s, 'delete_elements', { refs: ['DB'] });
+    expect(del.isError).toBe(true);
+    expect(del.content[0]!.text).toMatch(/ambiguous/i);
+  });
 });
 
 describe('nodus-mcp: layout + export', () => {

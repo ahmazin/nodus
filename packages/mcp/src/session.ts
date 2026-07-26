@@ -90,8 +90,11 @@ export class DiagramSession {
       if (r?.typeName === 'node') return ref as Id<'node'>;
     }
     const lower = ref.toLowerCase();
-    const hit = this.editor.store.nodes().find((n) => (n.label ?? '').toLowerCase() === lower);
-    return hit ? (hit.id as Id<'node'>) : null;
+    const hits = this.editor.store.nodes().filter((n) => (n.label ?? '').toLowerCase() === lower);
+    // Ambiguity must be surfaced, not silently resolved to the first match (which would let
+    // connect/update/delete act on an arbitrary node when two share a label). Caller catches → fail().
+    if (hits.length > 1) throw new Error(`ambiguous node label "${ref}" matches ${hits.length} nodes (${hits.map((h) => h.id).join(', ')}) — reference it by id`);
+    return hits[0] ? (hits[0].id as Id<'node'>) : null;
   }
 
   /** Resolve an edge reference that may be an id OR a (case-insensitive) edge label. */
@@ -102,8 +105,9 @@ export class DiagramSession {
       if (r?.typeName === 'edge') return ref as Id<'edge'>;
     }
     const lower = ref.toLowerCase();
-    const hit = this.editor.store.edges().find((e) => (e.label ?? '').toLowerCase() === lower);
-    return hit ? (hit.id as Id<'edge'>) : null;
+    const hits = this.editor.store.edges().filter((e) => (e.label ?? '').toLowerCase() === lower);
+    if (hits.length > 1) throw new Error(`ambiguous edge label "${ref}" matches ${hits.length} edges (${hits.map((h) => h.id).join(', ')}) — reference it by id`);
+    return hits[0] ? (hits[0].id as Id<'edge'>) : null;
   }
 
   /** Edge ids from a `edges` arg: ids/labels list, or all edges when omitted / "all". */
@@ -295,7 +299,7 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
         return json({ ok: true, id });
       }
       case 'delete_elements': {
-        const refs = (args.refs as string[]) ?? [];
+        const refs = Array.isArray(args.refs) ? args.refs.map(String) : []; // tolerate a mistyped scalar instead of throwing "refs.map is not a function"
         const ids = refs.map((r) => (ed.store.has(r as Id) ? (r as Id) : session.resolveNode(r))).filter(Boolean) as Id[];
         ed.deleteRecords(ids);
         return json({ ok: true, deleted: ids.length });
@@ -344,7 +348,7 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
         return json({ ok: true, edges: ids.length, dataDriven: flow.scale != null });
       }
       case 'set_flow_metric': {
-        const metrics = (args.metrics as { edge: string; value: number }[]) ?? [];
+        const metrics = Array.isArray(args.metrics) ? (args.metrics as { edge: string; value: number }[]) : []; // tolerate a mistyped scalar instead of "metrics is not iterable"
         let applied = 0;
         const unresolved: string[] = [];
         for (const m of metrics) {
@@ -361,12 +365,12 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
         if (!ed.sceneIndex.contentBounds()) return fail('nothing to export — the diagram is empty');
         const create: CreateCanvas = (w, h) => createCanvas(w, h) as unknown as ReturnType<CreateCanvas>;
         const png = await ed.toPNG(create, {
-          pixelRatio: Number(args.pixelRatio ?? 2),
+          pixelRatio: Math.min(8, Math.max(0.1, finiteNum(args.pixelRatio) ?? 2)), // clamp: an absurd/NaN ratio must not force a multi-GB or NaN-sized Skia canvas
           background: args.background !== false,
           grid: args.grid === true,
           padding: 40,
           flow: args.flow != null ? args.flow === true : ed.hasFlow(), // show the traffic snapshot by default
-          time: Number(args.time ?? 0),
+          time: finiteNum(args.time) ?? 0,
         });
         let path: string;
         if (args.path != null) {
