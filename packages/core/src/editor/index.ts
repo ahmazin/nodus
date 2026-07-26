@@ -87,7 +87,7 @@ import { planDirtyRegion } from '../renderer/dirty-region.js';
 import { resolveTokensCached } from '../renderer/token-cache.js';
 import { DrawApi, hashId } from '../renderer/draw-api.js';
 import { resolveFlow } from '../flow.js';
-import { formatRate } from '../flow-format.js';
+import { formatRateWithUnit } from '../flow-format.js';
 import { mix, parseHex } from '../renderer/color.js';
 import type { Ctx2D } from '../renderer/context.js';
 import {
@@ -3007,7 +3007,7 @@ export class Editor implements EngineHost {
     if (!route || route.length < 2) return;
     const value = this.flowMetrics.get(item.id) ?? (item.record as EdgeRecord).flow?.data;
     if (value == null || !Number.isFinite(value)) return;
-    const txt = formatRate(value);
+    const txt = formatRateWithUnit(value, resolved.unit);
     if (!txt) return;
     const mid = route[Math.floor(route.length / 2)] ?? route[0]!;
     const tokens = resolveTokensCached(theme, item.record as EdgeRecord);

@@ -90,6 +90,9 @@ export interface FlowSpec {
   scale?: FlowScale;
   /** Static metric value used when no live metric is set for the edge. */
   data?: number;
+  /** Short human unit label for the metric (e.g. `'req/s'`) — shown after the value on the rate
+   *  pill. Display-only: it never affects the scale mapping, and live metrics share it. */
+  unit?: string;
 }
 
 /**

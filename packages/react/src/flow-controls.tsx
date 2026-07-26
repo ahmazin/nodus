@@ -1,7 +1,7 @@
 /** Per-edge flow authoring — a Flow section for the Properties panel. Basic FlowSpec controls +
  *  an animated preview strip; an Advanced disclosure holds the data-driven scale editor. */
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus/core';
+import { parseRate, resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus/core';
 import { useValue } from './use-value.js';
 import { buildRampCss, clamp, DEFAULT_FLOW, flowStyles, FLOW_STYLE, isHex6, type FlowStyles } from './flow-shared.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
@@ -33,6 +33,9 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
   const edgeIds = ids.filter((id) => editor.store.peek(id)?.typeName === 'edge');
   const first = edgeIds[0];
   const [advOpen, setAdvOpen] = useState(false);
+  // Rate-field draft: local while typing so the store (and re-renders) can't fight the keystrokes;
+  // parsed + committed on Enter/blur, discarded when unparseable. `null` = not editing.
+  const [rateDraft, setRateDraft] = useState<string | null>(null);
   if (!first) return null;
 
   const rec = editor.store.peek(first) as EdgeRecord | undefined;
@@ -109,6 +112,36 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
           {row(
             'Reverse',
             <input data-testid="flow-reverse" type="checkbox" checked={!!flow?.reverse} onChange={(e) => patch({ reverse: e.target.checked }, 'immediately')} style={s.checkbox} />,
+          )}
+          {row(
+            'Rate',
+            <input
+              data-testid="flow-rate"
+              type="text"
+              placeholder="e.g. 350 req/s"
+              value={rateDraft ?? (flow?.data != null ? `${flow.data}${flow.unit ? ` ${flow.unit}` : ''}` : '')}
+              onChange={(e) => setRateDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                else if (e.key === 'Escape') setRateDraft(null);
+              }}
+              onBlur={() => {
+                if (rateDraft === null) return;
+                const trimmed = rateDraft.trim();
+                if (trimmed === '') {
+                  // cleared: drop the static metric AND its unit — the pill disappears unless a
+                  // live metric is feeding the edge.
+                  patch({ data: undefined, unit: undefined }, 'immediately');
+                } else {
+                  const parsed = parseRate(trimmed);
+                  // unparseable input is DISCARDED (field snaps back to the stored value) — the
+                  // document never stores garbage. Accepts '350', '1.2k', '350 req/s', '2M msg/s'.
+                  if (parsed) patch({ data: parsed.value, unit: parsed.unit }, 'immediately');
+                }
+                setRateDraft(null);
+              }}
+              style={{ ...s.select, width: 110, fontFamily: t.font.mono }}
+            />,
           )}
           {row(
             'Color',

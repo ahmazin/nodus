@@ -34,6 +34,7 @@ export {
 
 // data-driven flow
 export { resolveFlow, colorForValue } from './flow.js';
+export { formatRate, formatRateWithUnit, parseRate, type ParsedRate } from './flow-format.js';
 
 // errors
 export { NodusError, isNodusError, type NodusErrorCode } from './errors/index.js';
