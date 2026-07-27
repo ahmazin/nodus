@@ -55,8 +55,11 @@ const NODUS_PACKAGES = [
   'preset-draw',
   'import-infra',
   'from-mermaid',
+  'text-to-diagram',
   'layout-dagre',
   'layout-elk',
+  'layout-tree',
+  'layout-force',
   'react',
   'cli',
   'mcp',
@@ -96,6 +99,7 @@ const EXTERNALS = {
   gifenc: ['packages/react'],
   yaml: ['packages/import-infra'],
   elkjs: ['packages/layout-elk'],
+  'd3-force': ['packages/layout-force'],
 };
 
 // ---------------------------------------------------------------------------
