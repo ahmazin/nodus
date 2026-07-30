@@ -8,8 +8,8 @@
  * `sceneIndex.version`), and the active highlight tracks `editor.activePageAtom`.
  */
 import { useState, type CSSProperties, type ReactElement } from 'react';
-import type { Editor, Id } from '@nodus/core';
-import { useUiTokens, useValue } from '@nodus/react';
+import type { Editor, Id } from '@ahmazin/core';
+import { useUiTokens, useValue } from '@ahmazin/react';
 
 type PageId = Id<'page'>;
 

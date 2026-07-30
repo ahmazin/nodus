@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type Id, type LayoutGraph } from '@nodus/core';
+import { Editor, type Id, type LayoutGraph } from '@ahmazin/core';
 import { treeLayout } from './index.js';
 
 /** A directed chain of `n` nodes (n0 → n1 → … ) — a maximally deep tree — as a raw LayoutGraph. */

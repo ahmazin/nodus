@@ -4,7 +4,7 @@ title: React binding
 description: Mount the engine with <Nodus>, own its lifecycle with useNodusEditor, read reactive state with useValue, and drop in the panel components.
 ---
 
-`@nodus/react` is a thin binding over `@nodus/core`: a canvas host that wires pointer/wheel/keyboard to
+`@ahmazin/react` is a thin binding over `@ahmazin/core`: a canvas host that wires pointer/wheel/keyboard to
 the editor's tools and runs a signal-reactive render loop, a lifecycle hook, a reactive read hook, and
 a set of panel components. The engine does the work; this package connects it to React.
 
@@ -16,9 +16,9 @@ a set of panel components. The engine does the work; this package connects it to
 disposes it on unmount. Render it with `<Nodus>`:
 
 ```tsx
-import { Nodus, useNodusEditor } from '@nodus/react';
-import { Editor } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Nodus, useNodusEditor } from '@ahmazin/react';
+import { Editor } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 export function App() {
   const editor = useNodusEditor(() => {
@@ -67,7 +67,7 @@ serializer, so a React app can export the current view or round-trip selections 
 
 ## Server-side rendering
 
-`@nodus/react` is a client component: the published build ships a `'use client'` banner, and its hooks
+`@ahmazin/react` is a client component: the published build ships a `'use client'` banner, and its hooks
 read engine signals through `useSyncExternalStore` **with a server snapshot** (`getServerSnapshot`), so
 importing it never crashes a server render (Next.js App or Pages Router, Remix). The canvas itself is a
 browser surface — `<Nodus>` only paints inside a layout effect that runs after hydration.
@@ -75,11 +75,11 @@ browser surface — `<Nodus>` only paints inside a layout effect that runs after
 ```tsx
 // 1. Next.js App Router — a client-component boundary is enough (the banner marks the module):
 'use client';
-import { Nodus, useNodusEditor } from '@nodus/react';
+import { Nodus, useNodusEditor } from '@ahmazin/react';
 
 // 2. Pages Router / any framework — skip SSR for the canvas entirely:
 import dynamic from 'next/dynamic';
-const Nodus = dynamic(() => import('@nodus/react').then((m) => m.Nodus), { ssr: false });
+const Nodus = dynamic(() => import('@ahmazin/react').then((m) => m.Nodus), { ssr: false });
 ```
 
 ## Scoping keyboard & clipboard
@@ -113,7 +113,7 @@ call it themselves on mount, so you rarely call it directly.
 CSP/GDPR surprise, works offline). Web fonts are **opt-in**:
 
 ```ts
-import { injectGlobalStyles } from '@nodus/react';
+import { injectGlobalStyles } from '@ahmazin/react';
 
 // Opt in to Space Grotesk / JetBrains Mono from fonts.googleapis.com:
 injectGlobalStyles({ webFonts: true });

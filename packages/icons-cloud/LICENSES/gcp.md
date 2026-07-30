@@ -1,6 +1,6 @@
 # Google Cloud icons — license & terms
 
-`@nodus/icons-cloud` can convert artwork from the official **Google Cloud icons** toolkit
+`@ahmazin/icons-cloud` can convert artwork from the official **Google Cloud icons** toolkit
 (Google LLC) into vector icon packs used by this project (via `pnpm build:icons`, once you have
 vendored the toolkit into `packages/icons-cloud/svg/gcp/`). That artwork is not owned by, or
 licensed under the license of, this repository.

@@ -1,5 +1,5 @@
 /**
- * Nodus doc server — persists diagram JSON to a git-tracked directory. Pair with @nodus/persistence's
+ * Nodus doc server — persists diagram JSON to a git-tracked directory. Pair with @ahmazin/persistence's
  * HttpDocStore. No deps.
  *
  *   node scripts/doc-server.mjs

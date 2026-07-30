@@ -1,6 +1,6 @@
-# @nodus/preset-draw
+# @ahmazin/preset-draw
 
-Plain whiteboard shapes for [Nodus](https://github.com/OWNER/nodus) — the "dumb shapes" preset. Rectangle, ellipse,
+Plain whiteboard shapes for [Nodus](https://github.com/ahmazin/nodus) — the "dumb shapes" preset. Rectangle, ellipse,
 and diamond nodes, a multi-line text node, `line` / `arrow` edges, a `LineTool`, and `R / E / L / A /
 T` keyboard shortcuts. Everything styles off each element's own style bag (right-click → Style, or a
 properties panel), so shapes are neutral by default and coloured per element. Use it for a general
@@ -9,17 +9,17 @@ whiteboard/drawing surface.
 ## Install
 
 ```bash
-pnpm add @nodus/preset-draw @nodus/core
+pnpm add @ahmazin/preset-draw @ahmazin/core
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the preset shares your app's single
 > engine instance.
 
 ## Usage
 
 ```ts
-import { Editor } from '@nodus/core';
-import { installDrawTools, drawShortcut } from '@nodus/preset-draw';
+import { Editor } from '@ahmazin/core';
+import { installDrawTools, drawShortcut } from '@ahmazin/preset-draw';
 
 const editor = new Editor();
 installDrawTools(editor);   // registers draw.* node/edge types + the line tool
@@ -43,7 +43,7 @@ Node types `rectShape` / `ellipseShape` / `diamondShape` / `textNode` (types `dr
 
 - [Extending Nodus](https://nodus.dev/docs/extending) — this package is a compact reference for authoring
   node **and** edge types.
-- [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core) · [`@nodus/react`](https://github.com/OWNER/nodus/tree/main/packages/react)
+- [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@ahmazin/react`](https://github.com/ahmazin/nodus/tree/main/packages/react)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

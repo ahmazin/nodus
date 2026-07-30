@@ -6,7 +6,7 @@
 
 **Architecture:** Builds entirely on the K1 paint-material primitive (`gradient`/`shadow` on `DrawApi`). New *material* fields ride on the theme token system (data, layered by `resolveTokens`); the *edge gradient*, *ambient wash*, *grid fade*, and *selection halo* live where the needed context (endpoint colors, camera) is reachable — the editor's static/interactive paint passes. Ambient wash is editor chrome (live + `render()` snapshots only), never in diagram exports (`paintRegion`), so it needs no SVG parity.
 
-**Tech Stack:** TypeScript strict + `noUncheckedIndexedAccess`, Vitest (`environment: 'node'`), Canvas-2D/Skia via `Ctx2D`, the `@nodus/preset-infra` theme, `scripts/render-demo.ts` headless PNG harness.
+**Tech Stack:** TypeScript strict + `noUncheckedIndexedAccess`, Vitest (`environment: 'node'`), Canvas-2D/Skia via `Ctx2D`, the `@ahmazin/preset-infra` theme, `scripts/render-demo.ts` headless PNG harness.
 
 ## Global Constraints
 

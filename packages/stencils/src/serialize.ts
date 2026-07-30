@@ -8,7 +8,7 @@
  * failing the whole load — a single hand-corrupted entry never takes the rest of the library down.
  */
 
-import { stableStringify } from '@nodus/core';
+import { stableStringify } from '@ahmazin/core';
 import type { Stencil, StencilLibrary } from './types.js';
 
 /** Serialize a library to canonical JSON text (sorted keys, trailing newline). Byte-stable per input. */

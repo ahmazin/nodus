@@ -4,12 +4,12 @@ title: CLI · nodus
 description: Canonicalize, render, and semantically diff diagram files — the tooling that makes diagrams code-reviewable.
 ---
 
-Because `@nodus/core` serializes deterministically, diagrams are just `*.nodus.json` text files. The
+Because `@ahmazin/core` serializes deterministically, diagrams are just `*.nodus.json` text files. The
 `nodus` CLI is what turns that into a git-native workflow — **diagrams you can code-review.**
 
 ## Running it
 
-The CLI ships as `@nodus/cli`. Inside this repo it runs from source:
+The CLI ships as `@ahmazin/cli`. Inside this repo it runs from source:
 
 ```bash
 pnpm nodus <command> [...]     # e.g. pnpm nodus fmt diagrams/*.nodus.json

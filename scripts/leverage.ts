@@ -8,11 +8,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type Ctx2D } from '@nodus/core';
-import { InfraCanvas, darkInfraTheme, installInfraPreset, modelToRecords } from '@nodus/preset-infra';
-import { recordsFromToolUse } from '@nodus/text-to-diagram';
-import { fromKubernetes, fromTerraform } from '@nodus/import-infra';
-import { dagreLayout } from '@nodus/layout-dagre';
+import { Editor, type Ctx2D } from '@ahmazin/core';
+import { InfraCanvas, darkInfraTheme, installInfraPreset, modelToRecords } from '@ahmazin/preset-infra';
+import { recordsFromToolUse } from '@ahmazin/text-to-diagram';
+import { fromKubernetes, fromTerraform } from '@ahmazin/import-infra';
+import { dagreLayout } from '@ahmazin/layout-dagre';
 
 (GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();
 const theme = { ...darkInfraTheme, typography: { ...darkInfraTheme.typography, fontFamily: 'Noto Sans Mono, monospace' } };

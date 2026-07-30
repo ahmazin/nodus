@@ -4,7 +4,7 @@ title: MCP server
 description: Drive the Nodus engine from an AI agent — build, mutate, lay out, and export diagrams as tool calls.
 ---
 
-`@nodus/mcp` exposes the engine as a [Model Context Protocol](https://modelcontextprotocol.io) server,
+`@ahmazin/mcp` exposes the engine as a [Model Context Protocol](https://modelcontextprotocol.io) server,
 so an AI agent can build and edit diagrams through structured tool calls — then export a PNG or the
 canonical `.nodus.json`.
 
@@ -31,7 +31,7 @@ Wire it into any MCP-capable client as a stdio server. It isn't published to npm
 the repo and point your client at the compiled entry:
 
 ```bash
-pnpm --filter @nodus/mcp build   # produces packages/mcp/dist/bin.js
+pnpm --filter @ahmazin/mcp build   # produces packages/mcp/dist/bin.js
 ```
 
 ```json

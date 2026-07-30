@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, isNodusError, type EdgeRecord } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
-import { analyzeSpec, DiagramSpecError, diagramSystemPrompt, diagramTool, MAX_SPEC_ELEMENTS, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@nodus/text-to-diagram';
+import { Editor, isNodusError, type EdgeRecord } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
+import { analyzeSpec, DiagramSpecError, diagramSystemPrompt, diagramTool, MAX_SPEC_ELEMENTS, normalizeSpec, recordsFromSpec, recordsFromToolUse, type DiagramSpec } from '@ahmazin/text-to-diagram';
 
 describe('text-to-diagram', () => {
   it('exposes a valid Anthropic tool definition + system prompt', () => {

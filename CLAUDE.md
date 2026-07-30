@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**Nodus** (`@nodus/*`) is a headless, framework-agnostic, extensible **diagram engine** for TypeScript
+**Nodus** (`@ahmazin/*`) is a headless, framework-agnostic, extensible **diagram engine** for TypeScript
 — an Excalidraw-class editor built to be customized. It owns *model → layout → render → interact* on a
 Canvas-2D surface. The original infra-architecture tool (**InfraCanvas**, the repo/dir name) now ships
-as one preset (`@nodus/preset-infra`) on top of the general core.
+as one preset (`@ahmazin/preset-infra`) on top of the general core.
 
-pnpm workspace monorepo. `@nodus/core` has **zero framework/DOM dependencies**; `@nodus/react` is a thin
+pnpm workspace monorepo. `@ahmazin/core` has **zero framework/DOM dependencies**; `@ahmazin/react` is a thin
 binding. The core renders identically in the browser and headless (Skia via `@napi-rs/canvas`).
 
 ## Commands
@@ -34,7 +34,7 @@ There is **no lint step** — `tsc` with `strict` + `noUncheckedIndexedAccess` i
 ### Dev loop is source-first (no build needed)
 
 Each package's `package.json` sets `main`/`types` to `./src/index.ts`, and Vite/Vitest alias every
-`@nodus/*` to `packages/*/src`. So the example app, tests, and the CLI all run **TypeScript source
+`@ahmazin/*` to `packages/*/src`. So the example app, tests, and the CLI all run **TypeScript source
 directly** — editing a package is picked up live with no `pnpm build`. `publishConfig` swaps to `dist/`
 only for publishing. Don't add a build step to the inner loop.
 
@@ -98,9 +98,9 @@ Type-specific behavior is data/objects registered on the editor, never `switch`-
 - **Routers** — `RouterRegistry` resolves `edge.props.router` (`straight`/`orthogonal`/`bezier`) to a
   function that turns endpoints into a polyline; unset falls back to the util's default.
 - **Layouts** — `editor.registerLayout(engine)` then `await editor.layout('dagre', { direction: 'LR' })`.
-  Adapters live in `@nodus/layout-{dagre,tree,force,elk}`.
+  Adapters live in `@ahmazin/layout-{dagre,tree,force,elk}`.
 - **Plugins** — `editor.use(plugin)`; a plugin gets an `EngineHost` to register types/tools/themes/
-  layouts/overlays and hook the store & event bus (`@nodus/plugin-freehand` is a full example).
+  layouts/overlays and hook the store & event bus (`@ahmazin/plugin-freehand` is a full example).
 
 ### Rendering & theming
 
@@ -113,7 +113,7 @@ node in one frame.
 
 ### Git-native diagrams (the product moat)
 
-`@nodus/core` has **deterministic/canonical serialization**; diagrams are stored as `*.nodus.json`. The
+`@ahmazin/core` has **deterministic/canonical serialization**; diagrams are stored as `*.nodus.json`. The
 `nodus` CLI (`packages/cli`, run via tsx: `pnpm nodus`) offers `fmt [--check]` (canonicalize/verify),
 `render` (headless PNG), and `diff` (semantic). `.github/workflows/diagrams.yml` enforces canonical form
 on any PR touching `*.nodus.json` and posts rendered previews — "diagrams you can code-review." When

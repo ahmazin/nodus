@@ -4,7 +4,7 @@ title: Data schema
 description: The .nodus.json document model — flat, tagged-union records with canonical, git-diffable serialization.
 ---
 
-The diagram document model lives in `@nodus/core` (`model.ts` + `serialization/index.ts`) and is at
+The diagram document model lives in `@ahmazin/core` (`model.ts` + `serialization/index.ts`) and is at
 `SCHEMA_VERSION = 1`. It's **flat**: every record is a tagged-union POJO with a `typeName`
 discriminator, and grouping/connectivity are expressed by **id-reference, never nesting**. That
 flatness is what lets each record serialize to exactly one sorted line — so a git diff of a diagram is

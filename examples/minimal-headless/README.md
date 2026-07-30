@@ -1,4 +1,4 @@
-# @nodus-examples/minimal-headless
+# @ahmazin-examples/minimal-headless
 
 Render a Nodus diagram to a PNG in Node — no browser, no DOM. The engine paints through a `Ctx2D`
 abstraction, so the same drawing code that runs in the browser also drives native Skia via

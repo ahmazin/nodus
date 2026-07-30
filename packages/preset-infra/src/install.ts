@@ -1,4 +1,4 @@
-import type { Editor } from '@nodus/core';
+import type { Editor } from '@ahmazin/core';
 import { infraNodeUtils } from './nodes.js';
 import { infraConnectorUtil } from './edge.js';
 import { darkInfraTheme } from './theme.js';

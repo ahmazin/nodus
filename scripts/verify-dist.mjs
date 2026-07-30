@@ -2,7 +2,7 @@
  * verify-dist — prove the BUILT packages are consumable by an app OUTSIDE the workspace.
  *
  * Why this exists: this repo develops "src-first". Every package's package.json points
- * `main`/`types` at its `src` index and Vite/Vitest alias every `@nodus` package to its source
+ * `main`/`types` at its `src` index and Vite/Vitest alias every `@ahmazin` package to its source
  * dir, so nothing in the repo ever imports the built `dist`. `publishConfig` swaps entries to dist
  * only at publish time. That means the real external-consumer path — the dual ESM/CJS build, the
  * emitted `.d.ts`, the `exports` map, and the `workspace:*` → real-version rewrite that packing
@@ -44,8 +44,8 @@ import { tmpdir } from 'node:os';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'package.json'));
 
-// The @nodus packages we pack + install into the consumer for BEHAVIORAL checks. icons-cloud is
-// private (never publishes) but stays here to exercise its multi-entry build. cli and its @nodus
+// The @ahmazin packages we pack + install into the consumer for BEHAVIORAL checks. icons-cloud is
+// private (never publishes) but stays here to exercise its multi-entry build. cli and its @ahmazin
 // runtime deps are included so the packed bin can be executed end-to-end.
 const NODUS_PACKAGES = [
   'core',
@@ -73,19 +73,19 @@ const ALL_PUBLISHABLE = readdirSync(join(ROOT, 'packages')).filter((name) => {
   return JSON.parse(readFileSync(f, 'utf8')).private !== true;
 });
 
-// @nodus package names that must never be referenced by a published manifest (unpublishable).
+// @ahmazin package names that must never be referenced by a published manifest (unpublishable).
 const PRIVATE_NODUS = new Set(
   readdirSync(join(ROOT, 'packages'))
     .filter((name) => {
       const f = join(ROOT, 'packages', name, 'package.json');
       return existsSync(f) && JSON.parse(readFileSync(f, 'utf8')).private === true;
     })
-    .map((name) => `@nodus/${name}`),
+    .map((name) => `@ahmazin/${name}`),
 );
 
-// Packages whose manifests may keep @nodus/core as a regular dependency: self-contained bin apps
+// Packages whose manifests may keep @ahmazin/core as a regular dependency: self-contained bin apps
 // that PROVIDE the peer for the extension packages they bundle. Everything else must peer-depend.
-const CORE_DEP_ALLOWED = new Set(['@nodus/cli', '@nodus/mcp']);
+const CORE_DEP_ALLOWED = new Set(['@ahmazin/cli', '@ahmazin/mcp']);
 
 // External runtime deps the installed packages need, and where in the monorepo each is declared
 // (require.resolve searches node_modules upward from these dirs). @napi-rs/canvas is a root devDep
@@ -171,7 +171,7 @@ function cleanup() {
 process.on('exit', cleanup);
 
 function main() {
-  console.log('verify-dist — consuming built @nodus/* packages from outside the workspace\n');
+  console.log('verify-dist — consuming built @ahmazin/* packages from outside the workspace\n');
 
   // 0) Precondition: dist must exist. This script verifies the build, it does not run it.
   console.log('preconditions:');
@@ -194,7 +194,7 @@ function main() {
   const tarballsDir = join(work, 'tarballs');
   const consumer = join(work, 'consumer');
   mkdirSync(tarballsDir, { recursive: true });
-  mkdirSync(join(consumer, 'node_modules', '@nodus'), { recursive: true });
+  mkdirSync(join(consumer, 'node_modules', '@ahmazin'), { recursive: true });
   writeFileSync(
     join(consumer, 'package.json'),
     `${JSON.stringify({ name: 'nodus-dist-consumer', private: true, version: '0.0.0', type: 'module' }, null, 2)}\n`,
@@ -206,7 +206,7 @@ function main() {
   for (const pkg of NODUS_PACKAGES) {
     const pkgDir = join(ROOT, 'packages', pkg);
     const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
-    // npm tarball naming: '@nodus/core' + '0.1.0' -> 'nodus-core-0.1.0.tgz'
+    // npm tarball naming: '@ahmazin/core' + '0.1.0' -> 'nodus-core-0.1.0.tgz'
     const expected = `${manifest.name.replace(/^@/, '').replace(/\//g, '-')}-${manifest.version}.tgz`;
     const r = run('pnpm', ['pack', '--pack-destination', tarballsDir], { cwd: pkgDir, timeout: 120_000 });
     const tgz = join(tarballsDir, expected);
@@ -245,7 +245,7 @@ function main() {
     try {
       m = JSON.parse(mr.stdout);
     } catch {
-      record(`manifest @nodus/${pkg}`, false, 'unreadable package.json in tarball');
+      record(`manifest @ahmazin/${pkg}`, false, 'unreadable package.json in tarball');
       continue;
     }
     const issues = [];
@@ -253,13 +253,13 @@ function main() {
     if (JSON.stringify(m).includes('workspace:')) issues.push('workspace: protocol survived packing');
     for (const field of ['dependencies', 'peerDependencies']) {
       for (const [dep, spec] of Object.entries(m[field] ?? {})) {
-        if (!dep.startsWith('@nodus/')) continue;
+        if (!dep.startsWith('@ahmazin/')) continue;
         if (/^\d/.test(spec)) issues.push(`${field}.${dep} exact-pinned '${spec}' (must be a range)`);
         if (PRIVATE_NODUS.has(dep)) issues.push(`${field}.${dep} references a private (unpublishable) package`);
       }
     }
-    if (m.dependencies?.['@nodus/core'] && !CORE_DEP_ALLOWED.has(m.name)) {
-      issues.push('@nodus/core must be a peerDependency for extension packages');
+    if (m.dependencies?.['@ahmazin/core'] && !CORE_DEP_ALLOWED.has(m.name)) {
+      issues.push('@ahmazin/core must be a peerDependency for extension packages');
     }
     if (m.engines?.node == null) issues.push('missing engines.node');
     if (!m.homepage) issues.push('missing homepage');
@@ -277,13 +277,13 @@ function main() {
       issues.push("exports['.'].require.types must reference the .d.cts declarations");
     }
     record(
-      `manifest @nodus/${pkg}`,
+      `manifest @ahmazin/${pkg}`,
       issues.length === 0,
       issues.join('; ') || (warns.length ? `WARN: ${warns.join('; ')}` : 'topology + completeness ok'),
     );
   }
 
-  // 2) extract tarballs into the consumer's node_modules/@nodus/*.
+  // 2) extract tarballs into the consumer's node_modules/@ahmazin/*.
   //    npm tarballs are gzipped with a top-level `package/` directory.
   console.log('\nstage consumer (offline: extract tarballs + symlink external deps):');
   for (const pkg of NODUS_PACKAGES) {
@@ -291,16 +291,16 @@ function main() {
     const rx = run('tar', ['-xzf', tarballs[pkg], '-C', stageDir], { timeout: 60_000 });
     const extracted = join(stageDir, 'package');
     if (rx.code !== 0 || !existsSync(extracted)) {
-      record(`extract @nodus/${pkg}`, false, rx.stderr.trim() || 'tar failed');
+      record(`extract @ahmazin/${pkg}`, false, rx.stderr.trim() || 'tar failed');
       finish();
       return;
     }
     // `tar` cannot cross filesystems on rename; use tar's own move via cp -R-free approach: rename.
-    const dest = join(consumer, 'node_modules', '@nodus', pkg);
+    const dest = join(consumer, 'node_modules', '@ahmazin', pkg);
     rmSync(dest, { recursive: true, force: true });
     execFileSync('mv', [extracted, dest]);
   }
-  record('extract tarballs', true, `${NODUS_PACKAGES.length} packages into node_modules/@nodus`);
+  record('extract tarballs', true, `${NODUS_PACKAGES.length} packages into node_modules/@ahmazin`);
 
   // 3) symlink external runtime deps from the monorepo (no registry install → offline-safe).
   try {
@@ -322,7 +322,7 @@ function main() {
   const resolveProbe = `
     import { createRequire } from 'node:module';
     const req = createRequire(import.meta.url);
-    const specs = ${JSON.stringify([...NODUS_PACKAGES.map((p) => `@nodus/${p}`), ...Object.keys(EXTERNALS)])};
+    const specs = ${JSON.stringify([...NODUS_PACKAGES.map((p) => `@ahmazin/${p}`), ...Object.keys(EXTERNALS)])};
     for (const s of specs) {
       try { req.resolve(s); } catch (e) { console.error('UNRESOLVED ' + s + ': ' + e.message); process.exit(2); }
     }
@@ -334,7 +334,7 @@ function main() {
     finish();
     return;
   }
-  record('dependency graph resolves', true, 'all @nodus/* + externals require.resolve() cleanly');
+  record('dependency graph resolves', true, 'all @ahmazin/* + externals require.resolve() cleanly');
 
   // 5) behavioral assertions, each in its own bounded consumer subprocess.
   console.log('\nconsumer assertions:');
@@ -348,9 +348,9 @@ function main() {
     const require = createRequire(import.meta.url);
     const out = {};
     // ESM condition of the exports map must map to dist/index.js
-    const esmUrl = import.meta.resolve('@nodus/core');
+    const esmUrl = import.meta.resolve('@ahmazin/core');
     out['esm-resolves-dist'] = esmUrl.endsWith('/dist/index.js');
-    const { Editor } = await import('@nodus/core');
+    const { Editor } = await import('@ahmazin/core');
     const { createCanvas } = await import('@napi-rs/canvas');
     const ed = new Editor();
     ed.setViewport(400, 300);
@@ -379,9 +379,9 @@ function main() {
     'cjs-check.cjs',
     `
     const out = {};
-    const entry = require.resolve('@nodus/core');
+    const entry = require.resolve('@ahmazin/core');
     out['cjs-resolves-cjs'] = entry.endsWith('/dist/index.cjs');
-    const { Editor } = require('@nodus/core');
+    const { Editor } = require('@ahmazin/core');
     const ed = new Editor();
     ed.createNode({ type: 'rect', label: 'Y', x: 0, y: 0, w: 80, h: 40 });
     out['cjs-require-constructs'] = ed.store.nodes().length === 1;
@@ -395,7 +395,7 @@ function main() {
   });
 
   // --- Type declarations present on disk in the installed package.
-  const dtsDir = join(consumer, 'node_modules', '@nodus', 'core', 'dist');
+  const dtsDir = join(consumer, 'node_modules', '@ahmazin', 'core', 'dist');
   const hasDts = existsSync(join(dtsDir, 'index.d.ts'));
   const hasDcts = existsSync(join(dtsDir, 'index.d.cts'));
   record('type declarations emitted', hasDts && hasDcts, `index.d.ts=${hasDts} index.d.cts=${hasDcts}`);
@@ -416,10 +416,10 @@ function main() {
         out['_err_' + key] = String(e && e.message ? e.message : e).split('\\n')[0];
       }
     }
-    await probe('preset-infra-resolves', '@nodus/preset-infra', (m) =>
+    await probe('preset-infra-resolves', '@ahmazin/preset-infra', (m) =>
       typeof m.InfraCanvas === 'function' && typeof m.installInfraPreset === 'function' && m.darkInfraTheme != null);
-    await probe('layout-dagre-resolves', '@nodus/layout-dagre', (m) => m.dagreLayout != null);
-    await probe('react-entry-resolves', '@nodus/react', (m) =>
+    await probe('layout-dagre-resolves', '@ahmazin/layout-dagre', (m) => m.dagreLayout != null);
+    await probe('react-entry-resolves', '@ahmazin/react', (m) =>
       // Nodus is a forwardRef exotic component (an object with .render), not a plain function.
       typeof m.useValue === 'function' &&
       m.Nodus != null &&
@@ -428,9 +428,9 @@ function main() {
   `,
   );
   ingest(subpaths, {
-    'preset-infra-resolves': '@nodus/preset-infra resolves from dist (InfraCanvas etc.)',
-    'layout-dagre-resolves': '@nodus/layout-dagre resolves from dist (dagreLayout)',
-    'react-entry-resolves': '@nodus/react main entry resolves from dist (Nodus, useValue)',
+    'preset-infra-resolves': '@ahmazin/preset-infra resolves from dist (InfraCanvas etc.)',
+    'layout-dagre-resolves': '@ahmazin/layout-dagre resolves from dist (dagreLayout)',
+    'react-entry-resolves': '@ahmazin/react main entry resolves from dist (Nodus, useValue)',
   });
 
   // --- node16 types probe: a TypeScript consumer under moduleResolution node16 must get working
@@ -438,11 +438,11 @@ function main() {
   //     serves ESM-flavored types (no .d.cts condition) this fails with TS1479, the exact bug class.
   writeFileSync(
     join(consumer, 'types-esm.mts'),
-    `import { Editor } from '@nodus/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
+    `import { Editor } from '@ahmazin/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
   );
   writeFileSync(
     join(consumer, 'types-cjs.cts'),
-    `import { Editor } from '@nodus/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
+    `import { Editor } from '@ahmazin/core';\nexport const useIt = (e: Editor): Editor => e;\n`,
   );
   writeFileSync(
     join(consumer, 'tsconfig.types-probe.json'),
@@ -470,11 +470,11 @@ function main() {
     probe.code === 0 ? 'both flavors typecheck' : (probe.stdout || probe.stderr).trim().split('\n')[0],
   );
 
-  // --- RSC boundary directive: @nodus/react's shipped bundles must LEAD with 'use client' —
+  // --- RSC boundary directive: @ahmazin/react's shipped bundles must LEAD with 'use client' —
   //     esbuild strips module-level directives when bundling, so the build prepends it post-hoc
   //     (tsup onSuccess); this asserts the mechanism keeps working in the actual tarball.
   for (const flavor of ['index.js', 'index.cjs']) {
-    const f = join(consumer, 'node_modules', '@nodus', 'react', 'dist', flavor);
+    const f = join(consumer, 'node_modules', '@ahmazin', 'react', 'dist', flavor);
     const head = existsSync(f) ? readFileSync(f, 'utf8').slice(0, 200) : '';
     record(
       `react dist ${flavor} ships 'use client'`,
@@ -486,7 +486,7 @@ function main() {
   // --- cli bin smoke: the packed bin must execute from the tarball (shebang intact, dist imports
   //     resolve against the consumer's node_modules). Usage text on stdout/stderr is the assertion;
   //     exit code is not (no-args usage may exit non-zero by design).
-  const binPath = join(consumer, 'node_modules', '@nodus', 'cli', 'dist', 'bin.js');
+  const binPath = join(consumer, 'node_modules', '@ahmazin', 'cli', 'dist', 'bin.js');
   const binRes = run('node', [binPath], { cwd: consumer, timeout: 30_000 });
   const usageOk = `${binRes.stdout}${binRes.stderr}`.includes('git-native diagram toolchain');
   record(
@@ -499,7 +499,7 @@ function main() {
   //     module-resolution crash (the broken-publish class F44 targets). A stdio MCP server waits on
   //     stdin, so run it bounded with closed stdin: a healthy build exits/idles with no
   //     ERR_MODULE/Cannot-find on stderr; a broken dist crashes immediately with one.
-  const mcpBin = join(consumer, 'node_modules', '@nodus', 'mcp', 'dist', 'bin.js');
+  const mcpBin = join(consumer, 'node_modules', '@ahmazin', 'mcp', 'dist', 'bin.js');
   const mcpRes = run('node', [mcpBin], { cwd: consumer, timeout: 8_000 });
   const bootCrash = /ERR_MODULE_NOT_FOUND|Cannot find (module|package)|SyntaxError/.test(mcpRes.stderr);
   record(
@@ -512,7 +512,7 @@ function main() {
 }
 
 // Write a consumer script into the consumer dir and run it there (so Node resolves the installed
-// node_modules/@nodus/*). Bounded by a timeout; never hangs.
+// node_modules/@ahmazin/*). Bounded by a timeout; never hangs.
 function runConsumerScript(consumer, filename, source, opts = {}) {
   const file = join(consumer, filename);
   writeFileSync(file, source);

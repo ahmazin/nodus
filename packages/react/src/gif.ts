@@ -9,7 +9,7 @@
  * dimension, then drive `editor.paintRegion` into a canvas — except here we paint `frames` times with
  * `flow: true` and an advancing `time`, and encode the pixel grabs instead of a single PNG.
  */
-import { padBox, type Box, type Ctx2D, type Editor } from '@nodus/core';
+import { padBox, type Box, type Ctx2D, type Editor } from '@ahmazin/core';
 // `gifenc` ships no type declarations (plain JS; no `types`/`typings` field, and no `@types/gifenc`
 // package exists), so the bare import is a TS7016 error under `strict`. Neither ambient-declaration
 // form fixes it: a full `declare module 'gifenc' { ... }` is rejected as an invalid "augmentation"

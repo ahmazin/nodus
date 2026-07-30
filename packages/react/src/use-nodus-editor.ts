@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useReducer, useRef, type DependencyList } from 'react';
-import { type Editor } from '@nodus/core';
+import { type Editor } from '@ahmazin/core';
 
 /** Shallow `Object.is` comparison of two dependency tuples, matching React's own deps semantics. */
 function sameDeps(a: DependencyList, b: DependencyList): boolean {

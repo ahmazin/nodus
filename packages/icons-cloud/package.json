@@ -1,9 +1,9 @@
 {
-  "name": "@nodus/icons-cloud",
+  "name": "@ahmazin/icons-cloud",
   "version": "0.1.0",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
-  "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @nodus/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
+  "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @ahmazin/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
   "files": [
     "dist",
     "LICENSE",
@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/nodus.git",
+    "url": "git+https://github.com/ahmazin/nodus.git",
     "directory": "packages/icons-cloud"
   },
   "description": "Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into core's icon registry as namespaced `provider:service` glyphs. Bundles derived provider architecture-icon artwork under each provider's icon terms — see LICENSE, NOTICE, and LICENSES/. Not published to npm pending a redistribution-terms review.",
@@ -42,10 +42,10 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@nodus/preset-diagrams": "workspace:*",
+    "@ahmazin/preset-diagrams": "workspace:*",
     "svgpath": "^2.6.0",
     "svgson": "^5.3.1",
-    "@nodus/core": "workspace:*"
+    "@ahmazin/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -100,13 +100,13 @@
     }
   },
   "peerDependencies": {
-    "@nodus/core": "workspace:^"
+    "@ahmazin/core": "workspace:^"
   },
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/icons-cloud#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/icons-cloud#readme",
   "bugs": {
-    "url": "https://github.com/OWNER/nodus/issues"
+    "url": "https://github.com/ahmazin/nodus/issues"
   }
 }

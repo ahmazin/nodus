@@ -1,14 +1,14 @@
 /**
  * `nodus drift <diagram.nodus.json> <source>` — re-import an infra source (Terraform show-json or a
  * Kubernetes manifest set) and compare it against the committed diagram. Built on `computeDrift` from
- * @nodus/import-infra, which matches source-managed nodes by their `props.key` (the source address) and
+ * @ahmazin/import-infra, which matches source-managed nodes by their `props.key` (the source address) and
  * reports content drift only — layout moves never count. The CLI exits NONZERO when the diagram has
  * drifted, so it works as a CI gate: "fail the build if the architecture diagram no longer matches
  * declared infra."
  */
 import { readFileSync } from 'node:fs';
-import { type NodeRecord, type NodusRecord } from '@nodus/core';
-import { computeDrift, fromKubernetes, fromTerraform, type DriftResult } from '@nodus/import-infra';
+import { type NodeRecord, type NodusRecord } from '@ahmazin/core';
+import { computeDrift, fromKubernetes, fromTerraform, type DriftResult } from '@ahmazin/import-infra';
 import { sanitizeText } from './sanitize.js';
 import { loadRecords } from '../load.js';
 

@@ -1,13 +1,13 @@
-# Design: Real-time collaboration for Nodus (`@nodus/collab`)
+# Design: Real-time collaboration for Nodus (`@ahmazin/collab`)
 
 - **Date:** 2026-07-19
 - **Status:** Approved (design decisions locked); ready for an implementation plan (Phase 1)
-- **Area:** new package `@nodus/collab`; small hooks into `@nodus/core` (`makeId` mode, presence overlay). The core stays framework/DOM-free and **CRDT-dependency-free** — yjs lives only in `@nodus/collab`.
+- **Area:** new package `@ahmazin/collab`; small hooks into `@ahmazin/core` (`makeId` mode, presence overlay). The core stays framework/DOM-free and **CRDT-dependency-free** — yjs lives only in `@ahmazin/collab`.
 - **Motivation:** The four-lane audit named real-time multiplayer the single biggest "why switch" lever and the one capability totally absent. The engine is unusually *ready*: every mutation flows through one serializable op-log (`store.apply` → `ChangeInfo{changes,inverse,source,capture}` to `store.listen()`), `ChangeSource` already reserves a `'remote'` value (`model.ts:200`), and `History.record` already ignores `capture:'never'` for remote edits — so peer edits stay out of local undo by design. The gap is a sync layer, not an engine rewrite.
 
 ## Locked decisions (from brainstorming)
 
-1. **Conflict model: CRDT (yjs).** A `@nodus/collab` package owns a `Y.Doc` as the shared source of truth. Outbound: subscribe `store.listen()`, and for `source === 'user'` changes, write them into the Y.Doc. Inbound: observe the Y.Doc and translate remote changes into `store.apply(remoteChanges, { source: 'remote', capture: 'never' })`. Self-hostable, offline-first, presence via yjs awareness. The core never imports yjs.
+1. **Conflict model: CRDT (yjs).** A `@ahmazin/collab` package owns a `Y.Doc` as the shared source of truth. Outbound: subscribe `store.listen()`, and for `source === 'user'` changes, write them into the Y.Doc. Inbound: observe the Y.Doc and translate remote changes into `store.apply(remoteChanges, { source: 'remote', capture: 'never' })`. Self-hostable, offline-first, presence via yjs awareness. The core never imports yjs.
 2. **ID scheme: hybrid (counter solo, prefixed in collab).** Solo (default) keeps the module-counter IDs (`node:0`, `node:1`) — so canonical `.nodus.json` and reproducible LLM/text-to-diagram output are fully preserved. A live collab session sets a short stable client prefix so `makeId` yields `<prefix>:<counter>` (stable, collision-free across clients). On save-back-to-canonical, a **canonicalization pass** remaps session IDs to clean sequential counter IDs, rewriting all references — so committed files stay pristine.
 
 ## Non-goals (v1)
@@ -20,7 +20,7 @@
 
 ### 1. The store ↔ Y.Doc binding (the heart)
 
-`@nodus/collab` exports something like `bindCollab(editor, ydoc, opts): () => void` (returns a disposer).
+`@ahmazin/collab` exports something like `bindCollab(editor, ydoc, opts): () => void` (returns a disposer).
 
 - **Document representation:** a top-level `Y.Map<recordId, Y.Map<field, value>>` — one `Y.Map` per record, keyed by record id, with per-field keys. Per-field (not whole-record) granularity means two clients editing *different fields* of the same node (one moves it, one recolors it) merge cleanly instead of clobbering. Values are plain JSON (numbers, strings, nested style/props objects). Derived data (routes, back-refs, the scene index) is **not** stored — it's recomputed locally from records, exactly as today.
 - **Outbound (local → Y.Doc):** on `store.listen()`, for each `ChangeInfo` with `source === 'user'`, apply its `changes` to the Y.Doc inside a `ydoc.transact(..., LOCAL_ORIGIN)`: `add`/`update` → set the record's field keys; `remove` → delete the record's `Y.Map`. `program`/`remote`-sourced changes are NOT echoed back (prevents loops).
@@ -32,14 +32,14 @@
 
 `makeId` (`model.ts`) gains a client-prefix mode:
 - Default (solo): unchanged module counter → `node:0`.
-- Collab: `@nodus/collab` calls a setter (e.g. `setIdClientPrefix('a3f')`) on session join, so new IDs are `a3f:0`, `a3f:1` — stable, collision-free, still counter-based per client. The prefix is a short stable per-client token (derived from the yjs client id).
+- Collab: `@ahmazin/collab` calls a setter (e.g. `setIdClientPrefix('a3f')`) on session join, so new IDs are `a3f:0`, `a3f:1` — stable, collision-free, still counter-based per client. The prefix is a short stable per-client token (derived from the yjs client id).
 - **Canonicalization pass** (`canonicalizeIds(records): records`) used on save-back / by `nodus fmt`: build an old→new id map by remapping records to clean sequential counter IDs **in canonical order** (`compareRecords`), then rewrite every reference — `edge.from.nodeId`, `edge.to.nodeId`, `node.parentId` — atomically. Output is identical to what a solo session would have produced. This pass must be reference-complete (a missed ref = a dangling edge), so it is covered by a round-trip test: prefixed session → canonicalize → clean counter IDs + all edges/parents intact + canonical string matches the solo equivalent.
   - Diff-stability note: canonicalization runs on an explicit save-to-canonical action (or in `fmt`), NOT on every keystroke, so it does not churn live-session state. Within a session, prefixed IDs are stable-once-assigned, so live autosave diffs stay clean too.
 
 ### 3. Presence (cursors, selection, awareness)
 
 - yjs **awareness** carries each peer's cursor (world coords), current selection ids, and a display color/name.
-- Rendered through the engine's existing **`overlaysAtom`** overlay layer (the audit identified this as the natural attach point): a presence overlay paints remote cursors + selection outlines each frame. No core change beyond registering the overlay from `@nodus/collab`.
+- Rendered through the engine's existing **`overlaysAtom`** overlay layer (the audit identified this as the natural attach point): a presence overlay paints remote cursors + selection outlines each frame. No core change beyond registering the overlay from `@ahmazin/collab`.
 - Laser pointer / follow-mode (deferred experience items) become trivial once this cursor-broadcast channel exists.
 
 ### 4. Transport
@@ -56,7 +56,7 @@
 
 ## Risks & mitigations
 
-- **yjs dependency:** confined to `@nodus/collab`; `@nodus/core` stays dependency-free (enforced by the existing external-consumer pack-test discipline). First real external runtime dep for the collab package — surface to the human at plan time.
+- **yjs dependency:** confined to `@ahmazin/collab`; `@ahmazin/core` stays dependency-free (enforced by the existing external-consumer pack-test discipline). First real external runtime dep for the collab package — surface to the human at plan time.
 - **Whole-string label LWW (v1):** acceptable; documented; `Y.Text` upgrade is additive later.
 - **ID canonicalization ref-completeness:** the single highest-risk correctness area (a missed reference orphans an edge). Mitigated by a reference-complete remap + a round-trip test asserting zero dangling refs and canonical-string equality with the solo equivalent.
 - **Representation churn:** if per-field Y.Map proves too chatty, batch via `ydoc.transact`; the granularity decision is contained in the binding module.

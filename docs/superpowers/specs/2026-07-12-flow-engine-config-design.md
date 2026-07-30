@@ -153,7 +153,7 @@ the command/history system — ephemeral runtime state, no undo entry.
 - **`paintFlowMarkers`** (pure renderer, `renderer/paint.ts`): **unchanged** — stays
   config-agnostic, receives the already-resolved spec + effective time.
 
-## 6. React changes (`@nodus/react`)
+## 6. React changes (`@ahmazin/react`)
 
 - Add `editor.flowConfigAtom.get()` (and the reduced-motion signal) to the tracked `effect()`
   so config changes trigger a repaint.

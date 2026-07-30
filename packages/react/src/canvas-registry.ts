@@ -3,7 +3,7 @@
  * drop target (e.g. the cloud icon picker) needs the canvas's screen rect to map a pointer to world
  * coordinates. The <Nodus> host registers its canvas on mount; consumers read it here.
  */
-import type { Editor } from '@nodus/core';
+import type { Editor } from '@ahmazin/core';
 
 const registry = new WeakMap<Editor, HTMLCanvasElement>();
 

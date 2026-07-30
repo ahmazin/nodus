@@ -1,7 +1,7 @@
 // Minimal headless Nodus: build a small diagram with the one mutation channel, then serialize it to
 // the canonical, git-diffable JSON string and print it. No browser, no DOM.
-import { Editor, toCanonicalString } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor, toCanonicalString } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);

@@ -1,6 +1,6 @@
-# @nodus/layout-force
+# @ahmazin/layout-force
 
-A force-directed `LayoutEngine` for [Nodus](https://github.com/OWNER/nodus), built on
+A force-directed `LayoutEngine` for [Nodus](https://github.com/ahmazin/nodus), built on
 [d3-force](https://github.com/d3/d3-force) with rectangular collision. Tuned for general graphs where
 hierarchy isn't meaningful (networks, clusters, relationship maps). Runs the simulation to convergence
 synchronously inside the async call, then returns world-space top-left positions. Bundles `d3-force`.
@@ -8,16 +8,16 @@ synchronously inside the async call, then returns world-space top-left positions
 ## Install
 
 ```bash
-pnpm add @nodus/layout-force @nodus/core
+pnpm add @ahmazin/layout-force @ahmazin/core
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the adapter shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the adapter shares your app's single
 > engine instance (a duplicate core is two registries and won't interoperate).
 
 ## Usage
 
 ```ts
-import { forceLayout } from '@nodus/layout-force';
+import { forceLayout } from '@ahmazin/layout-force';
 
 editor.registerLayout(forceLayout);
 await editor.layout('force', { linkDistance: 150, charge: -700, iterations: 320 });
@@ -30,9 +30,9 @@ graph are pinned. The engine id is `'force'`. `forceLayout` is also the default 
 ## See also
 
 - [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
-- Sibling adapters: [`@nodus/layout-dagre`](https://github.com/OWNER/nodus/tree/main/packages/layout-dagre) ·
-  [`@nodus/layout-tree`](https://github.com/OWNER/nodus/tree/main/packages/layout-tree) ·
-  [`@nodus/layout-elk`](https://github.com/OWNER/nodus/tree/main/packages/layout-elk).
+- Sibling adapters: [`@ahmazin/layout-dagre`](https://github.com/ahmazin/nodus/tree/main/packages/layout-dagre) ·
+  [`@ahmazin/layout-tree`](https://github.com/ahmazin/nodus/tree/main/packages/layout-tree) ·
+  [`@ahmazin/layout-elk`](https://github.com/ahmazin/nodus/tree/main/packages/layout-elk).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

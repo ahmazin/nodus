@@ -1,6 +1,6 @@
 /**
- * @nodus/cli — command behavior. Fixtures are written to a temp dir so the commands exercise real
- * file I/O (fmt writes in place; --check must not). Canonical bytes come from @nodus/core so these
+ * @ahmazin/cli — command behavior. Fixtures are written to a temp dir so the commands exercise real
+ * file I/O (fmt writes in place; --check must not). Canonical bytes come from @ahmazin/core so these
  * tests track the real on-disk contract.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,8 +8,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Editor, SCHEMA_VERSION, serializeRecords, toCanonicalString, type NodeRecord } from '@nodus/core';
-import { fromTerraform } from '@nodus/import-infra';
+import { Editor, SCHEMA_VERSION, serializeRecords, toCanonicalString, type NodeRecord } from '@ahmazin/core';
+import { fromTerraform } from '@ahmazin/import-infra';
 import { diffReport, fmt } from './index.js';
 import { readSource } from './commands/diff.js';
 import { driftReport } from './commands/drift.js';
@@ -29,7 +29,7 @@ function sampleEditor(): Editor {
   return ed;
 }
 
-describe('@nodus/cli', () => {
+describe('@ahmazin/cli', () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'nodus-cli-'));
@@ -380,7 +380,7 @@ describe('@nodus/cli', () => {
       const code = await main(['fmt', file]);
       expect(code).toBe(3);
       expect(readFileSync(file, 'utf8')).toBe(original); // never rewritten
-      expect(errs.some((l) => l.includes('newer version of Nodus') && l.includes('upgrade @nodus/cli'))).toBe(true);
+      expect(errs.some((l) => l.includes('newer version of Nodus') && l.includes('upgrade @ahmazin/cli'))).toBe(true);
     });
 
     it('a clean, already-canonical file formats to exit 0 with no rewrite', async () => {

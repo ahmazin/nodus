@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Sources are EPHEMERAL: **not serialized, not undoable** (a `FlowSource` holds functions). Plain in-memory map, no `store.apply`/history.
-- **Core-only** (`@nodus/core`). No React, renderer, model-visual, or serialization changes.
+- **Core-only** (`@ahmazin/core`). No React, renderer, model-visual, or serialization changes.
 - `emit(value)` writes the metric **only when `Number.isFinite(value)`** — a non-finite tick is ignored.
 - **Pull:** immediate first poll, then `setInterval(intervalMs)`; an `inFlight` guard skips overlapping polls; a rejected/thrown poll → `onError?.(e)`, keep last metric, keep polling.
 - **Push:** `subscribe(emit)` returns an unsubscribe; coerce a non-function return to a no-op; wrap subscribe/unsubscribe in try/catch → `onError`.

@@ -1,7 +1,7 @@
-# @nodus/from-mermaid
+# @ahmazin/from-mermaid
 
-Import a [Mermaid](https://mermaid.js.org/) diagram string into [Nodus](https://github.com/OWNER/nodus) records. It
-reuses the [`@nodus/preset-diagrams`](https://github.com/OWNER/nodus/tree/main/packages/preset-diagrams) builders (so the result renders
+Import a [Mermaid](https://mermaid.js.org/) diagram string into [Nodus](https://github.com/ahmazin/nodus) records. It
+reuses the [`@ahmazin/preset-diagrams`](https://github.com/ahmazin/nodus/tree/main/packages/preset-diagrams) builders (so the result renders
 with the diagram node types + theme) and lays the graph out under any registered layout engine.
 Deliberately scoped to the three subsets that cover the common cases: `flowchart` / `graph`,
 `stateDiagram(-v2)`, and `erDiagram`. Unknown lines are skipped, never thrown.
@@ -9,12 +9,12 @@ Deliberately scoped to the three subsets that cover the common cases: `flowchart
 ## Install
 
 ```bash
-pnpm add @nodus/from-mermaid @nodus/core @nodus/preset-diagrams
+pnpm add @ahmazin/from-mermaid @ahmazin/core @ahmazin/preset-diagrams
 # for the default layout used by importMermaid:
-pnpm add @nodus/layout-elk
+pnpm add @ahmazin/layout-elk
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the importer shares your app's single
 > engine instance.
 
 ## Usage
@@ -22,8 +22,8 @@ pnpm add @nodus/layout-elk
 One-shot: parse, add to the editor, lay out, and fit.
 
 ```ts
-import { importMermaid } from '@nodus/from-mermaid';
-import { elkLayout } from '@nodus/layout-elk';
+import { importMermaid } from '@ahmazin/from-mermaid';
+import { elkLayout } from '@ahmazin/layout-elk';
 
 editor.registerLayout(elkLayout);   // importMermaid defaults to layout 'elk'
 await importMermaid(editor, 'graph LR\n A[Start] --> B{OK?} -->|yes| C[Done]');
@@ -32,7 +32,7 @@ await importMermaid(editor, 'graph LR\n A[Start] --> B{OK?} -->|yes| C[Done]');
 Or just parse to records and handle placement yourself:
 
 ```ts
-import { fromMermaid } from '@nodus/from-mermaid';
+import { fromMermaid } from '@ahmazin/from-mermaid';
 
 const { kind, direction, records } = fromMermaid('stateDiagram-v2\n [*] --> Idle\n Idle --> Running');
 ```
@@ -46,7 +46,7 @@ intermediate spec before building.
 
 `fromMermaid` follows the shared importer convention:
 
-- **Malformed input throws** a `NodusError` (from `@nodus/core`) with a namespaced `code`:
+- **Malformed input throws** a `NodusError` (from `@ahmazin/core`) with a namespaced `code`:
   `'from-mermaid/parse-failed'` (empty source or an unrecognized diagram header) or
   `'from-mermaid/source-too-large'` (over the ~512 KB byte cap). Match with `isNodusError(e)`, never
   `instanceof`.
@@ -55,8 +55,8 @@ intermediate spec before building.
   per skipped line), and counted by `skipped` — so you can tell the user *which* line was dropped.
 
 ```ts
-import { isNodusError } from '@nodus/core';
-import { fromMermaid } from '@nodus/from-mermaid';
+import { isNodusError } from '@ahmazin/core';
+import { fromMermaid } from '@ahmazin/from-mermaid';
 
 try {
   const { records, issues } = fromMermaid(src);
@@ -70,8 +70,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-diagrams`](https://github.com/OWNER/nodus/tree/main/packages/preset-diagrams) — the node/edge types and builders behind the import.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
+- [`@ahmazin/preset-diagrams`](https://github.com/ahmazin/nodus/tree/main/packages/preset-diagrams) — the node/edge types and builders behind the import.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

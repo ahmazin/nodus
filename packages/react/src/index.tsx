@@ -5,12 +5,12 @@
 // built output in an onSuccess hook — see the comment there. Keep this here regardless.
 
 /**
- * @nodus/react — a thin React binding for the Nodus engine. This module is the package barrel:
+ * @ahmazin/react — a thin React binding for the Nodus engine. This module is the package barrel:
  * the `<Nodus>` host lives in `nodus-host.tsx`; panels, the design-system `ui/*` surface, and the
  * clipboard/PNG helpers are re-exported here. No engine logic lives in this package.
  */
 
-import { type Editor, type Id } from '@nodus/core';
+import { type Editor, type Id } from '@ahmazin/core';
 
 // host
 export { Nodus, type NodusProps, type NodusHandle } from './nodus-host.js';

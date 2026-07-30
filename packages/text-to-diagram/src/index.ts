@@ -1,12 +1,12 @@
 /**
- * @nodus/text-to-diagram — bridge an LLM to a Nodus diagram. You give the model `diagramTool` (an
+ * @ahmazin/text-to-diagram — bridge an LLM to a Nodus diagram. You give the model `diagramTool` (an
  * Anthropic tool definition) + `diagramSystemPrompt`; it returns a structured `DiagramSpec`; you
  * call `recordsFromSpec` to get a renderable diagram. This package holds ZERO LLM/network code —
  * the actual model call is the host's job (keeps keys and prompts out of the library).
  */
 
-import { NodusError, type NodusRecord } from '@nodus/core';
-import { modelToRecords, INFRA_TYPES, type InfraModel } from '@nodus/preset-infra';
+import { NodusError, type NodusRecord } from '@ahmazin/core';
+import { modelToRecords, INFRA_TYPES, type InfraModel } from '@ahmazin/preset-infra';
 
 const KINDS = INFRA_TYPES; // service | db | cache | queue | lb | edge
 

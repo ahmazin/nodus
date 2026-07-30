@@ -5,7 +5,7 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react';
-import type { Editor } from '@nodus/core';
+import type { Editor } from '@ahmazin/core';
 import { Button, Divider, IconButton } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
 import { useValue } from '../../use-value.js';

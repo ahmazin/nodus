@@ -18,8 +18,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import { describe, expect, it } from 'vitest';
-import { Editor, type CreateCanvas } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor, type CreateCanvas } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), 'utf8');
@@ -36,8 +36,8 @@ function tsBlockUnder(md: string, heading: string): string {
 }
 
 // Verbatim copies of the doc blocks; the drift tests assert each doc still contains exactly these.
-const README_HEADLESS = `import { Editor } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+const README_HEADLESS = `import { Editor } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);
@@ -48,8 +48,8 @@ editor.connect({ kind: 'node', nodeId: a, portId: 'out' }, { kind: 'node', nodeI
 
 const json = editor.toJSON(); // canonical, diff-friendly snapshot`;
 
-const DOCS_INDEX_HEADLESS = `import { Editor } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+const DOCS_INDEX_HEADLESS = `import { Editor } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);
@@ -60,8 +60,8 @@ editor.createNode({ type: 'infra.service', label: 'Auth', x: 120, y: 80 });
 // paint to any Ctx2D surface (DOM canvas or Skia) via editor.paintRegion(...)`;
 
 const HEADLESS_TOPNG = `import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type CreateCanvas } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor, type CreateCanvas } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 // 1. Load system fonts BEFORE painting (see the prerequisite below). @napi-rs/canvas's types omit
 //    loadSystemFonts, so reach it through a narrow cast — the same as the \`nodus\` CLI does.

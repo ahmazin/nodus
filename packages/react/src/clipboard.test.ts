@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { pasteFromSystem } from './clipboard.js';
 
 /** Minimal DataTransfer stand-in: enough for the text branch of `pasteFromSystem` (the image branch

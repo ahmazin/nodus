@@ -1,6 +1,6 @@
-# @nodus/preset-diagrams
+# @ahmazin/preset-diagrams
 
-General diagram node/edge types for [Nodus](https://github.com/OWNER/nodus), plus builders that turn friendly specs
+General diagram node/edge types for [Nodus](https://github.com/ahmazin/nodus), plus builders that turn friendly specs
 into records. Ships types for flowcharts (`pill` / `process` / `decision`), state machines (`state`),
 ERDs (`table`), org charts (`card`), and image nodes (`icon`), a theme that colours each type, and
 `buildFlowchart` / `buildStateMachine` / `buildERD` / `buildOrgChart`. Use it when you want classic
@@ -9,17 +9,17 @@ diagram shapes rather than the infra preset.
 ## Install
 
 ```bash
-pnpm add @nodus/preset-diagrams @nodus/core
+pnpm add @ahmazin/preset-diagrams @ahmazin/core
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the preset shares your app's single
 > engine instance.
 
 ## Usage
 
 ```ts
-import { Editor } from '@nodus/core';
-import { installDiagrams, buildFlowchart } from '@nodus/preset-diagrams';
+import { Editor } from '@ahmazin/core';
+import { installDiagrams, buildFlowchart } from '@ahmazin/preset-diagrams';
 
 const editor = new Editor();
 installDiagrams(editor);   // registers the diagram node/edge types + applies diagramsTheme
@@ -56,8 +56,8 @@ and the image-node helpers (from `./image`).
 
 ## See also
 
-- [`@nodus/from-mermaid`](https://github.com/OWNER/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
+- [`@ahmazin/from-mermaid`](https://github.com/ahmazin/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

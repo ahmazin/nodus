@@ -5,8 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { Editor } from '@nodus/core';
-import { CommandPalette, Nodus, OPEN_COMMAND_PALETTE_EVENT } from '@nodus/react';
+import { Editor } from '@ahmazin/core';
+import { CommandPalette, Nodus, OPEN_COMMAND_PALETTE_EVENT } from '@ahmazin/react';
 
 describe('F40 — command palette is namespaceable', () => {
   it('exports the open-event name as a constant', () => {

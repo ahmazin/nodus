@@ -1,6 +1,6 @@
 # Security Policy
 
-Nodus (`@nodus/*`) is a headless, framework-agnostic diagram engine. Its security posture centers on
+Nodus (`@ahmazin/*`) is a headless, framework-agnostic diagram engine. Its security posture centers on
 one fact: **it processes untrusted input** — pasted Mermaid/Terraform/Kubernetes sources, imported
 `*.nodus.json` documents, and `#scene=` share links — entirely **client-side**, with **no network
 egress**. Nothing you paste or open is uploaded or logged by the engine.
@@ -18,7 +18,7 @@ Please include: affected package(s) and version, a minimal reproduction (a paylo
 share link), the observed impact, and any suggested fix. We aim to acknowledge within a few business
 days and to coordinate a fix and disclosure timeline with you.
 
-**In scope:** the published `@nodus/*` packages (parsers, serialization, renderer, the MCP server, the
+**In scope:** the published `@ahmazin/*` packages (parsers, serialization, renderer, the MCP server, the
 CLI). **Out of scope / lower priority:** the `examples/` demo app (unpublished), local dev scripts
 (`scripts/*`), and issues that require a malicious *developer-configured* backend or a compromised
 local environment.
@@ -32,7 +32,7 @@ older `0.x` lines during the pre-1.0 phase. Pin exact versions and upgrade to pi
 
 The engine treats every parse/load boundary as a trust boundary and enforces bounded work there:
 
-- **Parsers** (`@nodus/from-mermaid`, `@nodus/import-infra`, `@nodus/text-to-diagram`) use bounded
+- **Parsers** (`@ahmazin/from-mermaid`, `@ahmazin/import-infra`, `@ahmazin/text-to-diagram`) use bounded
   regexes (no catastrophic backtracking), recursion-depth caps, and byte/element ceilings, so a large
   or adversarial input is rejected with a catchable error rather than freezing the thread.
 - **Deserialization** (`restore()` / `parseSnapshot` / `decodeScene`) is defensive: malformed records

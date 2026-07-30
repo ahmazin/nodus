@@ -1,12 +1,12 @@
 {
-  "name": "@nodus/core",
+  "name": "@ahmazin/core",
   "version": "0.1.0",
   "files": [
     "dist"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/nodus.git",
+    "url": "git+https://github.com/ahmazin/nodus.git",
     "directory": "packages/core"
   },
   "license": "MIT",
@@ -53,8 +53,8 @@
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/core#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/core#readme",
   "bugs": {
-    "url": "https://github.com/OWNER/nodus/issues"
+    "url": "https://github.com/ahmazin/nodus/issues"
   }
 }

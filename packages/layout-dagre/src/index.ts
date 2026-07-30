@@ -1,10 +1,10 @@
 /**
- * @nodus/layout-dagre — a `LayoutEngine` adapter over dagre's layered layout. Converts dagre's
+ * @ahmazin/layout-dagre — a `LayoutEngine` adapter over dagre's layered layout. Converts dagre's
  * center-based coordinates to Nodus's world-space top-left. Register with `editor.registerLayout`.
  */
 
 import dagre from '@dagrejs/dagre';
-import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@nodus/core';
+import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@ahmazin/core';
 
 /**
  * Above this node count, dagre's internal layered layout (its recursive acyclic cycle-break and

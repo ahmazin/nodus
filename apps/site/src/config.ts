@@ -8,7 +8,7 @@
  * in astro.config.mjs to match `origin`.
  *
  * `docs` and `playground` are intentionally SAME-ORIGIN paths: they are the reserved
- * slots this site will grow into (Astro Starlight docs; the @nodus editor, currently
+ * slots this site will grow into (Astro Starlight docs; the @ahmazin editor, currently
  * `examples/browser`, deployed at /playground/).
  */
 export interface SiteConfig {
@@ -54,11 +54,11 @@ export const SITE: SiteConfig = {
   discord: 'https://discord.gg/nodus',
   npmOrg: 'https://www.npmjs.com/org/nodus',
   npm: {
-    core: 'https://www.npmjs.com/package/@nodus/core',
-    react: 'https://www.npmjs.com/package/@nodus/react',
-    presetInfra: 'https://www.npmjs.com/package/@nodus/preset-infra',
-    mcp: 'https://www.npmjs.com/package/@nodus/mcp',
+    core: 'https://www.npmjs.com/package/@ahmazin/core',
+    react: 'https://www.npmjs.com/package/@ahmazin/react',
+    presetInfra: 'https://www.npmjs.com/package/@ahmazin/preset-infra',
+    mcp: 'https://www.npmjs.com/package/@ahmazin/mcp',
   },
 
-  install: 'npm i @nodus/react @nodus/preset-infra',
+  install: 'npm i @ahmazin/react @ahmazin/preset-infra',
 };

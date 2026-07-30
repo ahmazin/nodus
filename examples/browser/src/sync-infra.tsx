@@ -1,16 +1,16 @@
 /**
  * Sync from infra source (drift detection) — the "never drift from source of truth" moat. Paste an
  * updated Terraform (show -json) or Kubernetes source; it re-imports and diffs the result against the
- * current diagram (by source address, via @nodus/import-infra's computeDrift), and surfaces
+ * current diagram (by source address, via @ahmazin/import-infra's computeDrift), and surfaces
  * "N resources changed since last render". Removed resources are ghosted live on the canvas as a
  * preview; Apply reconciles the diagram in one undoable step, preserving your layout for unchanged
  * and changed nodes. Non-source (manually added) records are never touched.
  */
 import { useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor, NodusRecord } from '@nodus/core';
-import { useUiTokens, showToast } from '@nodus/react';
-import { fromKubernetes, fromTerraform, computeDrift, driftChanges, type DriftResult } from '@nodus/import-infra';
+import type { Editor, NodusRecord } from '@ahmazin/core';
+import { useUiTokens, showToast } from '@ahmazin/react';
+import { fromKubernetes, fromTerraform, computeDrift, driftChanges, type DriftResult } from '@ahmazin/import-infra';
 
 type Source = 'terraform' | 'kubernetes';
 

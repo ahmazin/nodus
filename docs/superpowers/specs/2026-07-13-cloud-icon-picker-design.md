@@ -5,7 +5,7 @@
 
 ## Goal
 
-Let a user browse the curated cloud-service icons (`@nodus/icons-cloud`, 92 AWS/Azure/GCP glyphs),
+Let a user browse the curated cloud-service icons (`@ahmazin/icons-cloud`, 92 AWS/Azure/GCP glyphs),
 search them, and place one on the canvas by dragging it to an exact spot. Replaces the placeholder
 3-item `<select>` + "Add icon" button in the browser demo.
 
@@ -17,7 +17,7 @@ is wired now.
 
 ## Architecture
 
-A new reusable component in `@nodus/react`:
+A new reusable component in `@ahmazin/react`:
 
 ```
 <CloudIconPicker editor={Editor} catalog={IconCatalogEntry[]} />
@@ -29,21 +29,21 @@ and popover are one unit the host drops into its toolbar (like `Properties`/`Com
 
 Three collaborating pieces, each independently understandable:
 
-1. **`cloudIconCatalog`** (`@nodus/icons-cloud`) — the data. Exported array derived from `ALLOWLIST`,
-   the single source of truth. `@nodus/react` never imports `@nodus/icons-cloud`; the catalog arrives
+1. **`cloudIconCatalog`** (`@ahmazin/icons-cloud`) — the data. Exported array derived from `ALLOWLIST`,
+   the single source of truth. `@ahmazin/react` never imports `@ahmazin/icons-cloud`; the catalog arrives
    as a prop, keeping the component reusable for any icon set.
 
-2. **canvas registry** (`@nodus/react`, internal) — the DOM link. A module-level
+2. **canvas registry** (`@ahmazin/react`, internal) — the DOM link. A module-level
    `WeakMap<Editor, HTMLCanvasElement>`. The `<Nodus>` host registers its canvas on mount; the picker
    reads it to map a drop point to world coordinates. The core `Editor` stays headless (no DOM ref).
 
-3. **`CloudIconPicker`** (`@nodus/react`) — the UI: button, popover, search/filter, preview grid,
+3. **`CloudIconPicker`** (`@ahmazin/react`) — the UI: button, popover, search/filter, preview grid,
    and the pointer-drag placement.
 
 ## Data types
 
 ```ts
-// @nodus/icons-cloud
+// @ahmazin/icons-cloud
 export interface IconCatalogEntry {
   name: string;      // 'aws:lambda'  (registry key + node props.icon)
   provider: 'aws' | 'azure' | 'gcp';
@@ -53,8 +53,8 @@ export interface IconCatalogEntry {
 export const cloudIconCatalog: IconCatalogEntry[]; // one entry per ALLOWLIST entry
 ```
 
-`@nodus/react` declares its **own** structurally-compatible `IconCatalogEntry` interface and takes
-`catalog` as a prop, so it carries no build- or runtime dependency on `@nodus/icons-cloud`. The
+`@ahmazin/react` declares its **own** structurally-compatible `IconCatalogEntry` interface and takes
+`catalog` as a prop, so it carries no build- or runtime dependency on `@ahmazin/icons-cloud`. The
 `cloudIconCatalog` value is structurally assignable to it.
 
 ## Behavior
@@ -108,9 +108,9 @@ is in flight). Search text and provider filter reset on close (kept simple).
 
 ## Testing
 
-- `@nodus/icons-cloud`: assert `cloudIconCatalog` has one entry per `ALLOWLIST` entry with matching
+- `@ahmazin/icons-cloud`: assert `cloudIconCatalog` has one entry per `ALLOWLIST` entry with matching
   `name/provider/service/category` (fold into the existing integrity test).
-- `@nodus/react`: unit-test `filterCatalog` (query substring, provider filter, empty query).
+- `@ahmazin/react`: unit-test `filterCatalog` (query substring, provider filter, empty query).
 - Browser E2E (playwright-core, matching existing checks): open picker → type a query → the grid
   filters → drag a tile onto the canvas → a new `icon` node exists at ~the drop point.
 

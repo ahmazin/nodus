@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, getIcon } from '@nodus/core';
-import { installDiagrams } from '@nodus/preset-diagrams';
+import { Editor, getIcon } from '@ahmazin/core';
+import { installDiagrams } from '@ahmazin/preset-diagrams';
 import { installCloudIcons } from '../index.js';
 
 describe('cloud icons on iconNode', () => {

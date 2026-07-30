@@ -1,5 +1,5 @@
 /**
- * @nodus/persistence — trustworthy document persistence.
+ * @ahmazin/persistence — trustworthy document persistence.
  *  - `DocStore` implementations: `HttpDocStore` (a doc API), `LocalDocStore` (localStorage crash
  *    recovery), `MemoryDocStore` (tests).
  *  - `autosave(editor, store, name)` — a debounced effect on the store version; one save per burst.
@@ -7,7 +7,7 @@
  * The document format is the versioned `Snapshot` with defensive restore, so this is a thin layer.
  */
 
-import { effect, NodusError, toCanonicalString, type Dispose, type Editor, type Snapshot } from '@nodus/core';
+import { effect, NodusError, toCanonicalString, type Dispose, type Editor, type Snapshot } from '@ahmazin/core';
 
 export interface DocMeta {
   name: string;
@@ -21,7 +21,7 @@ export interface DocMeta {
  * **throws** a {@link NodusError} whose `code` is `'persistence/<op>-failed'` (e.g.
  * `'persistence/load-failed'`) and whose `context` carries `{ op, status, body? }`. Success is never
  * ambiguous — an empty list means "no documents", and `null` from {@link load} means "absent".
- * Match thrown errors with `isNodusError(e)` from `@nodus/core`, never `instanceof`.
+ * Match thrown errors with `isNodusError(e)` from `@ahmazin/core`, never `instanceof`.
  */
 export interface DocStore {
   /**

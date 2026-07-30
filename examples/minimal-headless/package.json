@@ -1,5 +1,5 @@
 {
-  "name": "@nodus-examples/minimal-headless",
+  "name": "@ahmazin-examples/minimal-headless",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@nodus/core": "workspace:*",
-    "@nodus/preset-infra": "workspace:*",
+    "@ahmazin/core": "workspace:*",
+    "@ahmazin/preset-infra": "workspace:*",
     "@napi-rs/canvas": "^0.1.60"
   }
 }

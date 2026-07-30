@@ -1,6 +1,6 @@
-# @nodus/preset-infra
+# @ahmazin/preset-infra
 
-The infra-architecture preset for [Nodus](https://github.com/OWNER/nodus) — the **InfraCanvas** seed as one preset on
+The infra-architecture preset for [Nodus](https://github.com/ahmazin/nodus) — the **InfraCanvas** seed as one preset on
 top of the general engine. It ships six semantic node types (`service`, `db`, `cache`, `queue`, `lb`,
 `edge`) with icons, dark/light themes, the connector edge, Freeform / Reveal / Stages mode adapters,
 and the high-level `InfraCanvas({ model, mode, overlays })` façade. Use it when you want an
@@ -9,10 +9,10 @@ architecture diagram from a friendly `{ nodes, edges }` model instead of wiring 
 ## Install
 
 ```bash
-pnpm add @nodus/preset-infra @nodus/core
+pnpm add @ahmazin/preset-infra @ahmazin/core
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the preset shares your app's single
 > engine instance.
 
 ## Usage
@@ -20,8 +20,8 @@ pnpm add @nodus/preset-infra @nodus/core
 Register the preset onto a bare editor:
 
 ```ts
-import { Editor } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);   // six infra.* node types + connector edge + dark theme
@@ -34,7 +34,7 @@ editor.connect({ kind: 'node', nodeId: api, portId: 'out' }, { kind: 'node', nod
 Or drive the whole thing from a model with the façade (great for React and headless render):
 
 ```ts
-import { InfraCanvas } from '@nodus/preset-infra';
+import { InfraCanvas } from '@ahmazin/preset-infra';
 
 const { editor, toPNG, toJSON, dispose } = InfraCanvas({
   model: {
@@ -62,7 +62,7 @@ type.
 ## See also
 
 - [Extending Nodus](https://nodus.dev/docs/extending) — write your own node/edge types, routers, layouts, plugins.
-- [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core) · [`@nodus/react`](https://github.com/OWNER/nodus/tree/main/packages/react) for the browser host.
+- [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@ahmazin/react`](https://github.com/ahmazin/nodus/tree/main/packages/react) for the browser host.
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

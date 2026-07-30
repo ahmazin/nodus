@@ -10,7 +10,7 @@ you extend the engine by registering data and objects — never by forking the c
 4. [Plugins](#4-plugins) — bundle types, tools, themes, overlays, and store/event hooks behind one
    install call.
 
-Everything here rides on `@nodus/core`'s public API. The reference implementations named below ship
+Everything here rides on `@ahmazin/core`'s public API. The reference implementations named below ship
 in this monorepo — read their source (they are small) when you want a complete, working example.
 
 > **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
@@ -44,7 +44,7 @@ node.label = 'renamed';
   The whole gesture collapses into a single undo entry.
 - `'never'` — do not record history for this change.
 
-`@nodus/plugin-freehand`'s `FreehandTool` is the canonical example: it creates the stroke node with
+`@ahmazin/plugin-freehand`'s `FreehandTool` is the canonical example: it creates the stroke node with
 `{ capture: 'later' }`, updates it on every pointer-move with `{ capture: 'later' }`, and calls
 `editor.mark()` on pointer-up — so an entire sketched stroke is one undo.
 
@@ -71,7 +71,7 @@ export interface NodeUtil<P extends Record<string, unknown> = Record<string, unk
 A complete, minimal custom node — geometry, ports, and a `draw`, then register it:
 
 ```ts
-import { Rectangle2d, type NodeUtil } from '@nodus/core';
+import { Rectangle2d, type NodeUtil } from '@ahmazin/core';
 
 const cylinderNode: NodeUtil = {
   type: 'cylinder',
@@ -121,12 +121,12 @@ Delegate `getRoute` to the router the context hands you so per-edge router choic
 
 ```ts
 getRoute(_edge, ctx) {
-  const router = ctx.router ?? straightRouter;   // straightRouter is exported by @nodus/core
+  const router = ctx.router ?? straightRouter;   // straightRouter is exported by @ahmazin/core
   return router.route({ from: ctx.from, to: ctx.to, waypoints: ctx.waypoints, endGap: 6 });
 }
 ```
 
-`@nodus/preset-draw` (`rectShape` / `ellipseShape` / `diamondShape` / `textNode`, `lineEdge` /
+`@ahmazin/preset-draw` (`rectShape` / `ellipseShape` / `diamondShape` / `textNode`, `lineEdge` /
 `arrowEdge`) is a small, complete worked reference for both node and edge types.
 
 ### Migrating a custom shape
@@ -206,7 +206,7 @@ export interface LayoutEngine {
 Register it, then run it. A whole layout applies as one undo entry:
 
 ```ts
-import { dagreLayout } from '@nodus/layout-dagre';
+import { dagreLayout } from '@ahmazin/layout-dagre';
 
 editor.registerLayout(dagreLayout);
 await editor.layout('dagre', { direction: 'LR' });   // direction / rankGap / nodeGap + engine-specific keys
@@ -214,7 +214,7 @@ await editor.layout('dagre', { direction: 'LR' });   // direction / rankGap / no
 
 `LayoutOptions` carries `direction` (`'LR' | 'RL' | 'TB' | 'BT'`), `rankGap`, and `nodeGap`, plus an
 open index signature for engine-specific keys (force reads `linkDistance` / `charge` / `iterations`;
-elk reads `algorithm` / `workerUrl`). The reference adapters are the four `@nodus/layout-*` packages
+elk reads `algorithm` / `workerUrl`). The reference adapters are the four `@ahmazin/layout-*` packages
 (`layout-dagre`, `layout-tree`, `layout-force`, `layout-elk`) — each is a single small `LayoutEngine`
 you can read end to end.
 
@@ -260,14 +260,14 @@ the stable surface; reach into `editor` only when you must.
 Install with `editor.use(plugin)`:
 
 ```ts
-import { freehandPlugin } from '@nodus/plugin-freehand';
+import { freehandPlugin } from '@ahmazin/plugin-freehand';
 
 const dispose = editor.use(freehandPlugin);   // adds the 'freehand' node type + pen tool
 editor.setTool('freehand');                   // switch the tool on
 // ... later: dispose();
 ```
 
-`@nodus/plugin-freehand` is the full worked example: a whole new interaction (a pen tool) **and** a
+`@ahmazin/plugin-freehand` is the full worked example: a whole new interaction (a pen tool) **and** a
 new node type (the stroke), registered through the plugin API with zero core changes.
 
 ---
@@ -298,7 +298,7 @@ accidental clobbering stays visible.
 - [`README.md`](../README.md) — project overview and quick start.
 - [`packages/core/README.md`](../packages/core/README.md) — the full architecture and the mutation /
   signals / scene-index model these axes build on.
-- Reference implementations: `@nodus/preset-infra`, `@nodus/preset-diagrams`, `@nodus/preset-draw`,
-  `@nodus/layout-*`, `@nodus/plugin-freehand`.
+- Reference implementations: `@ahmazin/preset-infra`, `@ahmazin/preset-diagrams`, `@ahmazin/preset-draw`,
+  `@ahmazin/layout-*`, `@ahmazin/plugin-freehand`.
 </content>
 </invoke>

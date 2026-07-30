@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-20
 - **Status:** Approved (scope + key decisions); ready for an implementation plan
-- **Area:** `@nodus/import-infra` (Terraform + Kubernetes recognition), `@nodus/from-mermaid` (small non-breaking skip-count add), example app (`examples/browser/src/` — new `import-analyze.ts`, `import-editor.tsx`, `main.tsx`), `scripts/verify-import.mjs`.
+- **Area:** `@ahmazin/import-infra` (Terraform + Kubernetes recognition), `@ahmazin/from-mermaid` (small non-breaking skip-count add), example app (`examples/browser/src/` — new `import-analyze.ts`, `import-editor.tsx`, `main.tsx`), `scripts/verify-import.mjs`.
 - **Motivation:** Two distinct problems live in two layers. **(1) The flow** forces the user to pick a format *before* the modal opens, accepts K8s only as pre-converted JSON, commits blindly with no preview, and reports generic errors. **(2) The recognition** is uneven: Mermaid is mature, but Terraform infers edges *only* from `depends_on` (which real code rarely uses — dependencies are implicit via interpolation references), so a typical `terraform show -json` imports as a pile of nodes with almost no edges; Kubernetes can't take YAML (the format manifests actually ship in) and silently drops kinds with no report.
 
 ## Goals
@@ -17,13 +17,13 @@
 - **Expanding Mermaid syntax coverage.** Mermaid's parser stays as-is (still routes through auto-detect). Subgraphs, sequence/C4 diagrams, `&` multi-targets remain out of scope. (Only a tiny, non-behavior-changing skip-count is added so the preview can show "K skipped".)
 - **Parsing Terraform HCL.** Input remains `terraform show -json` (state or plan). HCL parsing is a separate, much larger effort.
 - **A live mini-render preview.** The preview is a textual summary (counts + skipped + notes + error), not an in-modal canvas render.
-- **A new `@nodus/import` façade package.** Detection/orchestration lives in the example app for now; extract a package later if a second consumer (CLI/MCP) needs it.
+- **A new `@ahmazin/import` façade package.** Detection/orchestration lives in the example app for now; extract a package later if a second consumer (CLI/MCP) needs it.
 - **New Kubernetes node kinds / owner-reference edges.** The K8s kind→type map is unchanged; the recognition win is YAML input + skip reporting + normalization moved into the package. (ownerReferences / HPA→target edges noted as possible follow-ups, not v1.)
 
 ## Locked decisions
 
 1. **Architecture:** "Analysis-first" (Approach A). One `ImportAnalysis` contract powers all four features. Parsers gain rich analyzers returning `{ records, skipped, notes, error? }`; existing `fromTerraform`/`fromKubernetes`/`fromMermaid` stay as thin, non-breaking record-returning wrappers.
-2. **YAML:** add the `yaml` npm dependency to `@nodus/import-infra`; `fromKubernetes` accepts `string | objects`. (Lockfile change — surfaced to the human at implementation time.)
+2. **YAML:** add the `yaml` npm dependency to `@ahmazin/import-infra`; `fromKubernetes` accepts `string | objects`. (Lockfile change — surfaced to the human at implementation time.)
 3. **Preview depth:** textual summary — detected-format badge, `N nodes · M edges · K skipped` + skip chips + the actual parser error. Parse-on-type (debounced); commit uses the already-parsed records (no re-parse).
 4. **Recognition boundaries stay in the packages** (tested, reusable by CLI/MCP); **flow logic (detect + modal orchestration) stays in the app**; the modal remains package-free (calls an injected `analyze()` callback).
 
@@ -66,7 +66,7 @@ export function analyzeImport(text: string, format: ImportFormat): ImportAnalysi
 
 `analyzeImport` dispatches to the package analyzers (below), catches parse errors into `error`, and computes `nodeCount`/`edgeCount` from records (`isNode`/`isEdge`).
 
-### 2. Recognition — Terraform edges (`@nodus/import-infra`)
+### 2. Recognition — Terraform edges (`@ahmazin/import-infra`)
 
 Today (`fromTerraform`): resources → nodes; edges from `depends_on` only. Change: add reference-based edges from the `configuration` block, unioned with `depends_on`.
 
@@ -81,7 +81,7 @@ Algorithm:
 
 Scope: root + child modules; cross-module references that resolve only to module **outputs** (not resources) are best-effort (won't produce an edge). Validated against a real `terraform show -json` **plan** fixture (with `count`/`for_each` and a child module).
 
-### 3. Recognition — Kubernetes YAML + skip reporting (`@nodus/import-infra`)
+### 3. Recognition — Kubernetes YAML + skip reporting (`@ahmazin/import-infra`)
 
 - Add dependency: **`yaml`** (v2.x, `parseAllDocuments`/`parse`).
 - New internal `analyzeKubernetes(input: string | K8sObject[]): { records, skipped, notes }`; `fromKubernetes` becomes `(input) => analyzeKubernetes(input).records` (signature widens from `K8sObject[]` to `string | K8sObject[]` — additive, non-breaking for array callers).
@@ -89,7 +89,7 @@ Scope: root + child modules; cross-module references that resolve only to module
 - **Skip reporting** — kinds that map to `null` (ConfigMap, Secret, Namespace, PVC, ServiceAccount, Role, …) are counted by kind and returned in `skipped`. Edge inference (Ingress→Service, Service→workload via selector) is unchanged.
 - **Notes** — if a string parsed to zero recognized objects, note "no workloads/services/ingress found".
 
-### 4. Recognition — Mermaid skip count (`@nodus/from-mermaid`, minimal)
+### 4. Recognition — Mermaid skip count (`@ahmazin/from-mermaid`, minimal)
 
 - `fromMermaid` return type gains an optional `skipped?: number` = count of body statements that matched no rule (already effectively tracked as "unparsed" — currently silently `continue`d). No behavior change to what is parsed. This feeds the preview's "K skipped" for Mermaid. Purely additive.
 

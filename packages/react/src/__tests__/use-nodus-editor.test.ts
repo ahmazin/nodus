@@ -70,7 +70,7 @@ const rt = vi.hoisted(() => {
 
 vi.mock('react', () => ({ useRef: rt.useRef, useReducer: rt.useReducer, useEffect: rt.useEffect }));
 
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { useNodusEditor } from '../use-nodus-editor.js';
 
 describe('useNodusEditor — StrictMode lifecycle (C1/F2)', () => {

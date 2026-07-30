@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { forceLayout } from './index.js';
 
 /**

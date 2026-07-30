@@ -4,7 +4,7 @@ title: Headless rendering
 description: Build, mutate, and render a diagram to PNG in Node with no browser — the CreateCanvas injection recipe, the font and type-registration prerequisites, and the stable export contract.
 ---
 
-`@nodus/core` has zero framework or DOM dependencies, so you can build, mutate, lay out, and **render**
+`@ahmazin/core` has zero framework or DOM dependencies, so you can build, mutate, lay out, and **render**
 a scene entirely in Node — the path behind server-side PNG export and `nodus render`. The same drawing
 code paints to a browser canvas or a native Skia canvas.
 
@@ -18,8 +18,8 @@ imports a canvas backend itself — so the core stays DOM-free. In Node, back it
 
 ```ts
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type CreateCanvas } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor, type CreateCanvas } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 // 1. Load system fonts BEFORE painting (see the prerequisite below). @napi-rs/canvas's types omit
 //    loadSystemFonts, so reach it through a narrow cast — the same as the `nodus` CLI does.
@@ -71,7 +71,7 @@ frames, drop down to `editor.paintRegion(ctx, region, ratio, opts)` — the same
 
 ## Turnkey: the CLI
 
-If you just want a file rendered, `@nodus/cli` wraps all of the above — font loading, preset
+If you just want a file rendered, `@ahmazin/cli` wraps all of the above — font loading, preset
 auto-detection from record type prefixes, and the canvas factory:
 
 ```bash
@@ -113,13 +113,13 @@ a `NodusError` with code `'schema-too-new'` rather than silently downgrading the
 format must never rewrite what it can't round-trip. Catch it and tell the user to upgrade:
 
 ```ts
-import { isNodusError } from '@nodus/core';
+import { isNodusError } from '@ahmazin/core';
 
 try {
   editor.loadSnapshot(snapshot);
 } catch (e) {
   if (isNodusError(e) && e.code === 'schema-too-new') {
-    console.error('This diagram was written by a newer Nodus — upgrade @nodus/core to open it.');
+    console.error('This diagram was written by a newer Nodus — upgrade @ahmazin/core to open it.');
   } else throw e;
 }
 ```

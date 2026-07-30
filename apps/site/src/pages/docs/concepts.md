@@ -60,7 +60,7 @@ Type-specific behavior is data/objects registered on the editor — never a `swi
 - **Routers** — resolve `edge.props.router` (`straight` / `orthogonal` / `bezier`) to a function that
   turns endpoints into a polyline.
 - **Layouts** — `editor.registerLayout(engine)`, then `await editor.layout('dagre', { direction: 'LR' })`.
-  Adapters: `@nodus/layout-{dagre,tree,force,elk}`.
+  Adapters: `@ahmazin/layout-{dagre,tree,force,elk}`.
 - **Plugins** — `editor.use(plugin)`; a plugin registers types/tools/themes/layouts/overlays and can
   hook the store & event bus.
 
@@ -72,6 +72,6 @@ re-skins every node in one frame.
 
 ## Git-native serialization
 
-`@nodus/core` has **deterministic, canonical** serialization: the same diagram produces byte-identical
+`@ahmazin/core` has **deterministic, canonical** serialization: the same diagram produces byte-identical
 output, so diagrams stored as `*.nodus.json` get clean, line-by-line diffs, blame, review, and merge.
 See the **[CLI →](/docs/cli)** for `fmt` / `render` / `diff` and diagrams-in-CI.

@@ -1,16 +1,16 @@
 {
-  "name": "@nodus/from-mermaid",
+  "name": "@ahmazin/from-mermaid",
   "version": "0.1.0",
   "files": [
     "dist"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/nodus.git",
+    "url": "git+https://github.com/ahmazin/nodus.git",
     "directory": "packages/from-mermaid"
   },
   "license": "MIT",
-  "description": "Import a Mermaid diagram (flowchart / state / ER subsets) into Nodus records — reuses @nodus/preset-diagrams builders + any registered layout engine (ELK).",
+  "description": "Import a Mermaid diagram (flowchart / state / ER subsets) into Nodus records — reuses @ahmazin/preset-diagrams builders + any registered layout engine (ELK).",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -23,11 +23,11 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@nodus/preset-diagrams": "workspace:^"
+    "@ahmazin/preset-diagrams": "workspace:^"
   },
   "devDependencies": {
-    "@nodus/layout-elk": "workspace:*",
-    "@nodus/core": "workspace:*"
+    "@ahmazin/layout-elk": "workspace:*",
+    "@ahmazin/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -52,13 +52,13 @@
     }
   },
   "peerDependencies": {
-    "@nodus/core": "workspace:^"
+    "@ahmazin/core": "workspace:^"
   },
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/from-mermaid#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/from-mermaid#readme",
   "bugs": {
-    "url": "https://github.com/OWNER/nodus/issues"
+    "url": "https://github.com/ahmazin/nodus/issues"
   }
 }

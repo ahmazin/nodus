@@ -1,0 +1,51 @@
+name: Release
+
+# Publishing pipeline (changesets flow):
+#   1. PRs land on mainline carrying `.changeset/*.md` intent files (enforced by changeset-status in ci.yml).
+#   2. On push to mainline, changesets/action opens/updates a "Version Packages" PR that applies all
+#      pending changesets: bumps versions, rewrites CHANGELOGs, deletes the intent files.
+#   3. Merging that PR re-triggers this workflow; the action detects unpublished versions and runs
+#      `pnpm release` (verify:all -> build -> changeset publish), then pushes git tags and creates
+#      GitHub Releases per package.
+# Publishing needs the NPM_TOKEN repo secret: an npm *granular access* token with read/write on the
+# @ahmazin scope. `id-token: write` + NPM_CONFIG_PROVENANCE enable npm provenance attestation, which
+# links every published tarball to this exact commit and workflow run.
+# Note: the Version Packages PR is created with GITHUB_TOKEN, so CI does not auto-run on that PR
+# (GitHub prevents token-triggered workflow recursion) — the publish path re-runs the full verify
+# suite itself, so nothing ships unverified.
+
+on:
+  push:
+    branches: [mainline]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write # version commit, tags, GitHub Releases
+  pull-requests: write # the Version Packages PR
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # changesets diffs against baseBranch history
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Version PR or publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+          title: 'chore(release): version packages'
+          commit: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@nodus/core` are documented in this file.
+All notable changes to `@ahmazin/core` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This package is pre-1.0 and unpublished; breaking changes may land without a major bump.

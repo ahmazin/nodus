@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultTheme, resolveTokens, type DrawApi, type EdgeRecord, type StrokeOpts, type Vec2 } from '@nodus/core';
+import { defaultTheme, resolveTokens, type DrawApi, type EdgeRecord, type StrokeOpts, type Vec2 } from '@ahmazin/core';
 import { infraConnectorUtil } from '../edge.js';
 
 /** A minimal fake `DrawApi` recording the args each edge draw call receives. `DrawApi` is a concrete

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, resolveTokens, type NodeRecord } from '@nodus/core';
+import { Editor, resolveTokens, type NodeRecord } from '@ahmazin/core';
 import {
   ACCENTS,
   InfraCanvas,

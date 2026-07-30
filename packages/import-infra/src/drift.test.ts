@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isEdge, isNode, type Change, type NodeRecord, type NodusRecord } from '@nodus/core';
-import { computeDrift, driftChanges, fromTerraform } from '@nodus/import-infra';
+import { isEdge, isNode, type Change, type NodeRecord, type NodusRecord } from '@ahmazin/core';
+import { computeDrift, driftChanges, fromTerraform } from '@ahmazin/import-infra';
 
 // --- fixtures / helpers ----------------------------------------------------
 

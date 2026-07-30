@@ -1,4 +1,4 @@
-# Design: Schema & custom-shape migrations for `@nodus/core`
+# Design: Schema & custom-shape migrations for `@ahmazin/core`
 
 - **Date:** 2026-07-19
 - **Status:** Approved (design); ready for implementation plan
@@ -191,7 +191,7 @@ code-reviewed in the PR, not applied invisibly.
 
 ## Public API surface changes (additive)
 
-- `Migration` type — exported from `@nodus/core`.
+- `Migration` type — exported from `@ahmazin/core`.
 - `NodeUtil.migrations?` / `EdgeUtil.migrations?` — optional.
 - `RestoreOptions` — exported; `restore(snapshot, opts?)` second parameter.
 - `RestoreResult.migrationErrors`, `.unmigrated` — additive fields.
@@ -200,7 +200,7 @@ code-reviewed in the PR, not applied invisibly.
   retains loaded `typeVersions` for the save-side `max()` stamp.
 
 `serializeRecords`'s second parameter changes from `meta?` to an options object `{ meta?,
-typeVersions? }` — a breaking change to that exported function, accepted while `@nodus/*` is
+typeVersions? }` — a breaking change to that exported function, accepted while `@ahmazin/*` is
 pre-1.0/unpublished (see CHANGELOG). Every OTHER addition is optional/additive.
 
 ## Testing plan

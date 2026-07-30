@@ -47,49 +47,49 @@ importers:
 
   examples/browser:
     dependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@nodus/from-mermaid':
+      '@ahmazin/from-mermaid':
         specifier: workspace:*
         version: link:../../packages/from-mermaid
-      '@nodus/icons-cloud':
+      '@ahmazin/icons-cloud':
         specifier: workspace:*
         version: link:../../packages/icons-cloud
-      '@nodus/import-infra':
+      '@ahmazin/import-infra':
         specifier: workspace:*
         version: link:../../packages/import-infra
-      '@nodus/layout-dagre':
+      '@ahmazin/layout-dagre':
         specifier: workspace:*
         version: link:../../packages/layout-dagre
-      '@nodus/layout-elk':
+      '@ahmazin/layout-elk':
         specifier: workspace:*
         version: link:../../packages/layout-elk
-      '@nodus/layout-force':
+      '@ahmazin/layout-force':
         specifier: workspace:*
         version: link:../../packages/layout-force
-      '@nodus/layout-tree':
+      '@ahmazin/layout-tree':
         specifier: workspace:*
         version: link:../../packages/layout-tree
-      '@nodus/plugin-freehand':
+      '@ahmazin/plugin-freehand':
         specifier: workspace:*
         version: link:../../packages/plugin-freehand
-      '@nodus/preset-diagrams':
+      '@ahmazin/preset-diagrams':
         specifier: workspace:*
         version: link:../../packages/preset-diagrams
-      '@nodus/preset-draw':
+      '@ahmazin/preset-draw':
         specifier: workspace:*
         version: link:../../packages/preset-draw
-      '@nodus/preset-infra':
+      '@ahmazin/preset-infra':
         specifier: workspace:*
         version: link:../../packages/preset-infra
-      '@nodus/react':
+      '@ahmazin/react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@nodus/stencils':
+      '@ahmazin/stencils':
         specifier: workspace:*
         version: link:../../packages/stencils
-      '@nodus/text-to-diagram':
+      '@ahmazin/text-to-diagram':
         specifier: workspace:*
         version: link:../../packages/text-to-diagram
       react:
@@ -108,22 +108,22 @@ importers:
 
   examples/minimal-headless:
     dependencies:
+      '@ahmazin/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ahmazin/preset-infra':
+        specifier: workspace:*
+        version: link:../../packages/preset-infra
       '@napi-rs/canvas':
         specifier: ^0.1.60
         version: 0.1.100
-      '@nodus/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@nodus/preset-infra':
-        specifier: workspace:*
-        version: link:../../packages/preset-infra
 
   examples/minimal-react:
     dependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@nodus/react':
+      '@ahmazin/react':
         specifier: workspace:*
         version: link:../../packages/react
       react:
@@ -148,33 +148,33 @@ importers:
 
   examples/minimal-vanilla:
     dependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@nodus/preset-infra':
+      '@ahmazin/preset-infra':
         specifier: workspace:*
         version: link:../../packages/preset-infra
 
   packages/cli:
     dependencies:
+      '@ahmazin/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ahmazin/import-infra':
+        specifier: workspace:^
+        version: link:../import-infra
+      '@ahmazin/preset-diagrams':
+        specifier: workspace:^
+        version: link:../preset-diagrams
+      '@ahmazin/preset-draw':
+        specifier: workspace:^
+        version: link:../preset-draw
+      '@ahmazin/preset-infra':
+        specifier: workspace:^
+        version: link:../preset-infra
       '@napi-rs/canvas':
         specifier: ^0.1.60
         version: 0.1.100
-      '@nodus/core':
-        specifier: workspace:^
-        version: link:../core
-      '@nodus/import-infra':
-        specifier: workspace:^
-        version: link:../import-infra
-      '@nodus/preset-diagrams':
-        specifier: workspace:^
-        version: link:../preset-diagrams
-      '@nodus/preset-draw':
-        specifier: workspace:^
-        version: link:../preset-draw
-      '@nodus/preset-infra':
-        specifier: workspace:^
-        version: link:../preset-infra
 
   packages/core:
     dependencies:
@@ -188,23 +188,23 @@ importers:
 
   packages/from-mermaid:
     dependencies:
-      '@nodus/preset-diagrams':
+      '@ahmazin/preset-diagrams':
         specifier: workspace:^
         version: link:../preset-diagrams
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/layout-elk':
+      '@ahmazin/layout-elk':
         specifier: workspace:*
         version: link:../layout-elk
 
   packages/icons-cloud:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/preset-diagrams':
+      '@ahmazin/preset-diagrams':
         specifier: workspace:*
         version: link:../preset-diagrams
       svgpath:
@@ -216,14 +216,14 @@ importers:
 
   packages/import-infra:
     dependencies:
-      '@nodus/preset-infra':
+      '@ahmazin/preset-infra':
         specifier: workspace:^
         version: link:../preset-infra
       yaml:
         specifier: ^2.4.2
         version: 2.9.0
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
@@ -233,7 +233,7 @@ importers:
         specifier: ^1.1.4
         version: 1.1.8
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
@@ -243,13 +243,13 @@ importers:
         specifier: ^0.9.3
         version: 0.9.3
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/layout-force':
+      '@ahmazin/layout-force':
         specifier: workspace:*
         version: link:../layout-force
-      '@nodus/layout-tree':
+      '@ahmazin/layout-tree':
         specifier: workspace:*
         version: link:../layout-tree
 
@@ -259,7 +259,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
       '@types/d3-force':
@@ -268,85 +268,85 @@ importers:
 
   packages/layout-tree:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/mcp:
     dependencies:
+      '@ahmazin/core':
+        specifier: workspace:^
+        version: link:../core
+      '@ahmazin/from-mermaid':
+        specifier: workspace:^
+        version: link:../from-mermaid
+      '@ahmazin/import-infra':
+        specifier: workspace:^
+        version: link:../import-infra
+      '@ahmazin/layout-dagre':
+        specifier: workspace:^
+        version: link:../layout-dagre
+      '@ahmazin/layout-elk':
+        specifier: workspace:^
+        version: link:../layout-elk
+      '@ahmazin/layout-force':
+        specifier: workspace:^
+        version: link:../layout-force
+      '@ahmazin/layout-tree':
+        specifier: workspace:^
+        version: link:../layout-tree
+      '@ahmazin/preset-diagrams':
+        specifier: workspace:^
+        version: link:../preset-diagrams
+      '@ahmazin/preset-draw':
+        specifier: workspace:^
+        version: link:../preset-draw
+      '@ahmazin/preset-infra':
+        specifier: workspace:^
+        version: link:../preset-infra
+      '@ahmazin/text-to-diagram':
+        specifier: workspace:^
+        version: link:../text-to-diagram
       '@napi-rs/canvas':
         specifier: ^0.1.60
         version: 0.1.100
-      '@nodus/core':
-        specifier: workspace:^
-        version: link:../core
-      '@nodus/from-mermaid':
-        specifier: workspace:^
-        version: link:../from-mermaid
-      '@nodus/import-infra':
-        specifier: workspace:^
-        version: link:../import-infra
-      '@nodus/layout-dagre':
-        specifier: workspace:^
-        version: link:../layout-dagre
-      '@nodus/layout-elk':
-        specifier: workspace:^
-        version: link:../layout-elk
-      '@nodus/layout-force':
-        specifier: workspace:^
-        version: link:../layout-force
-      '@nodus/layout-tree':
-        specifier: workspace:^
-        version: link:../layout-tree
-      '@nodus/preset-diagrams':
-        specifier: workspace:^
-        version: link:../preset-diagrams
-      '@nodus/preset-draw':
-        specifier: workspace:^
-        version: link:../preset-draw
-      '@nodus/preset-infra':
-        specifier: workspace:^
-        version: link:../preset-infra
-      '@nodus/text-to-diagram':
-        specifier: workspace:^
-        version: link:../text-to-diagram
 
   packages/persistence:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/plugin-freehand:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-diagrams:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-draw:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/preset-infra:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/react:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
-      '@nodus/stencils':
+      '@ahmazin/stencils':
         specifier: workspace:*
         version: link:../stencils
       '@types/react':
@@ -367,17 +367,17 @@ importers:
 
   packages/stencils:
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 
   packages/text-to-diagram:
     dependencies:
-      '@nodus/preset-infra':
+      '@ahmazin/preset-infra':
         specifier: workspace:^
         version: link:../preset-infra
     devDependencies:
-      '@nodus/core':
+      '@ahmazin/core':
         specifier: workspace:*
         version: link:../core
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { getCanvas, registerCanvas, unregisterCanvas } from '../canvas-registry.js';
 
 describe('canvas registry', () => {

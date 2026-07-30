@@ -6,17 +6,17 @@
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
-import { Editor, diff, renderSVG, themePack, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord, type NodusRecord, type Vec2 } from '@nodus/core';
-import { diagramsTheme, installDiagrams } from '@nodus/preset-diagrams';
-import { installInfraPreset } from '@nodus/preset-infra';
-import { installDrawTools } from '@nodus/preset-draw';
-import { importMermaid } from '@nodus/from-mermaid';
-import { dagreLayout } from '@nodus/layout-dagre';
-import { elkLayout } from '@nodus/layout-elk';
-import { treeLayout } from '@nodus/layout-tree';
-import { forceLayout } from '@nodus/layout-force';
-import { fromKubernetes, fromTerraform } from '@nodus/import-infra';
-import { recordsFromSpec, type DiagramSpec } from '@nodus/text-to-diagram';
+import { Editor, diff, renderSVG, themePack, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord, type NodusRecord, type Vec2 } from '@ahmazin/core';
+import { diagramsTheme, installDiagrams } from '@ahmazin/preset-diagrams';
+import { installInfraPreset } from '@ahmazin/preset-infra';
+import { installDrawTools } from '@ahmazin/preset-draw';
+import { importMermaid } from '@ahmazin/from-mermaid';
+import { dagreLayout } from '@ahmazin/layout-dagre';
+import { elkLayout } from '@ahmazin/layout-elk';
+import { treeLayout } from '@ahmazin/layout-tree';
+import { forceLayout } from '@ahmazin/layout-force';
+import { fromKubernetes, fromTerraform } from '@ahmazin/import-infra';
+import { recordsFromSpec, type DiagramSpec } from '@ahmazin/text-to-diagram';
 
 export type Preset = 'diagrams' | 'infra' | 'draw';
 

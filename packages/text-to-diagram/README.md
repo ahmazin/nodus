@@ -1,26 +1,26 @@
-# @nodus/text-to-diagram
+# @ahmazin/text-to-diagram
 
-Turn an LLM's structured output into a [Nodus](https://github.com/OWNER/nodus) diagram. You give a model the exported
+Turn an LLM's structured output into a [Nodus](https://github.com/ahmazin/nodus) diagram. You give a model the exported
 Anthropic tool definition (`diagramTool`) plus `diagramSystemPrompt`; the model returns a structured
 `DiagramSpec`; you call `recordsFromSpec` to get a renderable diagram (via the
-[infra preset](https://github.com/OWNER/nodus/tree/main/packages/preset-infra)). This package holds **zero LLM or network code** — the
+[infra preset](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra)). This package holds **zero LLM or network code** — the
 actual model call stays in your app, so keys and prompts never live in the library.
 
 ## Install
 
 ```bash
-pnpm add @nodus/text-to-diagram @nodus/core @nodus/preset-infra
+pnpm add @ahmazin/text-to-diagram @ahmazin/core @ahmazin/preset-infra
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the importer shares your app's single
 > engine instance.
 
 ## Usage
 
 ```ts
 import Anthropic from '@anthropic-ai/sdk';
-import { diagramTool, diagramSystemPrompt, recordsFromToolUse } from '@nodus/text-to-diagram';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { diagramTool, diagramSystemPrompt, recordsFromToolUse } from '@ahmazin/text-to-diagram';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 const client = new Anthropic();
 const res = await client.messages.create({
@@ -53,7 +53,7 @@ The node `type` the model emits is one of the infra kinds (`service` / `db` / `c
 The spec is **untrusted** model output, so failure is explicit and coded:
 
 - **A wholly-unusable payload throws** a `DiagramSpecError` — a subclass of `NodusError` (from
-  `@nodus/core`) — with a namespaced `code`: `'text-to-diagram/invalid-spec'` (not an object with a
+  `@ahmazin/core`) — with a namespaced `code`: `'text-to-diagram/invalid-spec'` (not an object with a
   `nodes` array, or the wrong tool passed to `recordsFromToolUse`) or `'text-to-diagram/spec-too-large'`
   (over the element cap). Match with `isNodusError(e)`, never `instanceof`.
 - **Partial success is not silent.** A model that emits one malformed node or a dangling edge no longer
@@ -63,8 +63,8 @@ The spec is **untrusted** model output, so failure is explicit and coded:
   records when you don't need the issues.
 
 ```ts
-import { isNodusError } from '@nodus/core';
-import { analyzeSpec } from '@nodus/text-to-diagram';
+import { isNodusError } from '@ahmazin/core';
+import { analyzeSpec } from '@ahmazin/text-to-diagram';
 
 try {
   const { records, issues } = analyzeSpec(toolUse.input);
@@ -78,8 +78,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-infra`](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) — the node types the spec maps to.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
+- [`@ahmazin/preset-infra`](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) — the node types the spec maps to.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

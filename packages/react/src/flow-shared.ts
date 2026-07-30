@@ -4,7 +4,7 @@
  *  Styling is derived from the shared `UiTokens` (see `flowStyles`) rather than a private grey
  *  scale, so the whole Flow section re-skins with the theme and meets WCAG AA in light + dark. */
 import type { CSSProperties } from 'react';
-import type { FlowColorStop, FlowScale, FlowSpec } from '@nodus/core';
+import type { FlowColorStop, FlowScale, FlowSpec } from '@ahmazin/core';
 import type { UiMode, UiTokens } from './ui/tokens.js';
 
 export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);

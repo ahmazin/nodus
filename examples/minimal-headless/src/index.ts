@@ -2,8 +2,8 @@
 // Mirrors the recipe in the docs: https://nodus.dev/docs/headless
 import { writeFileSync } from 'node:fs';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type CreateCanvas } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { Editor, type CreateCanvas } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 // 1. Load system fonts BEFORE painting, or text renders blank. (@napi-rs/canvas's types omit
 //    loadSystemFonts, so we reach it through a narrow cast — the same as the `nodus` CLI does.)

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A reusable `<CloudIconPicker>` in `@nodus/react` — a "Cloud" toolbar button opening a searchable popover whose scrollable grid of real icon previews can be dragged onto the canvas to place an icon node.
+**Goal:** A reusable `<CloudIconPicker>` in `@ahmazin/react` — a "Cloud" toolbar button opening a searchable popover whose scrollable grid of real icon previews can be dragged onto the canvas to place an icon node.
 
-**Architecture:** `@nodus/icons-cloud` exports a `cloudIconCatalog` derived from `ALLOWLIST`. `@nodus/react` gains a JSX-free `cloud-icon-catalog.ts` (types + pure `filterCatalog`), a `canvas-registry.ts` (`WeakMap<Editor, HTMLCanvasElement>` the `<Nodus>` host fills on mount), and the `cloud-icon-picker.tsx` component. The component is decoupled from cloud icons (catalog is a prop). Drag placement maps a drop point to world coords via the registered canvas + `editor.screenToWorld`.
+**Architecture:** `@ahmazin/icons-cloud` exports a `cloudIconCatalog` derived from `ALLOWLIST`. `@ahmazin/react` gains a JSX-free `cloud-icon-catalog.ts` (types + pure `filterCatalog`), a `canvas-registry.ts` (`WeakMap<Editor, HTMLCanvasElement>` the `<Nodus>` host fills on mount), and the `cloud-icon-picker.tsx` component. The component is decoupled from cloud icons (catalog is a prop). Drag placement maps a drop point to world coords via the registered canvas + `editor.screenToWorld`.
 
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), React 18, pnpm workspaces (packages resolve `main → src`, no build step), vitest (node environment — no jsdom, so component behavior is verified by the playwright-core browser E2E, not unit tests), `playwright-core` for E2E.
 
@@ -12,15 +12,15 @@
 
 - Packages resolve to source (`main: ./src/index.ts`); no build step. `.js` import specifiers in TS.
 - vitest runs in the **node** environment — no DOM. Unit tests cover pure functions only; UI is verified via `scripts/browser-verify.mjs`.
-- `@nodus/react` must NOT import `@nodus/icons-cloud` (it declares its own structural `IconCatalogEntry` and takes `catalog` as a prop).
-- Core `Editor` stays headless — no DOM references in `@nodus/core`.
+- `@ahmazin/react` must NOT import `@ahmazin/icons-cloud` (it declares its own structural `IconCatalogEntry` and takes `catalog` as a prop).
+- Core `Editor` stays headless — no DOM references in `@ahmazin/core`.
 - Icon draw fns come from core's registry: `getIcon(name): (ctx: Ctx2D, x, y, size, color, fill?) => void`. Cloud icons carry baked colors (the `color` arg is a fallback for monochrome glyphs).
 - Node creation mirrors the existing demo: `editor.nodes.get('icon')?.getDefaultSize?.({ icon: name })` for size, then `editor.createNode({ type: 'icon', x, y, props: { icon: name } })`.
 - End every commit message with: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
 
 ---
 
-### Task 1: `cloudIconCatalog` in `@nodus/icons-cloud`
+### Task 1: `cloudIconCatalog` in `@ahmazin/icons-cloud`
 
 **Files:**
 - Create: `packages/icons-cloud/src/catalog.ts`
@@ -101,7 +101,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 2: Editor→canvas registry in `@nodus/react`
+### Task 2: Editor→canvas registry in `@ahmazin/react`
 
 **Files:**
 - Create: `packages/react/src/canvas-registry.ts`
@@ -109,7 +109,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Test: `packages/react/src/__tests__/canvas-registry.test.ts`
 
 **Interfaces:**
-- Consumes: `Editor` type from `@nodus/core`.
+- Consumes: `Editor` type from `@ahmazin/core`.
 - Produces: `registerCanvas(editor: Editor, canvas: HTMLCanvasElement): void`, `unregisterCanvas(editor: Editor): void`, `getCanvas(editor: Editor): HTMLCanvasElement | undefined`.
 
 - [ ] **Step 1: Write the failing test**
@@ -117,7 +117,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```ts
 // packages/react/src/__tests__/canvas-registry.test.ts
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { getCanvas, registerCanvas, unregisterCanvas } from '../canvas-registry.js';
 
 describe('canvas registry', () => {
@@ -156,7 +156,7 @@ Expected: FAIL — cannot resolve `../canvas-registry.js`.
  * drop target (e.g. the cloud icon picker) needs the canvas's screen rect to map a pointer to world
  * coordinates. The <Nodus> host registers its canvas on mount; consumers read it here.
  */
-import type { Editor } from '@nodus/core';
+import type { Editor } from '@ahmazin/core';
 
 const registry = new WeakMap<Editor, HTMLCanvasElement>();
 
@@ -228,7 +228,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 3: `IconCatalogEntry` + pure `filterCatalog` in `@nodus/react`
+### Task 3: `IconCatalogEntry` + pure `filterCatalog` in `@ahmazin/react`
 
 **Files:**
 - Create: `packages/react/src/cloud-icon-catalog.ts`
@@ -284,8 +284,8 @@ Expected: FAIL — cannot resolve `../cloud-icon-catalog.js`.
 /**
  * Types + pure search logic for the cloud icon picker, kept JSX-free so it unit-tests under the
  * node vitest environment (mirrors flow-shared.ts). The .tsx component imports these; tests import
- * filterCatalog directly. @nodus/react declares its OWN IconCatalogEntry so it never depends on
- * @nodus/icons-cloud — the cloudIconCatalog value is structurally assignable to it.
+ * filterCatalog directly. @ahmazin/react declares its OWN IconCatalogEntry so it never depends on
+ * @ahmazin/icons-cloud — the cloudIconCatalog value is structurally assignable to it.
  */
 export interface IconCatalogEntry {
   name: string;
@@ -334,7 +334,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/react/src/index.tsx` (barrel export)
 
 **Interfaces:**
-- Consumes: `getIcon`, `type Ctx2D`, `type Editor` from `@nodus/core`; `getCanvas` from `./canvas-registry.js`; `filterCatalog`, `IconCatalogEntry`, `ProviderFilter` from `./cloud-icon-catalog.js`.
+- Consumes: `getIcon`, `type Ctx2D`, `type Editor` from `@ahmazin/core`; `getCanvas` from `./canvas-registry.js`; `filterCatalog`, `IconCatalogEntry`, `ProviderFilter` from `./cloud-icon-catalog.js`.
 - Produces: `interface CloudIconPickerProps { editor: Editor; catalog: IconCatalogEntry[]; glyphColor?: string }`, `function CloudIconPicker(props): ReactElement`.
 
 **Note:** vitest is node-only, so this component has no unit test; its behavior is gated by the browser E2E in Task 5. This step ends at "typecheck passes + exported".
@@ -347,10 +347,10 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
  * Searchable cloud-component palette. A toolbar button toggles a popover with a search box, provider
  * chips, and a scrollable grid of real icon previews (drawn via the core registry). Dragging a tile
  * onto the canvas creates an icon node at the drop point; a click (no drag) adds it at the viewport
- * center. Decoupled from @nodus/icons-cloud — the catalog arrives as a prop.
+ * center. Decoupled from @ahmazin/icons-cloud — the catalog arrives as a prop.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import { getIcon, type Ctx2D, type Editor } from '@nodus/core';
+import { getIcon, type Ctx2D, type Editor } from '@ahmazin/core';
 import { getCanvas } from './canvas-registry.js';
 import { filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 
@@ -585,17 +585,17 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `scripts/browser-verify.mjs` (add an open→search→drag E2E step)
 
 **Interfaces:**
-- Consumes: `CloudIconPicker` from `@nodus/react`, `cloudIconCatalog` from `@nodus/icons-cloud`.
+- Consumes: `CloudIconPicker` from `@ahmazin/react`, `cloudIconCatalog` from `@ahmazin/icons-cloud`.
 
 - [ ] **Step 1: Replace the placeholder in the demo**
 
 In `examples/browser/src/main.tsx`:
 
-1. Add imports (next to the existing `@nodus/react` and `@nodus/icons-cloud` imports):
+1. Add imports (next to the existing `@ahmazin/react` and `@ahmazin/icons-cloud` imports):
 
 ```ts
-import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyImage, useValue } from '@nodus/react';
-import { cloudIconCatalog, installCloudIcons } from '@nodus/icons-cloud';
+import { CommandPalette, CloudIconPicker, Minimap, Nodus, Properties, copyImage, useValue } from '@ahmazin/react';
+import { cloudIconCatalog, installCloudIcons } from '@ahmazin/icons-cloud';
 ```
 
 2. Delete the placeholder constant and state/handler:
@@ -676,7 +676,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Spec coverage:**
 - Component `<CloudIconPicker editor catalog>` → Task 4. Toolbar button + popover + search + chips + scrollable grid → Task 4. ✓
-- `cloudIconCatalog` from `@nodus/icons-cloud` derived from `ALLOWLIST`, taken as a prop → Task 1 (export) + Task 4 (prop). ✓
+- `cloudIconCatalog` from `@ahmazin/icons-cloud` derived from `ALLOWLIST`, taken as a prop → Task 1 (export) + Task 4 (prop). ✓
 - Canvas registry `WeakMap<Editor, HTMLCanvasElement>` filled by `<Nodus>` → Task 2. ✓
 - Previews via registry draw fns → Task 4 (`Preview`). ✓
 - Pure `filterCatalog` (name/service/category/provider substring + provider filter) → Task 3. ✓

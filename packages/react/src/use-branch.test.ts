@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@nodus/core';
+import { Editor } from '@ahmazin/core';
 import { computeBranch, pushVersion, type VersionEntry } from './use-branch.js';
 
 function makeEditor(): Editor {

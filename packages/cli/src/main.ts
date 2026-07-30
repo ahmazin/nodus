@@ -6,7 +6,7 @@
  *   0  clean
  *   1  fmt --check: at least one file would be reformatted
  *   2  fmt: a file's canonical form would lose data and was NOT rewritten (pass --force to override)
- *   3  a file was written by a newer Nodus than this CLI understands ("upgrade @nodus/cli")
+ *   3  a file was written by a newer Nodus than this CLI understands ("upgrade @ahmazin/cli")
  */
 import { fmt, type FmtResult } from './commands/fmt.js';
 import { render, type Preset } from './commands/render.js';
@@ -70,7 +70,7 @@ function runFmt(files: string[], flags: Record<string, string | boolean>): numbe
     if (r.tooNew) {
       anyTooNew = true;
       const at = r.fileSchema !== undefined ? ` (schemaVersion ${r.fileSchema})` : '';
-      console.error(`error: ${r.file}: written by a newer version of Nodus${at} — upgrade @nodus/cli to read it`);
+      console.error(`error: ${r.file}: written by a newer version of Nodus${at} — upgrade @ahmazin/cli to read it`);
       continue;
     }
     if (r.lossy && !force) {

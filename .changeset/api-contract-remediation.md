@@ -1,26 +1,26 @@
 ---
-"@nodus/core": minor
-"@nodus/react": minor
-"@nodus/preset-infra": minor
-"@nodus/preset-diagrams": minor
-"@nodus/preset-draw": minor
-"@nodus/plugin-freehand": minor
-"@nodus/persistence": minor
-"@nodus/stencils": minor
-"@nodus/layout-dagre": minor
-"@nodus/layout-tree": minor
-"@nodus/layout-force": minor
-"@nodus/layout-elk": minor
-"@nodus/import-infra": minor
-"@nodus/from-mermaid": minor
-"@nodus/text-to-diagram": minor
-"@nodus/cli": minor
-"@nodus/mcp": minor
+"@ahmazin/core": minor
+"@ahmazin/react": minor
+"@ahmazin/preset-infra": minor
+"@ahmazin/preset-diagrams": minor
+"@ahmazin/preset-draw": minor
+"@ahmazin/plugin-freehand": minor
+"@ahmazin/persistence": minor
+"@ahmazin/stencils": minor
+"@ahmazin/layout-dagre": minor
+"@ahmazin/layout-tree": minor
+"@ahmazin/layout-force": minor
+"@ahmazin/layout-elk": minor
+"@ahmazin/import-infra": minor
+"@ahmazin/from-mermaid": minor
+"@ahmazin/text-to-diagram": minor
+"@ahmazin/cli": minor
+"@ahmazin/mcp": minor
 ---
 
 API contract remediation (audit F1–F45). Breaking under the 0.x policy (a minor may break):
 
-- **Dependency topology**: `@nodus/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
+- **Dependency topology**: `@ahmazin/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
 - **Errors**: one façade convention — programmer errors throw a typed `NodusError` (dual-package-safe `isNodusError()` guard), stale-id helpers return `boolean`, third-party faults route to the typed `error` event. `createNode`/`connect` now **throw** on unregistered types (previously silent). Importers/persistence share the namespaced-code convention.
 - **Events**: closed `NodusEventMap` with typed `on()` narrowing; `custom:*` escape hatch; handler isolation; warnings no longer hit the console by default.
 - **Ids**: `sessionIdFactory()` (collision-resistant session-prefixed ids) is the default; `makeId`/`seedIdCounter` are internal. Injectable via `EditorOptions.idFactory`; `deterministicIdFactory()` for reproducible fixtures.

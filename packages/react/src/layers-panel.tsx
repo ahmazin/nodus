@@ -21,7 +21,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import type { Editor, EdgeRecord, Id, NodeRecord } from '@nodus/core';
+import type { Editor, EdgeRecord, Id, NodeRecord } from '@ahmazin/core';
 import { useValue } from './use-value.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';

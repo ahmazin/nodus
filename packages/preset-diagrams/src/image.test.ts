@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { DrawApi, Editor, type Ctx2D, type NodeRecord, type ResolvedTokens } from '@nodus/core';
+import { DrawApi, Editor, type Ctx2D, type NodeRecord, type ResolvedTokens } from '@ahmazin/core';
 import {
   IMAGE_CACHE_CAP,
   clearImageCache,
@@ -11,7 +11,7 @@ import {
   setImageInvalidator,
   type DecodedImage,
   type ImageNodeProps,
-} from '@nodus/preset-diagrams';
+} from '@ahmazin/preset-diagrams';
 
 // A 1x1 transparent PNG.
 const TINY_PNG =

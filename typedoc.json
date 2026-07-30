@@ -11,7 +11,7 @@
   "categorizeByGroup": true,
   "navigationLinks": {
     "Docs": "/docs/",
-    "GitHub": "https://github.com/OWNER/nodus"
+    "GitHub": "https://github.com/ahmazin/nodus"
   },
   "hideGenerator": true,
   "treatWarningsAsErrors": false

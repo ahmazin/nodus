@@ -1,5 +1,5 @@
 /**
- * @nodus/plugin-freehand — freehand sketching for Nodus. Adds a `freehand` stroke node type and a
+ * @ahmazin/plugin-freehand — freehand sketching for Nodus. Adds a `freehand` stroke node type and a
  * pen `FreehandTool`, registered through the public plugin API only (proof that a whole new
  * interaction + type needs zero core changes). Each stroke is one undoable node; strokes are stored
  * relative to the node origin so they move/undo like any other node.
@@ -20,7 +20,7 @@ import {
   type PointerInfo,
   type ResolvedTokens,
   type Vec2,
-} from '@nodus/core';
+} from '@ahmazin/core';
 
 function absPoints(node: NodeRecord): Vec2[] {
   const rel = (node.props.points as Vec2[]) ?? [];

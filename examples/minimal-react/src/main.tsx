@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Editor, Rectangle2d, type NodeUtil } from '@nodus/core';
-import { Nodus, useNodusEditor } from '@nodus/react';
+import { Editor, Rectangle2d, type NodeUtil } from '@ahmazin/core';
+import { Nodus, useNodusEditor } from '@ahmazin/react';
 
 // A custom node type. `getGeometry` is the one declarative source the engine uses for bounds,
 // culling, hit-testing, and snapping; `draw` paints against the resolved theme tokens (never

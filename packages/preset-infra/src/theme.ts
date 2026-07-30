@@ -4,7 +4,7 @@
  * so only accent/known nodes glow. Nothing here is type-specific code — it's all data.
  */
 
-import type { Theme } from '@nodus/core';
+import type { Theme } from '@ahmazin/core';
 
 export const INFRA_TYPES = ['service', 'db', 'cache', 'queue', 'lb', 'edge'] as const;
 export type InfraKind = (typeof INFRA_TYPES)[number];

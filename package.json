@@ -27,7 +27,7 @@
     "build:icons": "tsx scripts/build-icon-packs.ts",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm verify:all && changeset publish",
+    "release": "pnpm verify:all && pnpm build && changeset publish",
     "docs:api": "typedoc"
   },
   "devDependencies": {

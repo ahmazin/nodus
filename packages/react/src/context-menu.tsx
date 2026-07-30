@@ -1,6 +1,6 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
-import type { AlignEdge, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
+import type { AlignEdge, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@ahmazin/core';
 import { DEFAULT_FLOW } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Menu, MenuItem as UiMenuItem } from './ui/primitives.js';

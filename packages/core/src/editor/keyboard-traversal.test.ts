@@ -5,7 +5,7 @@ import { Editor, boxEncloses } from '../index.js';
  * Keyboard traversal of canvas nodes: `editor.selectNextNode(dir)` cycles the sole selection
  * through nodes in reading order (top-to-bottom by y, then left-to-right by x, ties by id) and
  * pans the camera — without changing zoom — to keep the focused node on screen.
- * (The DOM Tab/arrow wiring lives in `@nodus/react`'s host and is browser-verified separately.)
+ * (The DOM Tab/arrow wiring lives in `@ahmazin/react`'s host and is browser-verified separately.)
  */
 describe('keyboard traversal — selectNextNode', () => {
   it('with nothing selected, dir 1 selects the first node and dir -1 the last (reading order)', () => {

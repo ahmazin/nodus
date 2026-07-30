@@ -9,9 +9,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, STENCIL, measureStencil, type Ctx2D } from '@nodus/core';
-import { InfraCanvas, darkInfraTheme, installInfraPreset, type InfraModel } from '@nodus/preset-infra';
-import { dagreLayout } from '@nodus/layout-dagre';
+import { Editor, STENCIL, measureStencil, type Ctx2D } from '@ahmazin/core';
+import { InfraCanvas, darkInfraTheme, installInfraPreset, type InfraModel } from '@ahmazin/preset-infra';
+import { dagreLayout } from '@ahmazin/layout-dagre';
 
 // ---------------------------------------------------------------------------
 // fonts: use a monospace the headless canvas actually has

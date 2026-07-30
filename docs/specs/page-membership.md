@@ -2,7 +2,7 @@
 
 **Status:** model + serialization + migration, editor/render wiring, **and** the example-app page-switcher UI **implemented** (with tests + a browser drive). Remaining: the deferred repair refinements below.
 **Date:** 2026-07-22
-**Area:** `@nodus/core` — `model.ts`, `serialization/index.ts`, `scene-index/index.ts`, `editor/index.ts`; example: `examples/browser/src/page-bar.tsx`
+**Area:** `@ahmazin/core` — `model.ts`, `serialization/index.ts`, `scene-index/index.ts`, `editor/index.ts`; example: `examples/browser/src/page-bar.tsx`
 
 ## Problem
 

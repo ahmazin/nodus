@@ -55,7 +55,7 @@ single-owner. `editor/index.ts` and `nodus-host.tsx` are single-owner (WS-B).
 
 - **icons-cloud build machinery** (WS-F): no `tsup.config.ts` (multi-entry `.`/`aws`/`azure`/`gcp`),
   absent from `scripts/build-all.mjs order`, no `license` field (legal call → user). Publish blocker.
-- **repository URL:** no git remote → placeholder `OWNER/nodus` in every package. Needs real URL (user).
+- **repository URL:** no git remote → placeholder `ahmazin/nodus` in every package. Needs real URL (user).
 - **theme/presets.ts** `appearance` tags: only needed if the theme-pack feeds a theme picker (WS-E
   decides; owns presets.ts if so).
 - **Migration API removal** (WS-A): drop `type Migration` from the core barrel — lead applies at Wave-1

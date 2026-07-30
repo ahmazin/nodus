@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-19
 - **Status:** Approved (scope + key decisions); ready for an implementation plan
-- **Area:** `@nodus/core` (capture/place primitives), `@nodus/react` (library panel + templates gallery), a new `@nodus/stencils` package (types + serialization + built-in content), example app wiring.
+- **Area:** `@ahmazin/core` (capture/place primitives), `@ahmazin/react` (library panel + templates gallery), a new `@ahmazin/stencils` package (types + serialization + built-in content), example app wiring.
 - **Motivation:** The competitive audit named a stencil/template ecosystem table-stakes: "a blank canvas is intimidating; XD's community libraries and draw.io's 10,000 shapes are the on-ramp." Two existing pieces make this a *generalization*, not a from-scratch build: the **CloudIconPicker** is already a searchable, drag-to-canvas palette, and **canonical serialization** lets a stencil BE a git-diffable `.nodus` fragment and a library a reviewable `.noduslib.json` bundle — something no incumbent's library format offers.
 
 ## Goals
@@ -26,7 +26,7 @@
 
 ## Architecture
 
-### 1. Data model (`@nodus/stencils`)
+### 1. Data model (`@ahmazin/stencils`)
 
 ```ts
 interface Stencil {
@@ -42,7 +42,7 @@ interface Template { id: string; name: string; description?: string; snapshot: S
 
 `.noduslib.json` uses the **same canonical stringify** as `.nodus.json` (sorted keys, stable order) so libraries diff cleanly in git.
 
-### 2. Core primitives (`@nodus/core`)
+### 2. Core primitives (`@ahmazin/core`)
 
 Two engine helpers keep id/geometry normalization in one tested place:
 
@@ -51,7 +51,7 @@ Two engine helpers keep id/geometry normalization in one tested place:
 
 These are pure engine operations (no UI), unit-testable headlessly, and the id-rewrite pass is closely related to the collaboration `canonicalizeIds` work (same reference-completeness discipline — see `docs/superpowers/specs/2026-07-19-collaboration-design.md`); keep the two implementations aligned.
 
-### 3. React UI (`@nodus/react`)
+### 3. React UI (`@ahmazin/react`)
 
 - `<StencilLibrary editor libraries onSave>` — generalizes `CloudIconPicker`: a searchable grid of stencil previews grouped by library, a recents strip, drag-to-canvas (reuse the existing canvas-registry drag→`placeStencil` path used by CloudIconPicker), and a "Save selection as stencil" affordance (prompts for a name, calls `captureStencil`, appends to the user library, persists).
 - `<TemplatesGallery editor templates onOpen>` — a grid of template previews; clicking opens `editor.loadSnapshot(template.snapshot, { fit: true })` after a guard ("Replace the current diagram?" when there are unsaved changes).
@@ -59,16 +59,16 @@ These are pure engine operations (no UI), unit-testable headlessly, and the id-r
 
 ### 4. Persistence
 
-- The **user library** persists to localStorage via `@nodus/persistence` (a JSON blob under a stable key), auto-saved on every stencil add/remove.
+- The **user library** persists to localStorage via `@ahmazin/persistence` (a JSON blob under a stable key), auto-saved on every stencil add/remove.
 - **Import/export:** a library round-trips as `.noduslib.json`; a template as `.nodus.json`. Reuse the existing `saveToFile`/`openFromFile` helpers.
 
-### 5. Built-in content (`@nodus/stencils`)
+### 5. Built-in content (`@ahmazin/stencils`)
 
 Ship a **small** starter set so the panel isn't empty: a handful of common stencils (a labeled box, a note, a decision diamond, a simple 2-tier group) and 2–3 templates (blank, 3-tier web app, CI/CD pipeline) authored as canonical fragments/snapshots. Curated depth (UML/BPMN/cloud packs) is an explicit follow-up, not v1.
 
 ## Package layout
 
-- `packages/stencils/` (NEW): `types.ts`, `serialize.ts` (`.noduslib` canonical read/write, reusing `stableStringify`), `builtin/` (starter stencils + templates as data), `index.ts`. Depends on `@nodus/core` (types + canonical) only.
+- `packages/stencils/` (NEW): `types.ts`, `serialize.ts` (`.noduslib` canonical read/write, reusing `stableStringify`), `builtin/` (starter stencils + templates as data), `index.ts`. Depends on `@ahmazin/core` (types + canonical) only.
 - `packages/core/src/editor/index.ts`: `captureStencil` + `placeStencil` (+ a shared private id-rewrite helper).
 - `packages/react/src/stencil-library.tsx`, `templates-gallery.tsx` (NEW) + exports.
 - `examples/browser/src/main.tsx`: mount the panel + gallery, wire the built-in content and the user library.
@@ -76,7 +76,7 @@ Ship a **small** starter set so the panel isn't empty: a handful of common stenc
 ## Phasing (each independently testable)
 
 - **Phase 1 — Core primitives.** `captureStencil` / `placeStencil` + id-rewrite, headless tests (capture→place round-trip: fresh ids, refs intact, positions offset, dangling edges dropped). Ships usable to anyone building their own UI.
-- **Phase 2 — `@nodus/stencils` + format.** Types, `.noduslib` canonical serialize/restore, built-in starter content, `stableStringify` reuse + canonical test.
+- **Phase 2 — `@ahmazin/stencils` + format.** Types, `.noduslib` canonical serialize/restore, built-in starter content, `stableStringify` reuse + canonical test.
 - **Phase 3 — React panels.** `<StencilLibrary>` (generalize CloudIconPicker) + `<TemplatesGallery>`, persistence, example-app wiring; browser-verify drag-to-place + save-from-selection + open-template.
 
 ## Testing plan

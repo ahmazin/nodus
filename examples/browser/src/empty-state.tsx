@@ -8,8 +8,8 @@
  * `nodeCount === 0 && !onboardDismissed` and persists the dismissal to `localStorage`); this
  * component only renders the card and reports the two actions a user can take.
  */
-import type { Editor } from '@nodus/core';
-import { CloseIcon, useUiTokens } from '@nodus/react';
+import type { Editor } from '@ahmazin/core';
+import { CloseIcon, useUiTokens } from '@ahmazin/react';
 import type { ReactElement } from 'react';
 
 export interface EmptyStateProps {

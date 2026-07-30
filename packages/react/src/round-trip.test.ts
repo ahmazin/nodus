@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Editor, toCanonicalString } from '@nodus/core';
+import { Editor, toCanonicalString } from '@ahmazin/core';
 import {
   applySource,
   canonicalOf,

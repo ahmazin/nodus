@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, isNodusError, type EdgeRecord, type NodeRecord } from '@nodus/core';
-import { installInfraPreset } from '@nodus/preset-infra';
-import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError, MAX_IMPORT_BYTES, MAX_IMPORT_ELEMENTS } from '@nodus/import-infra';
+import { Editor, isNodusError, type EdgeRecord, type NodeRecord } from '@ahmazin/core';
+import { installInfraPreset } from '@ahmazin/preset-infra';
+import { analyzeKubernetes, analyzeTerraform, fromKubernetes, fromTerraform, kubernetesKind, terraformKind, ImportError, MAX_IMPORT_BYTES, MAX_IMPORT_ELEMENTS } from '@ahmazin/import-infra';
 
 describe('terraform import', () => {
   it('maps resource types to infra kinds', () => {

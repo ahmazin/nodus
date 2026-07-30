@@ -1,5 +1,5 @@
 /** Copy/download the diagram (or the selection) as a PNG. Renders via the same paint pipeline. */
-import { padBox, type Box, type Ctx2D, type Editor, type Vec2 } from '@nodus/core';
+import { padBox, type Box, type Ctx2D, type Editor, type Vec2 } from '@ahmazin/core';
 import { showToast } from './toast.js';
 
 // ============================================================================

@@ -13,55 +13,55 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@nodus/core": [
+      "@ahmazin/core": [
         "packages/core/src/index.ts"
       ],
-      "@nodus/icons-cloud": [
+      "@ahmazin/icons-cloud": [
         "packages/icons-cloud/src/index.ts"
       ],
-      "@nodus/react": [
+      "@ahmazin/react": [
         "packages/react/src/index.tsx"
       ],
-      "@nodus/preset-infra": [
+      "@ahmazin/preset-infra": [
         "packages/preset-infra/src/index.ts"
       ],
-      "@nodus/layout-dagre": [
+      "@ahmazin/layout-dagre": [
         "packages/layout-dagre/src/index.ts"
       ],
-      "@nodus/layout-tree": [
+      "@ahmazin/layout-tree": [
         "packages/layout-tree/src/index.ts"
       ],
-      "@nodus/layout-force": [
+      "@ahmazin/layout-force": [
         "packages/layout-force/src/index.ts"
       ],
-      "@nodus/layout-elk": [
+      "@ahmazin/layout-elk": [
         "packages/layout-elk/src/index.ts"
       ],
-      "@nodus/plugin-freehand": [
+      "@ahmazin/plugin-freehand": [
         "packages/plugin-freehand/src/index.ts"
       ],
-      "@nodus/preset-diagrams": [
+      "@ahmazin/preset-diagrams": [
         "packages/preset-diagrams/src/index.ts"
       ],
-      "@nodus/text-to-diagram": [
+      "@ahmazin/text-to-diagram": [
         "packages/text-to-diagram/src/index.ts"
       ],
-      "@nodus/import-infra": [
+      "@ahmazin/import-infra": [
         "packages/import-infra/src/index.ts"
       ],
-      "@nodus/persistence": [
+      "@ahmazin/persistence": [
         "packages/persistence/src/index.ts"
       ],
-      "@nodus/preset-draw": [
+      "@ahmazin/preset-draw": [
         "packages/preset-draw/src/index.ts"
       ],
-      "@nodus/from-mermaid": [
+      "@ahmazin/from-mermaid": [
         "packages/from-mermaid/src/index.ts"
       ],
-      "@nodus/mcp": [
+      "@ahmazin/mcp": [
         "packages/mcp/src/index.ts"
       ],
-      "@nodus/stencils": [
+      "@ahmazin/stencils": [
         "packages/stencils/src/index.ts"
       ]
     }

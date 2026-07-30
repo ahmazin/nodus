@@ -1,13 +1,13 @@
-# @nodus/react
+# @ahmazin/react
 
-The React binding for the [`@nodus/core`](../core) diagram engine — a thin host that mounts the
+The React binding for the [`@ahmazin/core`](../core) diagram engine — a thin host that mounts the
 engine to a canvas, plus the panels, hooks, design-system primitives, and PNG export helpers a real
 editor UI needs. The engine owns model/render/interaction; this package wires it to the DOM.
 
 ## Install
 
 ```bash
-pnpm add @nodus/react @nodus/core react react-dom
+pnpm add @ahmazin/react @ahmazin/core react react-dom
 ```
 
 ## Quickstart
@@ -16,8 +16,8 @@ Own the `Editor` with `useNodusEditor` (it builds the editor once and disposes i
 mount it with `<Nodus>`:
 
 ```tsx
-import { Editor } from '@nodus/core';
-import { useNodusEditor, Nodus } from '@nodus/react';
+import { Editor } from '@ahmazin/core';
+import { useNodusEditor, Nodus } from '@ahmazin/react';
 
 export function App() {
   const editor = useNodusEditor(() => {
@@ -46,11 +46,11 @@ effect that runs after hydration. Two ways to keep it client-only:
 ```tsx
 // 1. Next.js App Router — a client-component boundary is enough (the banner marks the module):
 'use client';
-import { useNodusEditor, Nodus } from '@nodus/react';
+import { useNodusEditor, Nodus } from '@ahmazin/react';
 
 // 2. Pages Router / any framework — skip SSR for the canvas entirely:
 import dynamic from 'next/dynamic';
-const Nodus = dynamic(() => import('@nodus/react').then((m) => m.Nodus), { ssr: false });
+const Nodus = dynamic(() => import('@ahmazin/react').then((m) => m.Nodus), { ssr: false });
 ```
 
 ```tsx
@@ -73,7 +73,7 @@ fresh closures each render without causing a resubscribe. `<Nodus>` also forward
 
 ```tsx
 import { useRef } from 'react';
-import { Nodus, type NodusHandle } from '@nodus/react';
+import { Nodus, type NodusHandle } from '@ahmazin/react';
 
 const ref = useRef<NodusHandle>(null);
 // ref.current?.canvas  → the <canvas> element
@@ -98,7 +98,7 @@ The engine is signal-based; `useValue(fn)` re-runs `fn` and re-renders the compo
 signal `fn` read via `.get()` changes.
 
 ```tsx
-import { useValue } from '@nodus/react';
+import { useValue } from '@ahmazin/react';
 
 function SelectionCount({ editor }: { editor: Editor }) {
   // subscribe to document mutations via the scene-index version atom
@@ -127,7 +127,7 @@ are always a separate opt-in (`injectGlobalStyles({ webFonts: true })`).
 ## Stability
 
 Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
-[stability policy](https://github.com/OWNER/nodus/blob/main/docs/stability.md).
+[stability policy](https://github.com/ahmazin/nodus/blob/main/docs/stability.md).
 
 ## Panels
 
@@ -142,7 +142,7 @@ Drop-in, editor-aware components — each takes `editor` and manages its own sta
 - **`<Minimap>`** — viewport overview with click-to-pan.
 - **`<FlowControls>` / `<FlowScaleEditor>`** — animated-flow authoring for edges (style, direction,
   data-driven color scales).
-- **`<CloudIconPicker>`** — searchable AWS/Azure/GCP glyph picker (backed by `@nodus/icons-cloud`);
+- **`<CloudIconPicker>`** — searchable AWS/Azure/GCP glyph picker (backed by `@ahmazin/icons-cloud`);
   `filterCatalog` is the underlying query helper.
 - **`showToast(...)`** — transient action feedback.
 
@@ -152,7 +152,7 @@ Tokens and primitives are sourced from the core `Theme` atom, so the DOM chrome 
 canvas. `Theme.appearance` drives light/dark; `modeOfTheme(theme)` resolves the current mode.
 
 ```tsx
-import { UiTokensProvider, Panel, Button, useUiTokens } from '@nodus/react';
+import { UiTokensProvider, Panel, Button, useUiTokens } from '@ahmazin/react';
 
 function Toolbar({ editor }: { editor: Editor }) {
   const tokens = useUiTokens(editor); // WCAG-AA light + dark
@@ -181,7 +181,7 @@ text falls back to the system UI font via the `--nodus-font` variable. Web fonts
 The engine paints headlessly, so export is a canvas render — no DOM screenshot:
 
 ```ts
-import { renderPngBlob, copyOrDownloadImage, downloadImage } from '@nodus/react';
+import { renderPngBlob, copyOrDownloadImage, downloadImage } from '@ahmazin/react';
 
 const blob = await renderPngBlob(editor, { pixelRatio: 2, padding: 24 });
 await copyOrDownloadImage(editor); // clipboard where supported, else download

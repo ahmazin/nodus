@@ -6,8 +6,8 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@nodus/core';
-import { useUiTokens } from '@nodus/react';
+import type { Editor } from '@ahmazin/core';
+import { useUiTokens } from '@ahmazin/react';
 import type { ImportAnalysis, ImportFormat } from './import-analyze';
 
 const META: Record<ImportFormat, { title: string; hint: string; placeholder: string; json: boolean }> = {

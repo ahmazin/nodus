@@ -6,7 +6,7 @@
  * must hold up under StrictMode's double-invoked effect.
  */
 import { describe, expect, it } from 'vitest';
-import { Editor, type Camera, type ChangeInfo, type Id } from '@nodus/core';
+import { Editor, type Camera, type ChangeInfo, type Id } from '@ahmazin/core';
 
 describe('C5 integration props — editor event wiring', () => {
   it('forwards change / selection / camera and fires onMount once per instance', () => {

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give `@nodus/core` a migration engine so old documents (both Nodus's own record shape and third-party custom-shape `props`) upgrade automatically and safely on load.
+**Goal:** Give `@ahmazin/core` a migration engine so old documents (both Nodus's own record shape and third-party custom-shape `props`) upgrade automatically and safely on load.
 
 **Architecture:** A document-level `typeVersions` map records the version each shape `type`'s props were written at. Optional `migrations: Migration[]` on a `NodeUtil`/`EdgeUtil` define ordered up-steps (version = `migrations.length`). `restore()` stays a pure function by default; the `Editor` injects a `resolveMigrations` resolver built from its registries so migrations run at load, before normalization, with per-record fault isolation. On save the Editor stamps `max(loadedVersion, currentVersion)` per type so an older client never downgrades newer data.
 
@@ -695,7 +695,7 @@ git commit -m "feat(core): Editor migrates on load + stamps max(loaded,current) 
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–4.
-- Produces: `Migration` and `RestoreOptions` importable from `@nodus/core`.
+- Produces: `Migration` and `RestoreOptions` importable from `@ahmazin/core`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -716,7 +716,7 @@ it('exports Migration and RestoreOptions from the package root', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm typecheck`
-Expected: FAIL (`Migration` / `RestoreOptions` are not exported members of `@nodus/core`).
+Expected: FAIL (`Migration` / `RestoreOptions` are not exported members of `@ahmazin/core`).
 
 - [ ] **Step 3: Add the exports**
 

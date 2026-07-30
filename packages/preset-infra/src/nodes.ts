@@ -19,7 +19,7 @@ import {
   type Port,
   type ResolvedTokens,
   type Theme,
-} from '@nodus/core';
+} from '@ahmazin/core';
 import { classifyIcon } from './classify-icon.js';
 import { INFRA_TYPES, type InfraKind, infraTypeKey } from './theme.js';
 

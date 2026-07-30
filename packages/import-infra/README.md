@@ -1,7 +1,7 @@
-# @nodus/import-infra
+# @ahmazin/import-infra
 
-Import live infrastructure into a [Nodus](https://github.com/OWNER/nodus) diagram. Two converters turn real infra
-descriptions into [infra preset](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) records:
+Import live infrastructure into a [Nodus](https://github.com/ahmazin/nodus) diagram. Two converters turn real infra
+descriptions into [infra preset](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) records:
 
 - `fromTerraform(showJson)` — parses `terraform show -json` (state **or** plan); resources become
   nodes, `depends_on` becomes edges.
@@ -11,17 +11,17 @@ descriptions into [infra preset](https://github.com/OWNER/nodus/tree/main/packag
 ## Install
 
 ```bash
-pnpm add @nodus/import-infra @nodus/core @nodus/preset-infra
+pnpm add @ahmazin/import-infra @ahmazin/core @ahmazin/preset-infra
 ```
 
-> `@nodus/core` is a **peer dependency** — install it alongside so the importer shares your app's single
+> `@ahmazin/core` is a **peer dependency** — install it alongside so the importer shares your app's single
 > engine instance.
 
 ## Usage
 
 ```ts
-import { fromTerraform, fromKubernetes } from '@nodus/import-infra';
-import { installInfraPreset } from '@nodus/preset-infra';
+import { fromTerraform, fromKubernetes } from '@ahmazin/import-infra';
+import { installInfraPreset } from '@ahmazin/preset-infra';
 
 // Terraform: feed it the parsed JSON from `terraform show -json`
 const tf = JSON.parse(await fs.readFile('tfstate.json', 'utf8'));
@@ -42,7 +42,7 @@ resource-to-node-type classifiers — are also exported if you want to inspect o
 
 Importers parse **untrusted** shared files, so failure is explicit and coded:
 
-- **Malformed input throws** an `ImportError` — a subclass of `NodusError` (from `@nodus/core`) — with
+- **Malformed input throws** an `ImportError` — a subclass of `NodusError` (from `@ahmazin/core`) — with
   a namespaced `code`: `'import-infra/parse-failed'` (input that is not `terraform show -json` output,
   or unparseable Kubernetes YAML) or `'import-infra/input-too-large'` (a depth / element / byte
   resource-exhaustion guard tripped). `context` carries the specifics. Malformed input is **refused**,
@@ -54,8 +54,8 @@ Importers parse **untrusted** shared files, so failure is explicit and coded:
   `fromKubernetes` are the records-only convenience wrappers over these.)
 
 ```ts
-import { isNodusError } from '@nodus/core';
-import { analyzeKubernetes } from '@nodus/import-infra';
+import { isNodusError } from '@ahmazin/core';
+import { analyzeKubernetes } from '@ahmazin/import-infra';
 
 try {
   const { records, skipped } = analyzeKubernetes(manifestYaml);
@@ -69,8 +69,8 @@ try {
 
 ## See also
 
-- [`@nodus/preset-infra`](https://github.com/OWNER/nodus/tree/main/packages/preset-infra) — the node types the records use.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus/core`](https://github.com/OWNER/nodus/tree/main/packages/core)
+- [`@ahmazin/preset-infra`](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) — the node types the records use.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

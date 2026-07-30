@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add per-edge flow authoring to `@nodus/react` across two surfaces — a rich Properties-panel Flow section (full `FlowSpec` + data-driven `FlowScale`) and context-menu quick-toggles — at an elevated polish bar, with no core changes.
+**Goal:** Add per-edge flow authoring to `@ahmazin/react` across two surfaces — a rich Properties-panel Flow section (full `FlowSpec` + data-driven `FlowScale`) and context-menu quick-toggles — at an elevated polish bar, with no core changes.
 
 **Architecture:** Two new React modules in `packages/react/src`. `flow-controls.tsx` owns `<FlowControls>` (basic `FlowSpec` controls + an animated CSS preview strip + the Advanced disclosure) plus the shared `DEFAULT_FLOW`/`DEFAULT_SCALE` constants and patch helpers. `flow-scale-editor.tsx` owns the pure, unit-tested `buildRampCss` helper and `<FlowScaleEditor>` (the color-stop ramp with draggable handles, the three visual ranges, the stops list, and the live metric scrubber). `Properties` renders `<FlowControls>` below the Style section; `contextMenuItems` gains a flow group in its edge branch. All writes go through the existing `editor.setFlow(ids, spec|null, {capture})` + `editor.mark()` undo-batching pattern; live metric preview uses ephemeral `editor.setFlowMetric(id, value)`.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **No core changes.** The core API from sub-projects ①/③ is sufficient: `editor.setFlow`, `editor.setFlowMetric`, `editor.flowMetric`, `editor.store.peek`, `editor.mark`, and the exported `colorForValue`/`resolveFlow`/`resolveTokens` from `@nodus/core`. Do not edit anything under `packages/core`.
+- **No core changes.** The core API from sub-projects ①/③ is sufficient: `editor.setFlow`, `editor.setFlowMetric`, `editor.flowMetric`, `editor.store.peek`, `editor.mark`, and the exported `colorForValue`/`resolveFlow`/`resolveTokens` from `@ahmazin/core`. Do not edit anything under `packages/core`.
 - **Palette (reuse verbatim, add ONE accent):** `--bg #0d1310`, `--field-bg #12161c`, `--border #28322c`, `--text #cdd5d0`, `--row-label #8b958f`, `--micro-label #556058`, and the ONE new flow accent `--flow #2dd4bf` (teal). Threshold stop defaults: `#22c55e` / `#f59e0b` / `#ef4444`.
 - **Font:** `ui-monospace, monospace`, base `fontSize: 12`; uppercase micro-labels `fontSize: 10.5, letterSpacing: '.12em', textTransform: 'uppercase'`.
 - **Undo batching:** continuous controls (sliders, color pickers, draggable ramp handles) call the mutation with `{ capture: 'later' }` on `onChange`/drag-move and `editor.mark()` on `onPointerUp`/`onBlur`. Discrete controls (checkbox, select, add/remove button) mutate and `mark()` synchronously in the same handler (or rely on `setFlow`'s default `capture: 'immediately'`).
@@ -26,7 +26,7 @@
 ## Reference: exact core types (already exist, do not redefine)
 
 ```ts
-// @nodus/core — packages/core/src/model.ts
+// @ahmazin/core — packages/core/src/model.ts
 interface FlowColorStop { at: number; color: string }
 interface FlowScale {
   domain: [number, number];
@@ -66,7 +66,7 @@ resolveFlow(flow: FlowSpec, metric?: number): FlowSpec
 - **Modify** `packages/react/src/index.tsx` — export `FlowControls`, `DEFAULT_FLOW`, `DEFAULT_SCALE`, `FlowControlsProps` (from flow-controls) and `buildRampCss`, `FlowScaleEditor` (from flow-scale-editor).
 - **Modify** `scripts/browser-verify.mjs` — add the flow authoring E2E checks (Task 4).
 
-**DEVIATION FROM SPEC (intentional, flagged):** the spec's file-structure note places `DEFAULT_FLOW` in `context-menu.tsx`. This plan co-locates `DEFAULT_FLOW` and `DEFAULT_SCALE` in `flow-controls.tsx` (both are flow-authoring constants) and has `context-menu.tsx` import `DEFAULT_FLOW` from `./flow-controls.js`. This removes a task-ordering hazard (Task 1's `FlowControls` needs `DEFAULT_FLOW` before Task 3 runs) and keeps the two flow defaults together. The barrel still exports `DEFAULT_FLOW`. No import cycle results (`flow-controls` imports only `@nodus/core`; `context-menu` imports from `flow-controls`, not vice-versa).
+**DEVIATION FROM SPEC (intentional, flagged):** the spec's file-structure note places `DEFAULT_FLOW` in `context-menu.tsx`. This plan co-locates `DEFAULT_FLOW` and `DEFAULT_SCALE` in `flow-controls.tsx` (both are flow-authoring constants) and has `context-menu.tsx` import `DEFAULT_FLOW` from `./flow-controls.js`. This removes a task-ordering hazard (Task 1's `FlowControls` needs `DEFAULT_FLOW` before Task 3 runs) and keeps the two flow defaults together. The barrel still exports `DEFAULT_FLOW`. No import cycle results (`flow-controls` imports only `@ahmazin/core`; `context-menu` imports from `flow-controls`, not vice-versa).
 
 ---
 
@@ -92,7 +92,7 @@ resolveFlow(flow: FlowSpec, metric?: number): FlowSpec
 /** Per-edge flow authoring — a Flow section for the Properties panel. Basic FlowSpec controls +
  *  an animated preview strip; an Advanced disclosure (Task 2) holds the data-driven scale editor. */
 import { useEffect, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { resolveTokens, type Editor, type EdgeRecord, type FlowScale, type FlowSpec, type Id } from '@nodus/core';
+import { resolveTokens, type Editor, type EdgeRecord, type FlowScale, type FlowSpec, type Id } from '@ahmazin/core';
 
 // ---- flow-authoring defaults (shared with context-menu.tsx) ----
 export const DEFAULT_FLOW: FlowSpec = { style: 'dots', speed: 70, size: 3 };
@@ -386,9 +386,9 @@ export { FlowControls, DEFAULT_FLOW, DEFAULT_SCALE, type FlowControlsProps } fro
 - [ ] **Step 4: Typecheck + build.**
 
 Run: `cd /home/ali/workspaces/InfraCanvas && pnpm typecheck`
-Expected: PASS (no type errors). If `resolveTokens`/`EdgeRecord` aren't exported from `@nodus/core`, verify the export names with `grep -n "export" packages/core/src/index.ts` and adjust the import — do NOT add core exports (they already exist; substrate.test.ts imports `resolveTokens`).
+Expected: PASS (no type errors). If `resolveTokens`/`EdgeRecord` aren't exported from `@ahmazin/core`, verify the export names with `grep -n "export" packages/core/src/index.ts` and adjust the import — do NOT add core exports (they already exist; substrate.test.ts imports `resolveTokens`).
 
-Run: `cd /home/ali/workspaces/InfraCanvas && pnpm --filter @nodus/react build`
+Run: `cd /home/ali/workspaces/InfraCanvas && pnpm --filter @ahmazin/react build`
 Expected: tsup build succeeds.
 
 - [ ] **Step 5: Commit.**
@@ -417,7 +417,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/react/src/index.tsx` (export `buildRampCss`, `FlowScaleEditor`)
 
 **Interfaces:**
-- Consumes: `DEFAULT_SCALE`, palette constants, `numField`, `swatch`, `ghostBtn`, `flowRowCss`, `flowMicro` from `./flow-controls.js`; `colorForValue` from `@nodus/core`.
+- Consumes: `DEFAULT_SCALE`, palette constants, `numField`, `swatch`, `ghostBtn`, `flowRowCss`, `flowMicro` from `./flow-controls.js`; `colorForValue` from `@ahmazin/core`.
 - Produces:
   - `export function buildRampCss(stops: FlowColorStop[], domain: [number, number], gradient?: boolean): string`
   - `export interface FlowScaleEditorProps { editor: Editor; edgeIds: Id[]; firstEdge: Id }`
@@ -427,7 +427,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from '@nodus/react';
+import { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from '@ahmazin/react';
 
 describe('buildRampCss', () => {
   it('emits one CSS stop per color at normalized positions (gradient)', () => {
@@ -482,7 +482,7 @@ describe('flow defaults', () => {
 - [ ] **Step 2: Run the test to verify it fails.**
 
 Run: `cd /home/ali/workspaces/InfraCanvas && pnpm exec vitest run packages/react/src/__tests__/flow-controls.test.ts`
-Expected: FAIL — `buildRampCss` is not exported from `@nodus/react` (import error / undefined).
+Expected: FAIL — `buildRampCss` is not exported from `@ahmazin/react` (import error / undefined).
 
 - [ ] **Step 3: Create `flow-scale-editor.tsx` with `buildRampCss` + `FlowScaleEditor`.**
 
@@ -490,7 +490,7 @@ Expected: FAIL — `buildRampCss` is not exported from `@nodus/react` (import er
 /** Data-driven flow scale authoring: the color-stop ramp (draggable handles), Domain, the three
  *  visual ranges, Gradient, the stops list, and the live metric scrubber. */
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { colorForValue, type Editor, type EdgeRecord, type FlowColorStop, type FlowScale, type FlowSpec, type Id } from '@nodus/core';
+import { colorForValue, type Editor, type EdgeRecord, type FlowColorStop, type FlowScale, type FlowSpec, type Id } from '@ahmazin/core';
 import { BORDER, DEFAULT_SCALE, FIELD_BG, FLOW, flowMicro, flowRowCss, ghostBtn, MICRO, numField, ROW_LABEL, swatch, TEXT } from './flow-controls.js';
 
 /** Pure: build a CSS `background` string for the ramp. gradient=true → one stop per color;
@@ -758,7 +758,7 @@ Expected: PASS — all `buildRampCss` + defaults assertions green. (This require
 
 - [ ] **Step 5: Wire `FlowScaleEditor` + ramp swap into `FlowControls`.** In `packages/react/src/flow-controls.tsx`:
 
-Add the import at the top (after the `@nodus/core` import):
+Add the import at the top (after the `@ahmazin/core` import):
 ```tsx
 import { buildRampCss, FlowScaleEditor } from './flow-scale-editor.js';
 ```
@@ -783,7 +783,7 @@ export { buildRampCss, FlowScaleEditor, type FlowScaleEditorProps } from './flow
 cd /home/ali/workspaces/InfraCanvas
 pnpm exec vitest run packages/react   # buildRampCss + defaults
 pnpm typecheck
-pnpm --filter @nodus/react build
+pnpm --filter @ahmazin/react build
 ```
 Expected: all PASS.
 
@@ -810,11 +810,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/react/src/context-menu.tsx` (imports + the `edge` branch)
 
 **Interfaces:**
-- Consumes: `DEFAULT_FLOW` from `./flow-controls.js`; `EdgeRecord`, `FlowSpec` types from `@nodus/core`.
+- Consumes: `DEFAULT_FLOW` from `./flow-controls.js`; `EdgeRecord`, `FlowSpec` types from `@ahmazin/core`.
 
 - [ ] **Step 1: Add imports.** In `packages/react/src/context-menu.tsx`, change line 3 and add a sibling import:
 ```tsx
-import type { Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus/core';
+import type { Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@ahmazin/core';
 import { DEFAULT_FLOW } from './flow-controls.js';
 ```
 
@@ -846,7 +846,7 @@ import { DEFAULT_FLOW } from './flow-controls.js';
 
 - [ ] **Step 3: Typecheck + build.**
 ```bash
-cd /home/ali/workspaces/InfraCanvas && pnpm typecheck && pnpm --filter @nodus/react build
+cd /home/ali/workspaces/InfraCanvas && pnpm typecheck && pnpm --filter @ahmazin/react build
 ```
 Expected: PASS. (Confirm no import cycle: `flow-controls.tsx` must not import from `context-menu.tsx`.)
 

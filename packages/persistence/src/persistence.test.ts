@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Editor, isNodusError } from '@nodus/core';
-import { HttpDocStore, MemoryDocStore, autosave, loadDoc } from '@nodus/persistence';
+import { Editor, isNodusError } from '@ahmazin/core';
+import { HttpDocStore, MemoryDocStore, autosave, loadDoc } from '@ahmazin/persistence';
 
 describe('persistence', () => {
   it('MemoryDocStore round-trips a snapshot and lists metadata', async () => {

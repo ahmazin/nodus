@@ -1,11 +1,11 @@
 # Stability & versioning
 
 This is the canonical statement of what you may rely on across Nodus releases, and how the public
-API changes. It governs every `@nodus/*` package. The consumer-facing summary lives on the site at
+API changes. It governs every `@ahmazin/*` package. The consumer-facing summary lives on the site at
 [`/docs/versioning`](../apps/site/src/pages/docs/versioning.md); the release mechanics live in
 [`RELEASING.md`](../RELEASING.md).
 
-> **Every `@nodus/*` package is pre-1.0 (0.x). The public API may change before 1.0.**
+> **Every `@ahmazin/*` package is pre-1.0 (0.x). The public API may change before 1.0.**
 
 ## Semver under 0.x
 
@@ -22,12 +22,12 @@ So within a `0.MINOR` line, patches are safe to take; crossing a minor is the up
 
 ## What "public API" means
 
-The contract covers exactly what a package exports from its barrel (`@nodus/core`, `@nodus/react`,
+The contract covers exactly what a package exports from its barrel (`@ahmazin/core`, `@ahmazin/react`,
 each preset/layout/plugin). If you can import it by name from the package root, it is public and
 carries the promise above.
 
 - **`@internal` symbols carry no stability promise.** Anything tagged `@internal` in its TSDoc — or
-  reachable only through a deep import path (`@nodus/core/src/...`) rather than the barrel — may
+  reachable only through a deep import path (`@ahmazin/core/src/...`) rather than the barrel — may
   change or vanish in any release, including a patch. Do not build on it.
 - Type-level surface counts too: a type reachable from a public function signature is itself public.
 
@@ -36,7 +36,7 @@ kept deliberately narrow before 1.0 — narrowing it later is expensive; narrowi
 
 ## Canonical serialization bytes are a breaking contract
 
-`@nodus/core` serializes diagrams to **canonical** `*.nodus.json` — stable key order, normalized
+`@ahmazin/core` serializes diagrams to **canonical** `*.nodus.json` — stable key order, normalized
 numbers — so a diagram is a text artifact that diffs, reviews, and merges cleanly. That byte format
 is the product's moat, so it is a **versioned contract**:
 

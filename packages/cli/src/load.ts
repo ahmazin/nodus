@@ -20,7 +20,7 @@ import {
   type RestoreOptions,
   type RestoreResult,
   type Snapshot,
-} from '@nodus/core';
+} from '@ahmazin/core';
 
 /**
  * The defect record `restore()`/`toCanonicalString()` report through `onError`. Derived from the
@@ -45,7 +45,7 @@ export function tooNewSchema(err: unknown): number | undefined {
 export function tooNewMessage(label: string, err: unknown): string {
   const schema = tooNewSchema(err);
   const at = schema !== undefined ? ` (schemaVersion ${schema})` : '';
-  return `${label}: written by a newer version of Nodus${at} — upgrade @nodus/cli to read it`;
+  return `${label}: written by a newer version of Nodus${at} — upgrade @ahmazin/cli to read it`;
 }
 
 /** One-line stderr summary of a non-clean load; `null` when restore dropped/repaired nothing. */

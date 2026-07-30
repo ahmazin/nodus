@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const REPO_URL = 'https://github.com/OWNER/nodus';
+const REPO_URL = 'https://github.com/ahmazin/nodus';
 
 const pkgsDir = new URL('../packages', import.meta.url).pathname;
 let changed = 0;

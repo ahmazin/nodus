@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type Id, type LayoutEngine, type LayoutGraph } from '@nodus/core';
-import { treeLayout } from '@nodus/layout-tree';
-import { forceLayout } from '@nodus/layout-force';
-import { elkLayout, ELK_MAX_NODES } from '@nodus/layout-elk';
+import { Editor, type Id, type LayoutEngine, type LayoutGraph } from '@ahmazin/core';
+import { treeLayout } from '@ahmazin/layout-tree';
+import { forceLayout } from '@ahmazin/layout-force';
+import { elkLayout, ELK_MAX_NODES } from '@ahmazin/layout-elk';
 
 function graphEditor(): Editor {
   const ed = new Editor();

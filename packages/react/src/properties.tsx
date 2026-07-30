@@ -1,6 +1,6 @@
 /** A properties panel over the per-element style bag — appears when something is selected. */
 import { useEffect, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import type { Editor, Id, NodeRecord, StateTokens } from '@nodus/core';
+import type { Editor, Id, NodeRecord, StateTokens } from '@ahmazin/core';
 import { useValue } from './use-value.js';
 import { FlowControls } from './flow-controls.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';

@@ -1,6 +1,6 @@
 /**
  * `ThemeToggle` — flips the editor between a light and a dark canvas `Theme`. It is **generic**: the
- * app supplies the concrete theme pair, so `@nodus/react` stays preset-free. The current mode is read
+ * app supplies the concrete theme pair, so `@ahmazin/react` stays preset-free. The current mode is read
  * from the active theme's `appearance` (via `modeOfTheme`), which means canvas and DOM chrome always
  * agree — flipping this re-skins both in one frame.
  *
@@ -9,7 +9,7 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react';
-import type { Editor, Theme } from '@nodus/core';
+import type { Editor, Theme } from '@ahmazin/core';
 import { IconButton } from '../primitives.js';
 import { modeOfTheme, useUiTokens, type UiTokens } from '../tokens.js';
 import { useValue } from '../../use-value.js';

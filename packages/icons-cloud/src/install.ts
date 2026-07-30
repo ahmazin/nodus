@@ -1,4 +1,4 @@
-import { drawVectorIcon, registerIcon, type VectorIcon } from '@nodus/core';
+import { drawVectorIcon, registerIcon, type VectorIcon } from '@ahmazin/core';
 
 export function installPack(pack: Record<string, VectorIcon>): void {
   for (const [name, icon] of Object.entries(pack)) {

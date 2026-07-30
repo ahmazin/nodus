@@ -17,7 +17,7 @@ import {
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@nodus/core';
+import type { Editor } from '@ahmazin/core';
 import { IconButton } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
 import { CloseIcon, HelpIcon } from './icons.js';

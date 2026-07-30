@@ -2,10 +2,10 @@
  * Searchable cloud-component palette. A toolbar button toggles a popover with a search box, provider
  * chips, and a scrollable grid of real icon previews (drawn via the core registry). Dragging a tile
  * onto the canvas creates an icon node at the drop point; a click (no drag) adds it at the viewport
- * center. Decoupled from @nodus/icons-cloud — the catalog arrives as a prop.
+ * center. Decoupled from @ahmazin/icons-cloud — the catalog arrives as a prop.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { getIcon, type Ctx2D, type Editor } from '@nodus/core';
+import { getIcon, type Ctx2D, type Editor } from '@ahmazin/core';
 import { getCanvas } from './canvas-registry.js';
 import { catalogCounts, filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';

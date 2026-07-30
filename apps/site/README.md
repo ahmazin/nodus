@@ -1,4 +1,4 @@
-# @nodus/site
+# @ahmazin/site
 
 The Nodus marketing site — landing page today, with **`/docs`** and **`/playground`** reserved as
 the slots it grows into. Built with **[Astro](https://astro.build)** and emits a plain **static**
@@ -7,10 +7,10 @@ bundle (no adapter, no server), so it deploys to any static host.
 ## Commands
 
 ```bash
-pnpm --filter @nodus/site dev            # Astro dev server (http://localhost:4321)
-pnpm --filter @nodus/site build          # FULL static build -> dist/ (landing + docs + /playground/)
-pnpm --filter @nodus/site build:landing  # landing + docs only (fast; skips the editor bundle)
-pnpm --filter @nodus/site preview        # serve the built dist/
+pnpm --filter @ahmazin/site dev            # Astro dev server (http://localhost:4321)
+pnpm --filter @ahmazin/site build          # FULL static build -> dist/ (landing + docs + /playground/)
+pnpm --filter @ahmazin/site build:landing  # landing + docs only (fast; skips the editor bundle)
+pnpm --filter @ahmazin/site preview        # serve the built dist/
 ```
 
 `build` runs [`scripts/build.mjs`](./scripts/build.mjs): Astro emits the landing page + docs into
@@ -61,7 +61,7 @@ paths.
 | -------------------- | ----------------------------------------------------------------------------------- |
 | `/`                  | Landing page (`src/pages/index.astro`).                                              |
 | `/docs`, `/docs/*`   | Docs — Markdown pages (`src/pages/docs/*.md`) via `DocsLayout`, with sidebar, on-page TOC, and prev/next. |
-| `/playground/`       | The `@nodus` editor (`examples/browser`) built into `dist/playground/`.              |
+| `/playground/`       | The `@ahmazin` editor (`examples/browser`) built into `dist/playground/`.              |
 | `/404`               | Branded not-found page (`src/pages/404.astro`).                                      |
 | `/sitemap.xml`       | Dependency-free endpoint (`src/pages/sitemap.xml.ts`); `public/robots.txt` points at it. |
 
@@ -95,5 +95,5 @@ the OS sans/mono — commit the regenerated PNG.
 Point any static host (GitHub Pages, Netlify, Vercel, Cloudflare Pages) at the build:
 
 ```bash
-pnpm --filter @nodus/site build   # output: apps/site/dist/
+pnpm --filter @ahmazin/site build   # output: apps/site/dist/
 ```

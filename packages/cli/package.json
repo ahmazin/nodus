@@ -1,12 +1,12 @@
 {
-  "name": "@nodus/cli",
+  "name": "@ahmazin/cli",
   "version": "0.1.0",
   "files": [
     "dist"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/nodus.git",
+    "url": "git+https://github.com/ahmazin/nodus.git",
     "directory": "packages/cli"
   },
   "license": "MIT",
@@ -25,11 +25,11 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@nodus/core": "workspace:^",
-    "@nodus/import-infra": "workspace:^",
-    "@nodus/preset-diagrams": "workspace:^",
-    "@nodus/preset-infra": "workspace:^",
-    "@nodus/preset-draw": "workspace:^",
+    "@ahmazin/core": "workspace:^",
+    "@ahmazin/import-infra": "workspace:^",
+    "@ahmazin/preset-diagrams": "workspace:^",
+    "@ahmazin/preset-infra": "workspace:^",
+    "@ahmazin/preset-draw": "workspace:^",
     "@napi-rs/canvas": "^0.1.60"
   },
   "scripts": {
@@ -61,8 +61,8 @@
     "node": ">=20"
   },
   "sideEffects": false,
-  "homepage": "https://github.com/OWNER/nodus/tree/main/packages/cli#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/cli#readme",
   "bugs": {
-    "url": "https://github.com/OWNER/nodus/issues"
+    "url": "https://github.com/ahmazin/nodus/issues"
   }
 }

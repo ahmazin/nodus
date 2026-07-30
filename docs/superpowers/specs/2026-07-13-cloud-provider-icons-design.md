@@ -42,8 +42,8 @@ packages/icons-cloud/provenance.json                          # committed: versi
 core icon registry ──► drawStencil / iconNode draw it UNCHANGED (props.icon = 'aws:lambda')
 ```
 
-### New package `@nodus/icons-cloud`
-Keeps bulky icon data out of `core`. Subpath exports per provider (`@nodus/icons-cloud/aws|azure|gcp`) for tree-shaking; importing/installing a provider registers its pack into core's existing registry. Contains: `allowlist.ts`, `svg/` (curated sources), `src/generated/*-pack.ts`, `src/install.ts`, `provenance.json`, `NOTICE`, `LICENSES/`.
+### New package `@ahmazin/icons-cloud`
+Keeps bulky icon data out of `core`. Subpath exports per provider (`@ahmazin/icons-cloud/aws|azure|gcp`) for tree-shaking; importing/installing a provider registers its pack into core's existing registry. Contains: `allowlist.ts`, `svg/` (curated sources), `src/generated/*-pack.ts`, `src/install.ts`, `provenance.json`, `NOTICE`, `LICENSES/`.
 
 ### One core addition
 `packages/core/src/icons/vector.ts` — `drawVectorIcon(ctx, icon, box)`, exported from the barrel. Generic, data-driven replay of a `VectorIcon` through existing `Ctx2D` primitives. Mirrors how `drawIcon` already lives in core. **No `Ctx2D` interface change.**
@@ -110,7 +110,7 @@ Keep the existing neon-dark tile (accent border + glow). Provider glyphs render 
 
 ## Slice-1 boundary
 
-**In:** `@nodus/icons-cloud` package; `core` `drawVectorIcon`; codegen script + allowlist; 3 curated packs (~25–30 each); registration/namespacing; `needsChip` chip in `drawStencil`; `props.icon` wiring + minimal toolbar selector; unit/integrity/visual tests; NOTICE/LICENSES/provenance.
+**In:** `@ahmazin/icons-cloud` package; `core` `drawVectorIcon`; codegen script + allowlist; 3 curated packs (~25–30 each); registration/namespacing; `needsChip` chip in `drawStencil`; `props.icon` wiring + minimal toolbar selector; unit/integrity/visual tests; NOTICE/LICENSES/provenance.
 
 **Out (later):** full-toolkit coverage; searchable icon-picker UI; provider category-color tile theming; per-service layout hints.
 

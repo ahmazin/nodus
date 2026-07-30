@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, type NodeRecord } from '@nodus/core';
-import { installFreehand } from '@nodus/plugin-freehand';
+import { Editor, type NodeRecord } from '@ahmazin/core';
+import { installFreehand } from '@ahmazin/plugin-freehand';
 
 describe('freehand plugin', () => {
   it('registers a tool + type through the public API and draws a stroke', () => {

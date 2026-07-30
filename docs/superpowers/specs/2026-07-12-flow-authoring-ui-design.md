@@ -18,7 +18,7 @@ appears on selection and batches gestures into one undo (`editor.setStyle(ids, o
 ## Scope
 
 Per-edge flow authoring across two surfaces, at an **elevated** polish bar. Covers the full
-`FlowSpec` and data-driven `FlowScale` authoring. React-only (`@nodus/react`) — no core changes
+`FlowSpec` and data-driven `FlowScale` authoring. React-only (`@ahmazin/react`) — no core changes
 (the core API from ①/③ is sufficient). No source-binding UI (sources are wired in code; out of scope).
 
 ## Decisions (locked during brainstorming)
