@@ -1,4 +1,4 @@
-# Changelog
+# @ahmazin/mcp
 
 ## 0.2.0
 
@@ -16,20 +16,19 @@
   - **React**: `useNodusEditor` survives StrictMode; SSR-safe (`'use client'` shipped); keyboard scoped to the host by default (`keyboardScope`); zero network by default (web fonts opt-in); `onMount`/`onChange`/`onSelectionChange`/`onCameraChange`; `forwardRef` `NodusHandle`.
   - **CLI**: `fmt` refuses lossy writes without `--force`; exit codes 0/1/2/3 are a contract; `diff` accepts `REV:path` git revs.
 
-All notable changes to `@ahmazin/core` are documented in this file.
+- 8458548: MCP audit remediation. Harden the JSON-RPC / stdio transport (a lone `null` / non-object line no longer wedges the read loop; add a `-32600` Invalid Request path, a serialization-queue rejection backstop, an `unhandledRejection` net, and protocol-version negotiation up to `2025-06-18`) and add seven tools: `import_terraform`, `import_kubernetes`, `diff_docs`, `update_edge`, `set_theme`, `export_svg`, and `author_from_spec`. Also register `tree` + `force` layouts (widening the `layout` / `import_mermaid` engine enums), clamp `export_png` `pixelRatio` to a safe range, surface ambiguous label references instead of silently picking the first match, coerce mistyped array args, and source `serverInfo.version` from `package.json`.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This package is pre-1.0 and unpublished; breaking changes may land without a major bump.
+### Patch Changes
 
-## [Unreleased]
-
-### Added
-
-- Schema & custom-shape migrations: `Migration` on `NodeUtil`/`EdgeUtil`, `Snapshot.typeVersions`,
-  and `restore()` migrates a document's records on load (fault-isolated per record).
-
-### Changed
-
-- **BREAKING:** `serializeRecords(records, meta?)` → `serializeRecords(records, { meta?,
-typeVersions? })`. The second parameter is now an options object instead of the bare `meta`
-  value; callers passing `meta` positionally must wrap it as `{ meta }`.
+- Updated dependencies [9770244]
+  - @ahmazin/core@0.2.0
+  - @ahmazin/preset-infra@1.0.0
+  - @ahmazin/preset-diagrams@1.0.0
+  - @ahmazin/preset-draw@1.0.0
+  - @ahmazin/layout-dagre@1.0.0
+  - @ahmazin/layout-tree@1.0.0
+  - @ahmazin/layout-force@1.0.0
+  - @ahmazin/layout-elk@1.0.0
+  - @ahmazin/import-infra@1.0.0
+  - @ahmazin/from-mermaid@1.0.0
+  - @ahmazin/text-to-diagram@1.0.0

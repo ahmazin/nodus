@@ -1,6 +1,6 @@
 {
   "name": "@ahmazin-examples/minimal-vanilla",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "Minimal headless Nodus example — build a diagram and print its canonical JSON.",

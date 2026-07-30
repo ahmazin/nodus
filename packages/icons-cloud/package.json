@@ -1,6 +1,6 @@
 {
   "name": "@ahmazin/icons-cloud",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @ahmazin/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
