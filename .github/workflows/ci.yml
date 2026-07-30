@@ -111,7 +111,10 @@ jobs:
       - name: Interaction E2E (headless Chromium vs. the Vite app)
         run: |
           set -euo pipefail
-          pnpm dev >/tmp/vite-dev.log 2>&1 &
+          # Pin the bind address: Vite's default host is `localhost`, which Node 17+ may resolve
+          # to ::1 first — the server then listens on IPv6 only and the 127.0.0.1 readiness curl
+          # below never connects.
+          pnpm dev --host 127.0.0.1 >/tmp/vite-dev.log 2>&1 &
           VITE_PID=$!
           trap 'kill "$VITE_PID" 2>/dev/null || true' EXIT
           up=""
