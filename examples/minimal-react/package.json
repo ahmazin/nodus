@@ -1,6 +1,6 @@
 {
   "name": "@ahmazin-examples/minimal-react",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "Minimal React Nodus app — one <Nodus> host with a custom node type.",
