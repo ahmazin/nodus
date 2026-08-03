@@ -1,4 +1,4 @@
-# @ahmazin/mcp
+# @nodus-dev/mcp
 
 ## 0.2.0
 
@@ -6,7 +6,7 @@
 
 - 9770244: API contract remediation (audit F1–F45). Breaking under the 0.x policy (a minor may break):
 
-  - **Dependency topology**: `@ahmazin/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
+  - **Dependency topology**: `@nodus-dev/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
   - **Errors**: one façade convention — programmer errors throw a typed `NodusError` (dual-package-safe `isNodusError()` guard), stale-id helpers return `boolean`, third-party faults route to the typed `error` event. `createNode`/`connect` now **throw** on unregistered types (previously silent). Importers/persistence share the namespaced-code convention.
   - **Events**: closed `NodusEventMap` with typed `on()` narrowing; `custom:*` escape hatch; handler isolation; warnings no longer hit the console by default.
   - **Ids**: `sessionIdFactory()` (collision-resistant session-prefixed ids) is the default; `makeId`/`seedIdCounter` are internal. Injectable via `EditorOptions.idFactory`; `deterministicIdFactory()` for reproducible fixtures.
@@ -21,14 +21,14 @@
 ### Patch Changes
 
 - Updated dependencies [9770244]
-  - @ahmazin/core@0.2.0
-  - @ahmazin/preset-infra@1.0.0
-  - @ahmazin/preset-diagrams@1.0.0
-  - @ahmazin/preset-draw@1.0.0
-  - @ahmazin/layout-dagre@1.0.0
-  - @ahmazin/layout-tree@1.0.0
-  - @ahmazin/layout-force@1.0.0
-  - @ahmazin/layout-elk@1.0.0
-  - @ahmazin/import-infra@1.0.0
-  - @ahmazin/from-mermaid@1.0.0
-  - @ahmazin/text-to-diagram@1.0.0
+  - @nodus-dev/core@0.2.0
+  - @nodus-dev/preset-infra@1.0.0
+  - @nodus-dev/preset-diagrams@1.0.0
+  - @nodus-dev/preset-draw@1.0.0
+  - @nodus-dev/layout-dagre@1.0.0
+  - @nodus-dev/layout-tree@1.0.0
+  - @nodus-dev/layout-force@1.0.0
+  - @nodus-dev/layout-elk@1.0.0
+  - @nodus-dev/import-infra@1.0.0
+  - @nodus-dev/from-mermaid@1.0.0
+  - @nodus-dev/text-to-diagram@1.0.0
