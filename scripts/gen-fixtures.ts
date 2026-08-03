@@ -32,7 +32,7 @@ import {
   type PageRecord,
   type RestoreOptions,
   type Snapshot,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 
 const FIXTURES_DIR = fileURLToPath(new URL('../packages/core/src/__tests__/fixtures/', import.meta.url));
 

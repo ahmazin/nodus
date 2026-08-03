@@ -1,11 +1,11 @@
 /**
- * @ahmazin/layout-elk — an ELK (Eclipse Layout Kernel) adapter via elkjs. Supports layered,
+ * @nodus-dev/layout-elk — an ELK (Eclipse Layout Kernel) adapter via elkjs. Supports layered,
  * orthogonal, and nested layouts. Uses the bundled build (async, runs everywhere incl. Node); in a
  * browser you can pass `{ workerUrl }` to offload to a Web Worker.
  */
 
 import ELK from 'elkjs/lib/elk.bundled.js';
-import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@ahmazin/core';
+import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@nodus-dev/core';
 
 /**
  * Above this node count, elkjs's layout kernel overflows the call stack with a cryptic `RangeError`

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-// @ahmazin/core — generated from the post-B5 surface (makeId/seedIdCounter are @internal and absent).
+// @nodus-dev/core — generated from the post-B5 surface (makeId/seedIdCounter are @internal and absent).
 const CORE_SURFACE: string[] = [
   'CommandRegistry',
   'ConnectTool',
@@ -134,7 +134,7 @@ const CORE_SURFACE: string[] = [
   'zoomAt',
 ];
 
-// @ahmazin/preset-diagrams — value exports only (DecodedImage is a type, so it is not a runtime key).
+// @nodus-dev/preset-diagrams — value exports only (DecodedImage is a type, so it is not a runtime key).
 const PRESET_DIAGRAMS_SURFACE: string[] = [
   'IMAGE_CACHE_CAP',
   'ROW_H',
@@ -164,7 +164,7 @@ const PRESET_DIAGRAMS_SURFACE: string[] = [
   'tableNode',
 ];
 
-// @ahmazin/react — value exports (components, hooks, helpers). Imports cleanly under vitest's esbuild
+// @nodus-dev/react — value exports (components, hooks, helpers). Imports cleanly under vitest's esbuild
 // interop (the raw-tsx gifenc issue does not affect the test env).
 const REACT_SURFACE: string[] = [
   'ArrowIcon',
@@ -274,23 +274,23 @@ const REACT_SURFACE: string[] = [
   'useValue',
 ];
 
-describe('public surface — @ahmazin/core', () => {
+describe('public surface — @nodus-dev/core', () => {
   it('exports exactly the checked-in set (no accidental additions/removals)', async () => {
-    const ns = await import('@ahmazin/core');
+    const ns = await import('@nodus-dev/core');
     expect(Object.keys(ns).sort()).toEqual([...CORE_SURFACE].sort());
   });
 });
 
-describe('public surface — @ahmazin/preset-diagrams', () => {
+describe('public surface — @nodus-dev/preset-diagrams', () => {
   it('exports exactly the checked-in set', async () => {
-    const ns = await import('@ahmazin/preset-diagrams');
+    const ns = await import('@nodus-dev/preset-diagrams');
     expect(Object.keys(ns).sort()).toEqual([...PRESET_DIAGRAMS_SURFACE].sort());
   });
 });
 
-describe('public surface — @ahmazin/react', () => {
+describe('public surface — @nodus-dev/react', () => {
   it('exports exactly the checked-in set', async () => {
-    const ns = await import('@ahmazin/react');
+    const ns = await import('@nodus-dev/react');
     expect(Object.keys(ns).sort()).toEqual([...REACT_SURFACE].sort());
   });
 });

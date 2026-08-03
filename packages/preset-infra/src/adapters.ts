@@ -17,7 +17,7 @@ import {
   type NodeRecord,
   type NodusRecord,
   type OverlayLayer,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 
 export function freeformMode(editor: Editor): Dispose {
   editor.setTool('select');

@@ -1,5 +1,5 @@
 /**
- * @ahmazin/core — a headless, framework-agnostic, extensible Canvas-2D diagram engine.
+ * @nodus-dev/core — a headless, framework-agnostic, extensible Canvas-2D diagram engine.
  */
 
 // model — explicit named exports (makeId/seedIdCounter are @internal and deliberately NOT public;

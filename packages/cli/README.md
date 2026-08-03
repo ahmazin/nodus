@@ -1,4 +1,4 @@
-# @ahmazin/cli
+# @nodus-dev/cli
 
 The `nodus` CLI — the git-native toolchain for [Nodus](../../README.md) diagrams. It canonicalizes
 (`fmt`), renders to PNG (`render`), and semantically diffs (`diff`) `*.nodus.json` files, so diagrams
@@ -17,7 +17,7 @@ dropped/stripped). A file written by a **newer** Nodus is refused outright.
 | `0`  | clean (formatted, or already canonical) |
 | `1`  | `--check`: at least one file would be reformatted |
 | `2`  | refused: a file's canonical form would lose data and was **not** rewritten (use `--force`) |
-| `3`  | a file was written by a newer Nodus than this CLI understands — upgrade `@ahmazin/cli` |
+| `3`  | a file was written by a newer Nodus than this CLI understands — upgrade `@nodus-dev/cli` |
 
 `render`, `diff`, and `drift` also exit `3` on a too-new file, and print a one-line stderr summary
 (`loaded N record(s); dropped 2 dangling edge(s), …`) when a load drops or repairs anything, while
@@ -26,7 +26,7 @@ still proceeding.
 ## Install
 
 ```bash
-pnpm add -D @ahmazin/cli        # provides the `nodus` bin
+pnpm add -D @nodus-dev/cli        # provides the `nodus` bin
 ```
 
 In this monorepo, run it without installing via `pnpm nodus <cmd>` (executed through tsx).
@@ -61,7 +61,7 @@ nodus diff main:arch.nodus.json HEAD:arch.nodus.json                # branch vs 
 The command functions are exported for use in scripts and tests:
 
 ```ts
-import { fmt, render, diffReport } from '@ahmazin/cli';
+import { fmt, render, diffReport } from '@nodus-dev/cli';
 
 const results = fmt(['a.nodus.json'], { check: true });   // FmtResult[]; add { force: true } to write over loss
 const out = await render('a.nodus.json', { out: 'a.png', preset: 'infra' });
@@ -75,7 +75,7 @@ make the same write-safety decision the CLI does. Also exported: `canonicalizeFi
 
 ## See also
 
-- [`@ahmazin/core`](../core/README.md) — the canonical serialization these commands wrap.
+- [`@nodus-dev/core`](../core/README.md) — the canonical serialization these commands wrap.
 - Root README's [Git-native diagrams](../../README.md#git-native-diagrams) section and
   `.github/workflows/diagrams.yml` (the CI enforcement).
 

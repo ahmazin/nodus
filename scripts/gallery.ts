@@ -25,11 +25,11 @@ import {
   type ResolvedTokens,
   type Theme,
   type Vec2,
-} from '@ahmazin/core';
-import { InfraCanvas, darkInfraTheme } from '@ahmazin/preset-infra';
-import { dagreLayout } from '@ahmazin/layout-dagre';
-import { iconNode } from '@ahmazin/preset-diagrams';
-import { installCloudIcons } from '@ahmazin/icons-cloud';
+} from '@nodus-dev/core';
+import { InfraCanvas, darkInfraTheme } from '@nodus-dev/preset-infra';
+import { dagreLayout } from '@nodus-dev/layout-dagre';
+import { iconNode } from '@nodus-dev/preset-diagrams';
+import { installCloudIcons } from '@nodus-dev/icons-cloud';
 
 (GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();
 const MONO = 'Noto Sans Mono, monospace';
@@ -340,7 +340,7 @@ async function orgChart(): Promise<void> {
   render(ed, 'org-chart.png', 980, 560);
 }
 
-// Cloud-provider icon grid: proves @ahmazin/icons-cloud packs resolve through iconNode (props.icon)
+// Cloud-provider icon grid: proves @nodus-dev/icons-cloud packs resolve through iconNode (props.icon)
 // once installCloudIcons() has registered them. Only fixture packs exist today (one glyph per
 // provider); the grid derives its list from the registry itself so it grows with the real packs.
 function cloudIcons(): void {

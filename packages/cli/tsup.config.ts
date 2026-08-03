@@ -7,5 +7,5 @@ export default defineConfig({
   sourcemap: true,
   treeshake: true,
   banner: { js: '' },
-  external: ['@ahmazin/core', '@ahmazin/preset-diagrams', '@ahmazin/preset-infra', '@ahmazin/preset-draw', '@napi-rs/canvas'],
+  external: ['@nodus-dev/core', '@nodus-dev/preset-diagrams', '@nodus-dev/preset-infra', '@nodus-dev/preset-draw', '@napi-rs/canvas'],
 });

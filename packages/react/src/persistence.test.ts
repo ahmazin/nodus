@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@ahmazin/core';
+import { Editor } from '@nodus-dev/core';
 import { MAX_SNAPSHOT_BYTES, parseSnapshot, serializeDocument } from './persistence.js';
 
 function makeEditor(): Editor {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // Import the pure helper + defaults from the JSX-free shared module via a relative path
-// (matches the core tests' `../index.js` convention; a bare `@ahmazin/react` specifier resolving to
+// (matches the core tests' `../index.js` convention; a bare `@nodus-dev/react` specifier resolving to
 // a .tsx source crashes tsc under moduleResolution:Bundler).
 import { buildRampCss, DEFAULT_FLOW, DEFAULT_SCALE } from '../flow-shared.js';
 

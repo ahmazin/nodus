@@ -9,8 +9,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { diff, restore, toCanonicalString } from '@ahmazin/core';
-import type { Editor, Snapshot, DiffResult } from '@ahmazin/core';
+import { diff, restore, toCanonicalString } from '@nodus-dev/core';
+import type { Editor, Snapshot, DiffResult } from '@nodus-dev/core';
 import { unifiedDiff } from './unified-diff.js';
 import type { UnifiedDiffResult } from './unified-diff.js';
 import { useValue } from './use-value.js';

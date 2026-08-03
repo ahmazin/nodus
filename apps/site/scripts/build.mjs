@@ -1,10 +1,10 @@
 // Full site build: landing/docs (Astro) + the editor demo (Vite) at /playground/.
 //
 //   dist/                 <- Astro: landing page + docs
-//   dist/playground/      <- Vite: the @ahmazin editor (examples/browser), base=/playground/
+//   dist/playground/      <- Vite: the @nodus-dev editor (examples/browser), base=/playground/
 //
 // Order matters: `astro build` empties dist/, so it runs first; the editor is written into
-// dist/playground/ afterwards. Run:  pnpm --filter @ahmazin/site build
+// dist/playground/ afterwards. Run:  pnpm --filter @nodus-dev/site build
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';

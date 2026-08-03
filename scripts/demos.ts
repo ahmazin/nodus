@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type Ctx2D, type Theme } from '@ahmazin/core';
+import { Editor, type Ctx2D, type Theme } from '@nodus-dev/core';
 import {
   buildERD,
   buildFlowchart,
@@ -13,10 +13,10 @@ import {
   buildStateMachine,
   diagramsTheme,
   installDiagrams,
-} from '@ahmazin/preset-diagrams';
-import { installFreehand } from '@ahmazin/plugin-freehand';
-import { dagreLayout } from '@ahmazin/layout-dagre';
-import { treeLayout } from '@ahmazin/layout-tree';
+} from '@nodus-dev/preset-diagrams';
+import { installFreehand } from '@nodus-dev/plugin-freehand';
+import { dagreLayout } from '@nodus-dev/layout-dagre';
+import { treeLayout } from '@nodus-dev/layout-tree';
 
 (GlobalFonts as { loadSystemFonts?: () => number }).loadSystemFonts?.();
 const MONO = 'Noto Sans Mono, monospace';

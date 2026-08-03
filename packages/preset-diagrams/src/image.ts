@@ -15,7 +15,7 @@
  * and never throws, so `pnpm verify:render` (Skia) stays safe.
  */
 
-import { Rectangle2d, type NodeRecord, type NodeUtil } from '@ahmazin/core';
+import { Rectangle2d, type NodeRecord, type NodeUtil } from '@nodus-dev/core';
 
 export interface ImageNodeProps {
   /** Image source — a `data:` URI (self-contained, canonical-serializable) or a URL. */

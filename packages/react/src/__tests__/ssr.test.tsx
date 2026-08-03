@@ -2,7 +2,7 @@
  * Server-side rendering safety (C2/F3) + network-free default styles (C4/F12).
  *
  * vitest runs `environment: 'node'`, so `react-dom/server`'s `renderToString` exercises the true
- * server path with no jsdom. Importing the components through the `@ahmazin/react` barrel doubles as a
+ * server path with no jsdom. Importing the components through the `@nodus-dev/react` barrel doubles as a
  * node-environment barrel-import smoke test (the barrel must not touch the DOM at module scope).
  *
  * The SSR cases fail without the `getServerSnapshot` fix: `useValue` builds on `useSyncExternalStore`,
@@ -11,8 +11,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { Editor } from '@ahmazin/core';
-import { Nodus, Properties, Minimap, LayersPanel, injectGlobalStyles } from '@ahmazin/react';
+import { Editor } from '@nodus-dev/core';
+import { Nodus, Properties, Minimap, LayersPanel, injectGlobalStyles } from '@nodus-dev/react';
 
 describe('SSR — renderToString without a DOM (C2/F3)', () => {
   it('renders <Nodus> on the server without throwing', () => {

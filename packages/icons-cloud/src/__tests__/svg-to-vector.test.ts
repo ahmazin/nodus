@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OP } from '@ahmazin/core';
+import { OP } from '@nodus-dev/core';
 import { svgToVectorIcon } from '../codegen/svg-to-vector.js';
 
 const SVG = `<svg viewBox="0 0 24 24">

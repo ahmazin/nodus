@@ -1,7 +1,7 @@
 /** Per-edge flow authoring — a Flow section for the Properties panel. Basic FlowSpec controls +
  *  an animated preview strip; an Advanced disclosure holds the data-driven scale editor. */
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { parseRate, resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@ahmazin/core';
+import { parseRate, resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { buildRampCss, clamp, DEFAULT_FLOW, flowStyles, FLOW_STYLE, isHex6, type FlowStyles } from './flow-shared.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@ahmazin/core';
-import { buildERD, buildFlowchart, buildOrgChart, buildStateMachine, diagramNodeUtils, imageNode, installDiagrams } from '@ahmazin/preset-diagrams';
+import { Editor } from '@nodus-dev/core';
+import { buildERD, buildFlowchart, buildOrgChart, buildStateMachine, diagramNodeUtils, imageNode, installDiagrams } from '@nodus-dev/preset-diagrams';
 
 function load(recs: ReturnType<typeof buildFlowchart>): Editor {
   const ed = new Editor();

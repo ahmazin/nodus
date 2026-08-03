@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/layout-dagre",
+  "name": "@nodus-dev/layout-dagre",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -48,10 +48,10 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "devDependencies": {
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

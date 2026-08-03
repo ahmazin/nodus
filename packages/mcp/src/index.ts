@@ -1,5 +1,5 @@
 /**
- * @ahmazin/mcp — a Model Context Protocol server around a headless Nodus Editor. An agent can build
+ * @nodus-dev/mcp — a Model Context Protocol server around a headless Nodus Editor. An agent can build
  * diagrams (import Mermaid, add/connect/layout nodes) and export PNG/JSON. Run the stdio server via
  * the `nodus-mcp` bin, or embed DiagramSession + dispatch in your own transport.
  */

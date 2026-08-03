@@ -1,6 +1,6 @@
 /**
- * @ahmazin/from-mermaid — parse a Mermaid diagram string into Nodus records, reusing the
- * @ahmazin/preset-diagrams builders (so the result renders with the diagram node types + theme and
+ * @nodus-dev/from-mermaid — parse a Mermaid diagram string into Nodus records, reusing the
+ * @nodus-dev/preset-diagrams builders (so the result renders with the diagram node types + theme and
  * lays out under any registered engine, e.g. ELK). Deliberately scoped to the three subsets that
  * cover the common cases: `flowchart`/`graph`, `stateDiagram(-v2)`, and `erDiagram`.
  *
@@ -10,7 +10,7 @@
  * NOT supported (parsed leniently — ignored, never thrown): flowchart subgraphs, `&` multi-targets,
  * class/style directives, composite states, ER attribute keys beyond PK/FK. Unknown lines are skipped.
  */
-import { NodusError, type Editor, type NodusRecord } from '@ahmazin/core';
+import { NodusError, type Editor, type NodusRecord } from '@nodus-dev/core';
 import {
   buildERD,
   buildFlowchart,
@@ -21,7 +21,7 @@ import {
   type StateSpec,
   type TableSpec,
   type Transition,
-} from '@ahmazin/preset-diagrams';
+} from '@nodus-dev/preset-diagrams';
 
 export type MermaidKind = 'flowchart' | 'state' | 'er';
 export type Direction = 'TB' | 'LR' | 'RL' | 'BT';

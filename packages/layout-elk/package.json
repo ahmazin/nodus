@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/layout-elk",
+  "name": "@nodus-dev/layout-elk",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -26,9 +26,9 @@
     "elkjs": "^0.9.3"
   },
   "devDependencies": {
-    "@ahmazin/layout-force": "workspace:*",
-    "@ahmazin/layout-tree": "workspace:*",
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/layout-force": "workspace:*",
+    "@nodus-dev/layout-tree": "workspace:*",
+    "@nodus-dev/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -53,7 +53,7 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "engines": {
     "node": ">=20"

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import { effect, type Dispose } from '@ahmazin/core';
+import { effect, type Dispose } from '@nodus-dev/core';
 
 /**
  * Subscribe a React component to any core signal expression. Re-renders when its deps change

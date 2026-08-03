@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@ahmazin/core';
+import { Editor } from '@nodus-dev/core';
 import { buildLayerTree, type LayerNode } from './layers-panel.js';
 
 /** Flatten a tree to `id`s in visit order (row order the panel would render). */

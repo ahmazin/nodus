@@ -1,8 +1,8 @@
 /**
  * Types + pure search logic for the cloud icon picker, kept JSX-free so it unit-tests under the
  * node vitest environment (mirrors flow-shared.ts). The .tsx component imports these; tests import
- * filterCatalog directly. @ahmazin/react declares its OWN IconCatalogEntry so it never depends on
- * @ahmazin/icons-cloud — the cloudIconCatalog value is structurally assignable to it.
+ * filterCatalog directly. @nodus-dev/react declares its OWN IconCatalogEntry so it never depends on
+ * @nodus-dev/icons-cloud — the cloudIconCatalog value is structurally assignable to it.
  */
 export interface IconCatalogEntry {
   name: string;

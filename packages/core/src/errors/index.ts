@@ -9,7 +9,7 @@
 
 /**
  * Closed union of first-party engine error codes carried by a {@link NodusError}. Codes raised by
- * other `@ahmazin/*` packages use a slash namespace (e.g. `'persistence/load-failed'`), so the brand
+ * other `@nodus-dev/*` packages use a slash namespace (e.g. `'persistence/load-failed'`), so the brand
  * — not this union — is the cross-package discriminant.
  */
 export type NodusErrorCode =
@@ -28,13 +28,13 @@ export type NodusErrorCode =
   | 'apply-in-transaction';
 
 /** The brand string stamped on every NodusError, whatever build produced it. */
-const NODUS_ERROR_BRAND = '@ahmazin/core:NodusError';
+const NODUS_ERROR_BRAND = '@nodus-dev/core:NodusError';
 
 /**
  * A typed engine error. Carries a stable machine-readable {@link code} and optional structured
  * {@link context} so callers branch on `err.code` rather than parsing the message.
  *
- * **Never test membership with `instanceof`.** When `@ahmazin/core` is loaded twice in one process
+ * **Never test membership with `instanceof`.** When `@nodus-dev/core` is loaded twice in one process
  * (an ESM build and a CJS build — the dual-package hazard) there are two distinct `NodusError`
  * classes and `instanceof` fails across the seam. Use {@link isNodusError}, which matches the
  * {@link brand} string instead.
@@ -56,7 +56,7 @@ export class NodusError<C extends string = NodusErrorCode> extends Error {
 }
 
 /**
- * Structural type guard for a {@link NodusError} produced by ANY copy of `@ahmazin/core`. Matches on
+ * Structural type guard for a {@link NodusError} produced by ANY copy of `@nodus-dev/core`. Matches on
  * the brand string plus a string `code` — deliberately NOT `instanceof` (see {@link NodusError}).
  * Narrows to `NodusError<string>` because a foreign-copy error may carry a code outside this
  * build's {@link NodusErrorCode} union.

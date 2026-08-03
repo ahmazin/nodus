@@ -11,7 +11,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { diff, stableStringify, type DiffResult, type Id, type NodusRecord, type Snapshot } from '@ahmazin/core';
+import { diff, stableStringify, type DiffResult, type Id, type NodusRecord, type Snapshot } from '@nodus-dev/core';
 import { sanitizeText } from './sanitize.js';
 import { restoreLabeled } from '../load.js';
 

@@ -1,4 +1,4 @@
-# @ahmazin/mcp
+# @nodus-dev/mcp
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server around a headless Nodus `Editor`.
 It lets an agent **build, lay out, and export diagrams** — the fastest path being `import_mermaid`,
@@ -34,7 +34,7 @@ renders PNGs with Skia via `@napi-rs/canvas`.
 ## Run it
 
 ```bash
-pnpm --filter @ahmazin/mcp build
+pnpm --filter @nodus-dev/mcp build
 # then run the stdio server (an MCP client launches this for you):
 node packages/mcp/dist/bin.js
 ```
@@ -79,7 +79,7 @@ coloured by each link's health — congested links red and slow, healthy links g
 The transport and the tool logic are separable — drive `DiagramSession` from your own transport:
 
 ```ts
-import { DiagramSession, dispatch } from '@ahmazin/mcp';
+import { DiagramSession, dispatch } from '@nodus-dev/mcp';
 
 const session = new DiagramSession({ dataDir: './diagrams' });
 const result = await dispatch(session, 'import_mermaid', { source: 'graph LR\n A --> B' });

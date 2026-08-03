@@ -104,7 +104,7 @@ describe('selection halo', () => {
   it("colors the halo with the selected node's OWN type color from theme.byType, not the global accent", () => {
     // A theme with a `byType` slice for the built-in 'rect' type whose glow (cyan) differs from the
     // global palette.accent (blue) — mirrors the byType-construction pattern in core.test.ts's "theme
-    // token resolution" describe block, and the real `darkInfraTheme` in @ahmazin/preset-infra
+    // token resolution" describe block, and the real `darkInfraTheme` in @nodus-dev/preset-infra
     // (states.accent there deliberately omits stroke/glow so byType wins for infra node colors; see
     // packages/preset-infra/src/theme.ts). Keying byType by 'rect' lets the node use the already-
     // registered built-in `rectNodeUtil` (packages/core/src/builtins/index.ts) — an unregistered type

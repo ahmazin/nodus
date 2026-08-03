@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin-examples/minimal-react",
+  "name": "@nodus-dev-examples/minimal-react",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "start": "vite"
   },
   "dependencies": {
-    "@ahmazin/core": "workspace:*",
-    "@ahmazin/react": "workspace:*",
+    "@nodus-dev/core": "workspace:*",
+    "@nodus-dev/react": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -5,7 +5,7 @@
  */
 import { parseSync } from 'svgson';
 import svgpath from 'svgpath';
-import { OP, type VectorIcon, type VectorSubpath } from '@ahmazin/core';
+import { OP, type VectorIcon, type VectorSubpath } from '@nodus-dev/core';
 
 interface SvgNode {
   name: string;

@@ -1,6 +1,6 @@
-# @ahmazin/icons-cloud
+# @nodus-dev/icons-cloud
 
-Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into `@ahmazin/core`'s icon
+Cloud-provider icon packs (AWS, Azure, GCP) for Nodus, registered into `@nodus-dev/core`'s icon
 registry as namespaced `provider:service` glyphs (e.g. `aws:lambda`, `azure:functions`,
 `gcp:run`).
 

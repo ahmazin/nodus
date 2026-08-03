@@ -8,7 +8,7 @@ describe('NodusError', () => {
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe('NodusError');
     expect(e.code).toBe('unknown-node-type');
-    expect(e.brand).toBe('@ahmazin/core:NodusError');
+    expect(e.brand).toBe('@nodus-dev/core:NodusError');
     expect(e.message).toBe('boom');
     expect(e.context).toEqual({ type: 'ghost' });
     expect(e.cause).toBe(cause);
@@ -27,10 +27,10 @@ describe('isNodusError (dual-package-safe brand check)', () => {
   });
 
   it('matches a FOREIGN error with the same brand+code shape (the dual-package seam)', () => {
-    // A NodusError minted by a SECOND copy of @ahmazin/core (an ESM build and a CJS build coexisting
+    // A NodusError minted by a SECOND copy of @nodus-dev/core (an ESM build and a CJS build coexisting
     // in one process) is a *different class*, so `instanceof` would reject it. The brand string is
     // what must identify it across the seam — this is the whole reason isNodusError exists.
-    const foreign = { brand: '@ahmazin/core:NodusError', code: 'unknown-layout', message: 'from the other copy' };
+    const foreign = { brand: '@nodus-dev/core:NodusError', code: 'unknown-layout', message: 'from the other copy' };
     expect(isNodusError(foreign)).toBe(true);
     expect(foreign instanceof NodusError).toBe(false); // exactly the case a naive instanceof misses
   });
@@ -38,7 +38,7 @@ describe('isNodusError (dual-package-safe brand check)', () => {
   it('rejects a plain Error and non-branded / non-object values', () => {
     expect(isNodusError(new Error('plain'))).toBe(false);
     expect(isNodusError({ code: 'unknown-layout' })).toBe(false); // branded discriminant missing
-    expect(isNodusError({ brand: '@ahmazin/core:NodusError' })).toBe(false); // no string `code`
+    expect(isNodusError({ brand: '@nodus-dev/core:NodusError' })).toBe(false); // no string `code`
     expect(isNodusError({ brand: 'something-else', code: 'x' })).toBe(false); // wrong brand
     expect(isNodusError(null)).toBe(false);
     expect(isNodusError('unknown-layout')).toBe(false);

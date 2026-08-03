@@ -1,5 +1,5 @@
 /**
- * @ahmazin/import-infra — turn live infrastructure into a Nodus diagram.
+ * @nodus-dev/import-infra — turn live infrastructure into a Nodus diagram.
  *  - `fromTerraform(showJson)`: parses `terraform show -json` (state or plan) — resources become
  *    nodes; edges come from `depends_on` plus implicit interpolation references inferred from the
  *    `configuration` block (e.g. `subnet_id = aws_subnet.main.id`).
@@ -19,8 +19,8 @@ import {
   type Id,
   type NodeRecord,
   type NodusRecord,
-} from '@ahmazin/core';
-import { modelToRecords, type InfraModel } from '@ahmazin/preset-infra';
+} from '@nodus-dev/core';
+import { modelToRecords, type InfraModel } from '@nodus-dev/preset-infra';
 import { parseAllDocuments } from 'yaml';
 
 /** Namespaced failure codes for this importer (F34). `parse-failed` = input is not the right format;

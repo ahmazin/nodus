@@ -9,8 +9,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { Editor } from '@ahmazin/core';
-import { Nodus, LayersPanel, NodusContextMenu, CommandPalette, FlowControls, getCanvas, registerCanvas } from '@ahmazin/react';
+import { Editor } from '@nodus-dev/core';
+import { Nodus, LayersPanel, NodusContextMenu, CommandPalette, FlowControls, getCanvas, registerCanvas } from '@nodus-dev/react';
 
 const CLS = 'probe-classname-xyz';
 const STYLE = { zIndex: 424242 } as const; // distinctive, unitless → serializes as `z-index:424242`

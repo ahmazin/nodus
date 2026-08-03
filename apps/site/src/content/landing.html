@@ -52,8 +52,8 @@
 
           <div style="display:flex;align-items:center;gap:2px;margin-top:18px;background:var(--bg2,#101319);border:1px solid var(--line,rgba(255,255,255,0.08));border-radius:11px;padding:5px 6px 5px 15px;max-width:440px">
             <span style="color:var(--accent-text,#c4f24e);font-family:'JetBrains Mono',monospace;font-size:13.5px">$</span>
-            <code style="font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--fg,#e9e9ee);padding-left:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">npm i @ahmazin/react @ahmazin/preset-infra</code>
-            <button class="nd-copy-btn" data-copy="npm i @ahmazin/react @ahmazin/preset-infra" aria-label="Copy install command" style="flex-shrink:0;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg3,#15181f);border:1px solid var(--line2,rgba(255,255,255,0.14));border-radius:8px;color:var(--fg2,#9fa2ad);cursor:pointer">
+            <code style="font-family:'JetBrains Mono',monospace;font-size:13.5px;color:var(--fg,#e9e9ee);padding-left:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">npm i @nodus-dev/react @nodus-dev/preset-infra</code>
+            <button class="nd-copy-btn" data-copy="npm i @nodus-dev/react @nodus-dev/preset-infra" aria-label="Copy install command" style="flex-shrink:0;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg3,#15181f);border:1px solid var(--line2,rgba(255,255,255,0.14));border-radius:8px;color:var(--fg2,#9fa2ad);cursor:pointer">
               <svg class="nd-icon-copy" width="15" height="15" viewBox="0 0 24 24" fill="none" style="stroke:currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.4"></rect><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"></path></svg>
               <svg class="nd-icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--accent,#c4f24e)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 6.5"></path></svg>
             </button>
@@ -351,8 +351,8 @@
               <button class="nd-tab" data-tab="3" role="tab" aria-selected="false" aria-controls="nd-panel-3" id="nd-tab-3">fromMermaid()</button>
             </div>
             <div style="padding:20px 22px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.75;overflow-x:auto;color:#c9ccd3;min-height:296px">
-              <div class="nd-panel is-active" data-panel="0" id="nd-panel-0" role="tabpanel" aria-labelledby="nd-tab-0"><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { Nodus, useNodusEditor } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@ahmazin/react'</span>
-<span style="color:#c586e8">import</span> { infraPreset } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@ahmazin/preset-infra'</span>
+              <div class="nd-panel is-active" data-panel="0" id="nd-panel-0" role="tabpanel" aria-labelledby="nd-tab-0"><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { Nodus, useNodusEditor } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@nodus-dev/react'</span>
+<span style="color:#c586e8">import</span> { infraPreset } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@nodus-dev/preset-infra'</span>
 
 <span style="color:#c586e8">export function</span> <span style="color:#79b8ff">Editor</span>() {
   <span style="color:#c586e8">const</span> editor = <span style="color:#79b8ff">useNodusEditor</span>({
@@ -361,7 +361,7 @@
   })
   <span style="color:#c586e8">return</span> &lt;<span style="color:#4ec9b0">Nodus</span> editor={editor} className=<span style="color:#8fd6a3">"h-screen"</span> /&gt;
 }</pre></div>
-              <div class="nd-panel" data-panel="1" id="nd-panel-1" role="tabpanel" aria-labelledby="nd-tab-1" hidden><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { defineNodeUtil } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@ahmazin/core'</span>
+              <div class="nd-panel" data-panel="1" id="nd-panel-1" role="tabpanel" aria-labelledby="nd-tab-1" hidden><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { defineNodeUtil } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@nodus-dev/core'</span>
 
 <span style="color:#5f6572">// register a custom shape &mdash; no core changes</span>
 <span style="color:#c586e8">export const</span> StickyNote = <span style="color:#79b8ff">defineNodeUtil</span>({
@@ -383,7 +383,7 @@ store.<span style="color:#79b8ff">apply</span>(
 )
 
 store.<span style="color:#79b8ff">undo</span>()   <span style="color:#5f6572">// &larr; restores via recorded inverse</span></pre></div>
-              <div class="nd-panel" data-panel="3" id="nd-panel-3" role="tabpanel" aria-labelledby="nd-tab-3" hidden><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { fromMermaid } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@ahmazin/from-mermaid'</span>
+              <div class="nd-panel" data-panel="3" id="nd-panel-3" role="tabpanel" aria-labelledby="nd-tab-3" hidden><pre style="margin:0;white-space:pre"><span style="color:#c586e8">import</span> { fromMermaid } <span style="color:#c586e8">from</span> <span style="color:#8fd6a3">'@nodus-dev/from-mermaid'</span>
 
 <span style="color:#c586e8">const</span> scene = <span style="color:#79b8ff">fromMermaid</span>(<span style="color:#8fd6a3">`
   flowchart LR
@@ -476,14 +476,14 @@ editor.<span style="color:#79b8ff">load</span>(scene)   <span style="color:#5f65
           <p style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg3,#676a76);margin:16px 0 0">MIT &middot; &copy; 2026 Nodus</p>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:48px">
-          <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3,#676a76);margin-bottom:16px">Packages</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px"><li><a href="%%NPM_CORE%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@ahmazin/core</a></li><li><a href="%%NPM_REACT%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@ahmazin/react</a></li><li><a href="%%NPM_PRESET_INFRA%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@ahmazin/preset-infra</a></li><li><a href="%%NPM_MCP%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@ahmazin/mcp</a></li></ul></div>
+          <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3,#676a76);margin-bottom:16px">Packages</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px"><li><a href="%%NPM_CORE%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@nodus-dev/core</a></li><li><a href="%%NPM_REACT%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@nodus-dev/react</a></li><li><a href="%%NPM_PRESET_INFRA%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@nodus-dev/preset-infra</a></li><li><a href="%%NPM_MCP%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">@nodus-dev/mcp</a></li></ul></div>
           <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3,#676a76);margin-bottom:16px">Product</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px"><li><a href="#git" style="font-size:14px;color:var(--fg2,#9fa2ad)">Git-native</a></li><li><a href="#features" style="font-size:14px;color:var(--fg2,#9fa2ad)">Features</a></li><li><a href="#compare" style="font-size:14px;color:var(--fg2,#9fa2ad)">Compare</a></li><li><a href="%%PLAYGROUND%%" style="font-size:14px;color:var(--fg2,#9fa2ad)">Live demo</a></li></ul></div>
           <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3,#676a76);margin-bottom:16px">Resources</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px"><li><a href="%%DOCS%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">Docs</a></li><li><a href="%%DOCS_CLI%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">CLI</a></li><li><a href="%%DOCS_MCP%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">MCP server</a></li><li><a href="%%GITHUB_RELEASES%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">Changelog</a></li></ul></div>
           <div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--fg3,#676a76);margin-bottom:16px">Community</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px"><li><a href="%%GITHUB%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">GitHub</a></li><li><a href="%%NPM_ORG%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">npm</a></li><li><a href="%%DISCORD%%" target="_blank" rel="noopener" style="font-size:14px;color:var(--fg2,#9fa2ad)">Discord</a></li></ul></div>
         </div>
       </div>
       <div style="max-width:1200px;margin:clamp(36px,5vw,56px) auto 0;padding:24px clamp(18px,4vw,36px) 0;border-top:1px solid var(--line,rgba(255,255,255,0.08));display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg3,#676a76)">All @ahmazin/* packages &middot; v0.1.0</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg3,#676a76)">All @nodus-dev/* packages &middot; v0.1.0</span>
         <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--fg3,#676a76)">Built with a headless core &middot; zero framework deps</span>
       </div>
     </footer>

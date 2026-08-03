@@ -1,4 +1,4 @@
-# @ahmazin/preset-infra
+# @nodus-dev/preset-infra
 
 The infra-architecture preset for [Nodus](https://github.com/ahmazin/nodus) — the **InfraCanvas** seed as one preset on
 top of the general engine. It ships six semantic node types (`service`, `db`, `cache`, `queue`, `lb`,
@@ -9,10 +9,10 @@ architecture diagram from a friendly `{ nodes, edges }` model instead of wiring 
 ## Install
 
 ```bash
-pnpm add @ahmazin/preset-infra @ahmazin/core
+pnpm add @nodus-dev/preset-infra @nodus-dev/core
 ```
 
-> `@ahmazin/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> `@nodus-dev/core` is a **peer dependency** — install it alongside so the preset shares your app's single
 > engine instance.
 
 ## Usage
@@ -20,8 +20,8 @@ pnpm add @ahmazin/preset-infra @ahmazin/core
 Register the preset onto a bare editor:
 
 ```ts
-import { Editor } from '@ahmazin/core';
-import { installInfraPreset } from '@ahmazin/preset-infra';
+import { Editor } from '@nodus-dev/core';
+import { installInfraPreset } from '@nodus-dev/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);   // six infra.* node types + connector edge + dark theme
@@ -34,7 +34,7 @@ editor.connect({ kind: 'node', nodeId: api, portId: 'out' }, { kind: 'node', nod
 Or drive the whole thing from a model with the façade (great for React and headless render):
 
 ```ts
-import { InfraCanvas } from '@ahmazin/preset-infra';
+import { InfraCanvas } from '@nodus-dev/preset-infra';
 
 const { editor, toPNG, toJSON, dispose } = InfraCanvas({
   model: {
@@ -62,7 +62,7 @@ type.
 ## See also
 
 - [Extending Nodus](https://nodus.dev/docs/extending) — write your own node/edge types, routers, layouts, plugins.
-- [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@ahmazin/react`](https://github.com/ahmazin/nodus/tree/main/packages/react) for the browser host.
+- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@nodus-dev/react`](https://github.com/ahmazin/nodus/tree/main/packages/react) for the browser host.
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

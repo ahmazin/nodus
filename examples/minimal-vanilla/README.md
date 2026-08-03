@@ -1,7 +1,7 @@
-# @ahmazin-examples/minimal-vanilla
+# @nodus-dev-examples/minimal-vanilla
 
 The smallest possible Nodus program: build a diagram headlessly, serialize it to canonical JSON, and
-print it. No framework, no DOM — just `@ahmazin/core` + the infra preset.
+print it. No framework, no DOM — just `@nodus-dev/core` + the infra preset.
 
 ```bash
 pnpm install          # link the workspace packages

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DiagramSession, TOOLS, dispatch, runStdioServer } from '@ahmazin/mcp';
+import { DiagramSession, TOOLS, dispatch, runStdioServer } from '@nodus-dev/mcp';
 
 const dataDir = mkdtempSync(join(tmpdir(), 'nodus-mcp-'));
 const call = (s: DiagramSession, name: string, args: Record<string, unknown> = {}) => dispatch(s, name, args);

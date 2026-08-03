@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/react",
+  "name": "@nodus-dev/react",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -23,13 +23,13 @@
   },
   "sideEffects": false,
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^",
-    "@ahmazin/stencils": "workspace:^",
+    "@nodus-dev/core": "workspace:^",
+    "@nodus-dev/stencils": "workspace:^",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
-    "@ahmazin/stencils": {
+    "@nodus-dev/stencils": {
       "optional": true
     }
   },
@@ -38,8 +38,8 @@
     "@types/react-dom": "^18.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@ahmazin/core": "workspace:*",
-    "@ahmazin/stencils": "workspace:*",
+    "@nodus-dev/core": "workspace:*",
+    "@nodus-dev/stencils": "workspace:*",
     "gifenc": "^1.0.3"
   },
   "scripts": {

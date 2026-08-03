@@ -13,7 +13,7 @@
  * Everything here is pure and unit-tested in `round-trip.test.ts` (node env, no DOM).
  */
 
-import { toCanonicalString, type Editor, type Snapshot } from '@ahmazin/core';
+import { toCanonicalString, type Editor, type Snapshot } from '@nodus-dev/core';
 import { parseSnapshot } from './persistence.js';
 
 /**

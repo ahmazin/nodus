@@ -7,8 +7,8 @@
  */
 
 import type { ReactElement } from 'react';
-import type { Editor } from '@ahmazin/core';
-import { useCurrentTool, useUiTokens, useValue } from '@ahmazin/react';
+import type { Editor } from '@nodus-dev/core';
+import { useCurrentTool, useUiTokens, useValue } from '@nodus-dev/react';
 
 /** `'x, y'` rounded to integers, or an em-dash when there's no cursor position (e.g. pointer left the canvas). */
 export function formatCoords(p: { x: number; y: number } | null): string {

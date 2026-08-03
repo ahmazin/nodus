@@ -1,5 +1,5 @@
 /**
- * @ahmazin/preset-diagrams — general diagram types + builders. Turns friendly specs (flowchart steps,
+ * @nodus-dev/preset-diagrams — general diagram types + builders. Turns friendly specs (flowchart steps,
  * state transitions, ERD tables, org hierarchy) into Nodus records, and ships a theme that colors
  * each type. Everything rides on the public API.
  */
@@ -14,7 +14,7 @@ import {
   type NodeState,
   type NodusRecord,
   type Theme,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 import { ROW_H, diagramEdgeUtils, diagramNodeUtils } from './types.js';
 
 export * from './types.js';

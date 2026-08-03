@@ -17,7 +17,7 @@
  * affordance comes from fill/hover/text and the focus ring.
  */
 
-import type { Editor, Theme } from '@ahmazin/core';
+import type { Editor, Theme } from '@nodus-dev/core';
 import { useValue } from '../use-value.js';
 
 export type UiMode = 'light' | 'dark';

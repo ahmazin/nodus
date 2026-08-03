@@ -5,11 +5,11 @@
  * prompt) — returning `false` cancels the open.
  *
  * Unlike the stencil palette this is an always-rendered panel (mount it in a modal / start screen),
- * not a popover. Decoupled from `@ahmazin/stencils`: templates arrive as a prop.
+ * not a popover. Decoupled from `@nodus-dev/stencils`: templates arrive as a prop.
  */
 import { useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
-import { Editor, renderSVG } from '@ahmazin/core';
-import type { Template } from '@ahmazin/stencils';
+import { Editor, renderSVG } from '@nodus-dev/core';
+import type { Template } from '@nodus-dev/stencils';
 import { useUiTokens, type UiMode, type UiTokens } from './ui/tokens.js';
 
 export interface TemplatesGalleryProps {

@@ -1,7 +1,7 @@
 /** Data-driven flow scale authoring: the color-stop ramp (draggable handles), Domain, the three
  *  visual ranges, Gradient, the stops list, and the live metric scrubber. */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import type { Editor, EdgeRecord, FlowColorStop, FlowScale, FlowSpec, Id } from '@ahmazin/core';
+import type { Editor, EdgeRecord, FlowColorStop, FlowScale, FlowSpec, Id } from '@nodus-dev/core';
 import { buildRampCss, clamp, DEFAULT_SCALE, flowStyles, isHex6, type FlowStyles } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
 

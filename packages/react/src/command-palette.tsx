@@ -1,6 +1,6 @@
 /** A ⌘K command palette. Ships a default command set; accepts custom commands too. */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import type { AlignEdge, Editor } from '@ahmazin/core';
+import type { AlignEdge, Editor } from '@nodus-dev/core';
 import { copyOrDownloadImage, downloadImage } from './clipboard.js';
 import { fuzzyRank } from './fuzzy.js';
 import { useUiTokens } from './ui/tokens.js';

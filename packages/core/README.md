@@ -1,4 +1,4 @@
-# @ahmazin/core
+# @nodus-dev/core
 
 The Nodus diagram engine — an Excalidraw-class, **headless** editor engine for TypeScript with
 **zero framework or DOM dependencies**. It owns the full pipeline: *model → layout → render →
@@ -6,16 +6,16 @@ interact* on a Canvas-2D surface, and renders identically in the browser (DOM ca
 (Skia via `@napi-rs/canvas`). All type-specific behavior lives in engine-owned **registries**, so you
 extend the engine with data and objects rather than by forking it.
 
-`@ahmazin/core` is the substrate. Node/edge types, layouts, and themes ship as separate packages
-(`@ahmazin/preset-*`, `@ahmazin/layout-*`, `@ahmazin/icons-cloud`).
+`@nodus-dev/core` is the substrate. Node/edge types, layouts, and themes ship as separate packages
+(`@nodus-dev/preset-*`, `@nodus-dev/layout-*`, `@nodus-dev/icons-cloud`).
 
 ## Install
 
 ```bash
-pnpm add @ahmazin/core
+pnpm add @nodus-dev/core
 ```
 
-Pair it with a React binding (`@ahmazin/react`) for the browser, or drive it headlessly for export,
+Pair it with a React binding (`@nodus-dev/react`) for the browser, or drive it headlessly for export,
 tests, and CI.
 
 ## Quickstart
@@ -24,7 +24,7 @@ A bare `Editor` comes with built-in `rect` / `line` / `group` types registered, 
 graph immediately:
 
 ```ts
-import { Editor } from '@ahmazin/core';
+import { Editor } from '@nodus-dev/core';
 
 const editor = new Editor();
 
@@ -45,7 +45,7 @@ Auto-layout is pluggable — register an engine, then run it (a whole layout col
 entry):
 
 ```ts
-import { dagreLayout } from '@ahmazin/layout-dagre';
+import { dagreLayout } from '@nodus-dev/layout-dagre';
 
 editor.registerLayout(dagreLayout);
 await editor.layout('dagre', { direction: 'LR' });
@@ -97,7 +97,7 @@ The façade sorts failures into three tiers so callers always know how a call ca
   effect / listener isolation elsewhere).
 
 Test membership with `isNodusError(e)`, **not `instanceof`** — it matches a dual-package-safe brand
-string, so it still recognizes a `NodusError` minted by a second copy of `@ahmazin/core` (an ESM and a
+string, so it still recognizes a `NodusError` minted by a second copy of `@nodus-dev/core` (an ESM and a
 CJS build coexisting in one process) that `instanceof` would miss.
 
 ### Signals substrate — `.get()` subscribes, `.peek()` does not
@@ -133,7 +133,7 @@ Type-specific behavior is registered on the editor — never a `switch`-on-type 
 2. **Routers** — resolve `edge.props.router` (`straight` / `orthogonal` / `bezier`) to a function
    that turns endpoints into a polyline; unset falls back to the util's default.
 3. **Layouts** — `editor.registerLayout(engine)` then `await editor.layout(id, opts)`. Adapters live
-   in `@ahmazin/layout-{dagre,tree,force,elk}`.
+   in `@nodus-dev/layout-{dagre,tree,force,elk}`.
 4. **Plugins** — `editor.use(plugin)`; a plugin gets an `EngineHost` to register
    types/tools/themes/layouts/overlays and to hook the store and event bus.
 
@@ -156,7 +156,7 @@ serialization bytes are themselves a breaking-change surface. Details in
 
 Serialization is deterministic and canonical — stable key order, normalized numbers — so diagrams
 stored as `*.nodus.json` produce clean, reviewable diffs. `serializeRecords` / `restore` are the
-programmatic entry points; the `nodus` CLI (in `@ahmazin/cli`) wraps them with `fmt` / `render` /
+programmatic entry points; the `nodus` CLI (in `@nodus-dev/cli`) wraps them with `fmt` / `render` /
 `diff`. When changing serialization, keep the output canonical or the diff CI and `canonical.test.ts`
 will fail.
 

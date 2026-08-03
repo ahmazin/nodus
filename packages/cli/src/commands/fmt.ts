@@ -12,7 +12,7 @@
  * bin can emit the "upgrade the CLI" exit code rather than mangling the file.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { restore, serializeRecords, toCanonicalString, type Snapshot } from '@ahmazin/core';
+import { restore, serializeRecords, toCanonicalString, type Snapshot } from '@nodus-dev/core';
 import { isSchemaTooNew, tooNewSchema, type SerializationIssue } from '../load.js';
 
 export interface CanonicalizeResult {

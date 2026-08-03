@@ -1,7 +1,7 @@
-# @ahmazin/persistence
+# @nodus-dev/persistence
 
 Document persistence for [Nodus](../../README.md): debounced autosave plus named documents over a
-pluggable `DocStore`. Because `@ahmazin/core` already serializes to a versioned `Snapshot` with
+pluggable `DocStore`. Because `@nodus-dev/core` already serializes to a versioned `Snapshot` with
 defensive restore, this is a thin, trustworthy layer — it saves `editor.toJSON()` and loads it back.
 
 Three `DocStore` implementations ship in the box:
@@ -13,13 +13,13 @@ Three `DocStore` implementations ship in the box:
 ## Install
 
 ```bash
-pnpm add @ahmazin/persistence @ahmazin/core
+pnpm add @nodus-dev/persistence @nodus-dev/core
 ```
 
 ## Usage
 
 ```ts
-import { autosave, loadDoc, LocalDocStore } from '@ahmazin/persistence';
+import { autosave, loadDoc, LocalDocStore } from '@nodus-dev/persistence';
 
 const store = new LocalDocStore();
 
@@ -43,7 +43,7 @@ storage — following the failure semantics below.
 Every `DocStore` operation fails the same way, so an app can tell "empty" and "absent" apart from "the
 request failed":
 
-- A failed operation **throws** a `NodusError` (from `@ahmazin/core`) with `code`
+- A failed operation **throws** a `NodusError` (from `@nodus-dev/core`) with `code`
   `'persistence/<op>-failed'` — `persistence/list-failed`, `persistence/load-failed`,
   `persistence/save-failed`, `persistence/remove-failed` — and `context` `{ op, status, body? }`.
 - `load(name)` returns `null` **only** when the document does not exist (HTTP 404); every other
@@ -52,10 +52,10 @@ request failed":
   delete (403/500) as success.
 
 Match thrown errors with `isNodusError(e)` and branch on `e.code` / `e.context.status` — never
-`instanceof` (it breaks across a duplicated `@ahmazin/core`):
+`instanceof` (it breaks across a duplicated `@nodus-dev/core`):
 
 ```ts
-import { isNodusError } from '@ahmazin/core';
+import { isNodusError } from '@nodus-dev/core';
 
 try {
   await store.remove('my-diagram');
@@ -74,7 +74,7 @@ types.
 
 ## See also
 
-- [`@ahmazin/core`](../core/README.md) — the `Snapshot` format and `toJSON` / `loadSnapshot`.
+- [`@nodus-dev/core`](../core/README.md) — the `Snapshot` format and `toJSON` / `loadSnapshot`.
 - [`docs/EXTENDING.md`](../../docs/EXTENDING.md)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**

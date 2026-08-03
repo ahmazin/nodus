@@ -15,9 +15,9 @@ Tracking the full feature push. Each batch lands typecheck-clean + tests green.
 - [x] Per-type icon glyphs (12-icon registry + infra type icons)
 
 **Axis 3 — layout**
-- [x] Tree layout adapter (`@ahmazin/layout-tree`)
-- [x] Force layout adapter (`@ahmazin/layout-force`)
-- [x] ELK layout adapter (`@ahmazin/layout-elk`, worker-capable via workerUrl)
+- [x] Tree layout adapter (`@nodus-dev/layout-tree`)
+- [x] Force layout adapter (`@nodus-dev/layout-force`)
+- [x] ELK layout adapter (`@nodus-dev/layout-elk`, worker-capable via workerUrl)
 - [x] Off-main-thread layout (ELK worker option; supersedes dagre-worker)
 
 **Axis 4 — plugins / editor UX**
@@ -28,15 +28,15 @@ Tracking the full feature push. Each batch lands typecheck-clean + tests green.
 - [x] Context menu (right-click)
 
 ## Phase 2 — Killer demos (shipped as packages)
-- [x] Freehand / sketch plugin (`@ahmazin/plugin-freehand`)
-- [x] ERD visualizer (`@ahmazin/preset-diagrams`)
-- [x] State-machine editor (`@ahmazin/preset-diagrams`)
+- [x] Freehand / sketch plugin (`@nodus-dev/plugin-freehand`)
+- [x] ERD visualizer (`@nodus-dev/preset-diagrams`)
+- [x] State-machine editor (`@nodus-dev/preset-diagrams`)
 - [x] Cloud architecture with icons (icon node + glyph set)
 
 ## Phase 3 — Three highest-leverage moves
 - [x] Arenas: Studio / Reverse / Evolution (infra preset adapters)
-- [x] Text → diagram (`@ahmazin/text-to-diagram`)
-- [x] Live infra from Terraform / Kubernetes (`@ahmazin/import-infra`)
+- [x] Text → diagram (`@nodus-dev/text-to-diagram`)
+- [x] Live infra from Terraform / Kubernetes (`@nodus-dev/import-infra`)
 
 ---
 Legend: [x] done · [~] in progress · [ ] todo
@@ -49,8 +49,8 @@ Legend: [x] done · [~] in progress · [ ] todo
 - [x] Resize (8 handles, grab-offset, min-clamp) + z-order (bring-to-front / send-to-back)
 - [x] Per-element style bag (`setStyle`/`clearStyle`, merged last in resolveTokens, serialized, undoable)
 - [x] Floating / re-binding arrows — endpoint union `node | outline | point`, drag endpoints to re-bind, connect-to-body
-- [x] Persistence (`@ahmazin/persistence` + doc server; localStorage autosave in playground)
-- [x] Draw preset (`@ahmazin/preset-draw`: rect/ellipse/diamond/text + line/arrow + R/E/L/A/T)
+- [x] Persistence (`@nodus-dev/persistence` + doc server; localStorage autosave in playground)
+- [x] Draw preset (`@nodus-dev/preset-draw`: rect/ellipse/diamond/text + line/arrow + R/E/L/A/T)
 - [x] Properties panel (`<Properties>` over the style bag — stroke/fill/text/width/dashed/state/clear; React example + vanilla)
 - [x] Copy-as-image (`copyImage`/`downloadImage`/`renderPngBlob`; ClipboardItem PNG via OffscreenCanvas; verified image/png to clipboard on Chromium/Fedora)
 
@@ -59,8 +59,8 @@ Legend: [x] done · [~] in progress · [ ] todo
 
 **Tier 2 — beat Excalidraw**
 - [x] PIS phosphor brand theme
-- [x] `fromMermaid` + ELK — `@ahmazin/from-mermaid` parses flowchart/state/ER subsets → reuses `@ahmazin/preset-diagrams` builders → ELK layout; `importMermaid(editor, src)`; verified headless render of all 3 subsets; live "⤓ Mermaid" import in the playground
-- [x] MCP server (`@ahmazin/mcp`) — dependency-free stdio JSON-RPC around a headless `Editor`; 14 tools (import_mermaid, add/connect/update/delete, layout, **set_flow / set_flow_metric** for data-driven flow, export_png inline traffic-snapshot, export_json, save/load_doc); review-hardened (path containment, replace-on-import, graceful drain); verified via real stdio handshake
+- [x] `fromMermaid` + ELK — `@nodus-dev/from-mermaid` parses flowchart/state/ER subsets → reuses `@nodus-dev/preset-diagrams` builders → ELK layout; `importMermaid(editor, src)`; verified headless render of all 3 subsets; live "⤓ Mermaid" import in the playground
+- [x] MCP server (`@nodus-dev/mcp`) — dependency-free stdio JSON-RPC around a headless `Editor`; 14 tools (import_mermaid, add/connect/update/delete, layout, **set_flow / set_flow_metric** for data-driven flow, export_png inline traffic-snapshot, export_json, save/load_doc); review-hardened (path containment, replace-on-import, graceful drain); verified via real stdio handshake
 - [x] structured-diagram speed — double-click empty canvas → create+edit node; drag-from-port → connect (or quick-create a node in empty space); port dots on hover. (obstacle-nudged elbows deferred — needs obstacle threading through the router)
 - [x] flow animation — animated packets/dashes traveling along edges (`FlowSpec` on `EdgeRecord`, `editor.setFlow`/`hasFlow`/`paintFlow`); a gated rAF layer that animates only while flows exist so idle stays 0-paints; "⇢ Flow" toggle in the playground
 - [x] **data-driven flow** — `FlowScale` maps a live metric → packet speed/count/size/threshold-or-gradient color (`resolveFlow`); live values are EPHEMERAL (`editor.setFlowMetric`, not serialized/historied/autosaved) so a dashboard ticks freely without doc churn; "📊 Live" playground demo; **exposed over MCP** (`set_flow`/`set_flow_metric` + `export_png` traffic snapshot) so an agent can colour links by real metrics

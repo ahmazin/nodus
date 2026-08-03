@@ -13,55 +13,55 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@ahmazin/core": [
+      "@nodus-dev/core": [
         "packages/core/src/index.ts"
       ],
-      "@ahmazin/icons-cloud": [
+      "@nodus-dev/icons-cloud": [
         "packages/icons-cloud/src/index.ts"
       ],
-      "@ahmazin/react": [
+      "@nodus-dev/react": [
         "packages/react/src/index.tsx"
       ],
-      "@ahmazin/preset-infra": [
+      "@nodus-dev/preset-infra": [
         "packages/preset-infra/src/index.ts"
       ],
-      "@ahmazin/layout-dagre": [
+      "@nodus-dev/layout-dagre": [
         "packages/layout-dagre/src/index.ts"
       ],
-      "@ahmazin/layout-tree": [
+      "@nodus-dev/layout-tree": [
         "packages/layout-tree/src/index.ts"
       ],
-      "@ahmazin/layout-force": [
+      "@nodus-dev/layout-force": [
         "packages/layout-force/src/index.ts"
       ],
-      "@ahmazin/layout-elk": [
+      "@nodus-dev/layout-elk": [
         "packages/layout-elk/src/index.ts"
       ],
-      "@ahmazin/plugin-freehand": [
+      "@nodus-dev/plugin-freehand": [
         "packages/plugin-freehand/src/index.ts"
       ],
-      "@ahmazin/preset-diagrams": [
+      "@nodus-dev/preset-diagrams": [
         "packages/preset-diagrams/src/index.ts"
       ],
-      "@ahmazin/text-to-diagram": [
+      "@nodus-dev/text-to-diagram": [
         "packages/text-to-diagram/src/index.ts"
       ],
-      "@ahmazin/import-infra": [
+      "@nodus-dev/import-infra": [
         "packages/import-infra/src/index.ts"
       ],
-      "@ahmazin/persistence": [
+      "@nodus-dev/persistence": [
         "packages/persistence/src/index.ts"
       ],
-      "@ahmazin/preset-draw": [
+      "@nodus-dev/preset-draw": [
         "packages/preset-draw/src/index.ts"
       ],
-      "@ahmazin/from-mermaid": [
+      "@nodus-dev/from-mermaid": [
         "packages/from-mermaid/src/index.ts"
       ],
-      "@ahmazin/mcp": [
+      "@nodus-dev/mcp": [
         "packages/mcp/src/index.ts"
       ],
-      "@ahmazin/stencils": [
+      "@nodus-dev/stencils": [
         "packages/stencils/src/index.ts"
       ]
     }

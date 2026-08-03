@@ -1,10 +1,10 @@
 /**
- * @ahmazin/layout-tree — a dependency-free tidy-tree layout. Builds a hierarchy from edge direction
+ * @nodus-dev/layout-tree — a dependency-free tidy-tree layout. Builds a hierarchy from edge direction
  * (source -> target), places leaves along the main axis and centers each parent over its children.
  * Great for org charts, mind maps, and file trees. Supports TB / BT / LR / RL direction.
  */
 
-import type { Id, LayoutEngine, LayoutGraph, LayoutGraphNode, LayoutOptions, LayoutResult } from '@ahmazin/core';
+import type { Id, LayoutEngine, LayoutGraph, LayoutGraphNode, LayoutOptions, LayoutResult } from '@nodus-dev/core';
 
 function isHorizontal(dir: string): boolean {
   return dir === 'LR' || dir === 'RL';

@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/cli",
+  "name": "@nodus-dev/cli",
   "version": "0.2.0",
   "files": [
     "dist"
@@ -25,11 +25,11 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@ahmazin/core": "workspace:^",
-    "@ahmazin/import-infra": "workspace:^",
-    "@ahmazin/preset-diagrams": "workspace:^",
-    "@ahmazin/preset-infra": "workspace:^",
-    "@ahmazin/preset-draw": "workspace:^",
+    "@nodus-dev/core": "workspace:^",
+    "@nodus-dev/import-infra": "workspace:^",
+    "@nodus-dev/preset-diagrams": "workspace:^",
+    "@nodus-dev/preset-infra": "workspace:^",
+    "@nodus-dev/preset-draw": "workspace:^",
     "@napi-rs/canvas": "^0.1.60"
   },
   "scripts": {

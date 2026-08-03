@@ -4,14 +4,14 @@
 
 **Goal:** Unify the chrome into one frosted-glass language that matches the now-premium canvas: translucent backdrop-blur on the top bar, left rail, right panel, zoom bar, and minimap; a button press-scale micro-interaction; toast icons per action; a slim bottom status bar (tool · live cursor world-coords · selection · zoom); and a dismissible empty-state onboarding card.
 
-**Architecture:** Pure React/CSS — **no `@ahmazin/core` changes**. Frosting is inline-style + two new additive design tokens (a translucent `glass` surface + a `blur` radius) with a solid-color fallback where `backdrop-filter` is unsupported. Status bar and empty-state are new React components reading existing editor atoms + a throttled `pointermove`→`screenToWorld` (app-side, no core change). Reduced-motion honored.
+**Architecture:** Pure React/CSS — **no `@nodus-dev/core` changes**. Frosting is inline-style + two new additive design tokens (a translucent `glass` surface + a `blur` radius) with a solid-color fallback where `backdrop-filter` is unsupported. Status bar and empty-state are new React components reading existing editor atoms + a throttled `pointermove`→`screenToWorld` (app-side, no core change). Reduced-motion honored.
 
-**Tech Stack:** TypeScript strict, React, inline styles, the `@ahmazin/react` `UiTokens` design system, `playwright-core`/`scripts/browser-verify.mjs` for verification (no jsdom → S3 is browser-verified; only pure helpers get unit tests).
+**Tech Stack:** TypeScript strict, React, inline styles, the `@nodus-dev/react` `UiTokens` design system, `playwright-core`/`scripts/browser-verify.mjs` for verification (no jsdom → S3 is browser-verified; only pure helpers get unit tests).
 
 ## Global Constraints
 
 - `pnpm typecheck` after every task (the gate). No jsdom — visual/DOM behavior is **browser-verified** (`node scripts/browser-verify.mjs` against the running `pnpm dev` on :5188, which the lead runs; zero console errors is a hard gate). Pure helpers (coord formatting) get unit tests.
-- **No `@ahmazin/core` changes. No new dependencies.** Reuse the existing `UiTokens`, `icons.tsx` set (React) / raw SVG for toasts, `useValue`, `useCurrentTool`.
+- **No `@nodus-dev/core` changes. No new dependencies.** Reuse the existing `UiTokens`, `icons.tsx` set (React) / raw SVG for toasts, `useValue`, `useCurrentTool`.
 - **Frost fallback:** every frosted surface keeps a semi-opaque `glass` background so browsers without `backdrop-filter` still render a solid-ish panel (never transparent/unreadable). Always pair `backdropFilter` with `WebkitBackdropFilter`.
 - **Reduced-motion:** the press-scale must be disabled under `prefers-reduced-motion` (the existing global reduced-motion block zeroes durations but NOT `transform` — add a `transform:none` there).
 - Match existing token/style conventions (inline styles, `t.color.*`, `t.radius.*`). Don't restyle beyond the named surfaces.
@@ -150,6 +150,6 @@ describe('formatCoords', () => {
 
 ## Self-review notes (author)
 - **Spec coverage:** frosted glass (all chrome) → T1/T2; button press-scale → T3; toast icons → T4; status bar (tool·coords·selection·zoom) → T5; empty-state card → T6.
-- **No core changes:** everything is `@ahmazin/react` (tokens/global-styles/toast/minimap) or the example app; cursor coords use the existing `editor.screenToWorld` from app-side pointer tracking — no new core API.
+- **No core changes:** everything is `@nodus-dev/react` (tokens/global-styles/toast/minimap) or the example app; cursor coords use the existing `editor.screenToWorld` from app-side pointer tracking — no new core API.
 - **Fallback + a11y:** every frosted surface keeps a semi-opaque `glass` bg (readable without `backdrop-filter`); press-scale + any entrance are reduced-motion-gated; focus-visible rings already exist.
 - **Verification reality:** no jsdom, so only `formatCoords` is unit-tested; the visual/DOM behavior is browser-verified (zero console errors gate + a screenshot for sign-off) — appropriate for a CSS subsystem.

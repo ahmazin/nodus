@@ -10,20 +10,20 @@ Nodus is a **headless, framework-agnostic, extensible diagram engine** for TypeS
 Excalidraw-class editor built to be customized. It owns *model → layout → render → interact* on a
 Canvas-2D surface and gets out of your way for everything else.
 
-`@ahmazin/core` has **zero framework or DOM dependencies** and renders identically in the browser and
-headless (Skia via `@napi-rs/canvas`). `@ahmazin/react` is a thin binding on top. The infra-architecture
-preset (`@ahmazin/preset-infra`) is one preset among several built on the general core.
+`@nodus-dev/core` has **zero framework or DOM dependencies** and renders identically in the browser and
+headless (Skia via `@napi-rs/canvas`). `@nodus-dev/react` is a thin binding on top. The infra-architecture
+preset (`@nodus-dev/preset-infra`) is one preset among several built on the general core.
 
 ## Install
 
 ```bash
 # the React binding + the infra node/edge types & theme
-npm i @ahmazin/react @ahmazin/preset-infra
-# or: pnpm add @ahmazin/react @ahmazin/preset-infra
+npm i @nodus-dev/react @nodus-dev/preset-infra
+# or: pnpm add @nodus-dev/react @nodus-dev/preset-infra
 ```
 
-`@ahmazin/react` pulls in `@ahmazin/core` as a dependency. If you only need the headless engine (no React),
-install `@ahmazin/core` on its own.
+`@nodus-dev/react` pulls in `@nodus-dev/core` as a dependency. If you only need the headless engine (no React),
+install `@nodus-dev/core` on its own.
 
 ## Quick start (React)
 
@@ -31,9 +31,9 @@ install `@ahmazin/core` on its own.
 and disposes it on unmount. Render it with `<Nodus>`:
 
 ```tsx
-import { Nodus, useNodusEditor } from '@ahmazin/react';
-import { Editor } from '@ahmazin/core';
-import { installInfraPreset } from '@ahmazin/preset-infra';
+import { Nodus, useNodusEditor } from '@nodus-dev/react';
+import { Editor } from '@nodus-dev/core';
+import { installInfraPreset } from '@nodus-dev/preset-infra';
 
 export function App() {
   const editor = useNodusEditor(() => {
@@ -49,7 +49,7 @@ export function App() {
 That gives you pan/zoom, select/multi-select, drag, create, connect, inline-rename, delete, and
 delta-based undo/redo — where one gesture collapses to one undo entry.
 
-> Prefer to pass a data model instead of driving the editor imperatively? `@ahmazin/preset-infra` also
+> Prefer to pass a data model instead of driving the editor imperatively? `@nodus-dev/preset-infra` also
 > exports an `InfraCanvas` façade (`InfraCanvas({ model, mode, overlays })`) plus `modelToRecords` for
 > turning a plain `InfraModel` into scene records.
 
@@ -59,8 +59,8 @@ The core is pure — no React, no DOM. You can build, mutate, lay out, and **ren
 browser at all:
 
 ```ts
-import { Editor } from '@ahmazin/core';
-import { installInfraPreset } from '@ahmazin/preset-infra';
+import { Editor } from '@nodus-dev/core';
+import { installInfraPreset } from '@nodus-dev/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);

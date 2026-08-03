@@ -1,5 +1,5 @@
 /**
- * Nodus reference editor — the "Playground" product surface built on `@ahmazin/react`'s shell + design
+ * Nodus reference editor — the "Playground" product surface built on `@nodus-dev/react`'s shell + design
  * system. A docked three-column layout: a top bar (brand · live-doc · undo/redo · insert pickers ·
  * sketch/flow/theme/search/export), a left tool rail, the canvas, and a right Properties/Source panel.
  *
@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { Editor, renderSVG, type NodeUtil, type NodusRecord, type Theme } from '@ahmazin/core';
+import { Editor, renderSVG, type NodeUtil, type NodusRecord, type Theme } from '@nodus-dev/core';
 import { DescribeDiagram } from './describe-diagram';
 import { EmptyState } from './empty-state';
 import { SyncInfra } from './sync-infra';
@@ -79,7 +79,7 @@ import {
   type ShortcutSection,
   type ToolPaletteEntry,
   type UiTokens,
-} from '@ahmazin/react';
+} from '@nodus-dev/react';
 import {
   ACCENTS,
   ACCENTS_LIGHT,
@@ -90,15 +90,15 @@ import {
   installInfraPreset,
   modelToRecords,
   type InfraKind,
-} from '@ahmazin/preset-infra';
-import { iconNode, imageNode, installDiagrams } from '@ahmazin/preset-diagrams';
-import { cloudIconCatalog, installCloudIcons } from '@ahmazin/icons-cloud';
-import { drawShortcut, installDrawTools, rectShape, ellipseShape, diamondShape } from '@ahmazin/preset-draw';
-import { dagreLayout } from '@ahmazin/layout-dagre';
-import { treeLayout } from '@ahmazin/layout-tree';
-import { forceLayout } from '@ahmazin/layout-force';
-import { elkLayout } from '@ahmazin/layout-elk';
-import { freehandPlugin } from '@ahmazin/plugin-freehand';
+} from '@nodus-dev/preset-infra';
+import { iconNode, imageNode, installDiagrams } from '@nodus-dev/preset-diagrams';
+import { cloudIconCatalog, installCloudIcons } from '@nodus-dev/icons-cloud';
+import { drawShortcut, installDrawTools, rectShape, ellipseShape, diamondShape } from '@nodus-dev/preset-draw';
+import { dagreLayout } from '@nodus-dev/layout-dagre';
+import { treeLayout } from '@nodus-dev/layout-tree';
+import { forceLayout } from '@nodus-dev/layout-force';
+import { elkLayout } from '@nodus-dev/layout-elk';
+import { freehandPlugin } from '@nodus-dev/plugin-freehand';
 import {
   builtinStencils,
   builtinTemplates,
@@ -106,7 +106,7 @@ import {
   serializeLibrary,
   type Stencil,
   type StencilLibrary as StencilLibraryType,
-} from '@ahmazin/stencils';
+} from '@nodus-dev/stencils';
 
 const AUTOSAVE_KEY = 'nodus-example';
 const STENCILS_KEY = 'nodus-stencils';

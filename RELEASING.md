@@ -1,6 +1,6 @@
 # Releasing Nodus
 
-Nodus publishes its `@ahmazin/*` packages with [changesets](https://github.com/changesets/changesets).
+Nodus publishes its `@nodus-dev/*` packages with [changesets](https://github.com/changesets/changesets).
 A release is three steps: contributors add a **changeset** to their PR describing the change and its
 bump; the version step turns accumulated changesets into version bumps and CHANGELOG entries; a
 maintainer runs the publish. This document is the mechanics; the guarantees a version bump makes to
@@ -52,13 +52,13 @@ creates the git tags. The API reference under `apps/site/public/api/` is generat
 
 | Setting | Value | Effect |
 |---|---|---|
-| `access` | `public` | Scoped `@ahmazin/*` packages publish publicly (scoped packages default to restricted otherwise). |
+| `access` | `public` | Scoped `@nodus-dev/*` packages publish publicly (scoped packages default to restricted otherwise). |
 | `updateInternalDependencies` | `patch` | When package A is released, dependents on A get at least a patch bump so their pinned range moves with it. |
 | `baseBranch` | `main` | The branch changeset status compares against. |
 | `commit` | `false` | Changesets never auto-commit; you stage the changeset and the version bump yourself. |
 
 **Private packages are skipped automatically.** Anything with `"private": true` in its
-`package.json` (`@ahmazin/site`, the browser example, and any package not yet meant for npm) is never
+`package.json` (`@nodus-dev/site`, the browser example, and any package not yet meant for npm) is never
 versioned or published by changesets. Publishable packages carry no `private` field and rely on their
 `publishConfig` for the published shape.
 

@@ -6,7 +6,7 @@
 
 - 9770244: API contract remediation (audit F1–F45). Breaking under the 0.x policy (a minor may break):
 
-  - **Dependency topology**: `@ahmazin/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
+  - **Dependency topology**: `@nodus-dev/core` is now a `peerDependency` of every extension package (published as `^0.1.0` ranges, never exact pins); install core alongside any preset/layout/plugin.
   - **Errors**: one façade convention — programmer errors throw a typed `NodusError` (dual-package-safe `isNodusError()` guard), stale-id helpers return `boolean`, third-party faults route to the typed `error` event. `createNode`/`connect` now **throw** on unregistered types (previously silent). Importers/persistence share the namespaced-code convention.
   - **Events**: closed `NodusEventMap` with typed `on()` narrowing; `custom:*` escape hatch; handler isolation; warnings no longer hit the console by default.
   - **Ids**: `sessionIdFactory()` (collision-resistant session-prefixed ids) is the default; `makeId`/`seedIdCounter` are internal. Injectable via `EditorOptions.idFactory`; `deterministicIdFactory()` for reproducible fixtures.
@@ -16,7 +16,7 @@
   - **React**: `useNodusEditor` survives StrictMode; SSR-safe (`'use client'` shipped); keyboard scoped to the host by default (`keyboardScope`); zero network by default (web fonts opt-in); `onMount`/`onChange`/`onSelectionChange`/`onCameraChange`; `forwardRef` `NodusHandle`.
   - **CLI**: `fmt` refuses lossy writes without `--force`; exit codes 0/1/2/3 are a contract; `diff` accepts `REV:path` git revs.
 
-All notable changes to `@ahmazin/core` are documented in this file.
+All notable changes to `@nodus-dev/core` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This package is pre-1.0 and unpublished; breaking changes may land without a major bump.

@@ -1,14 +1,14 @@
 /**
  * Starter content shipped with the package. Everything here is authored from the core built-in
  * `rect` node type and `line` edge type, so it renders with zero extra registrations — a bare
- * `@ahmazin/core` editor can drop any of these fragments or open any of these templates.
+ * `@nodus-dev/core` editor can drop any of these fragments or open any of these templates.
  *
  * Invariants (verified in `serialize.test.ts`): every record is a valid `NodusRecord`, ids are
  * unique within their fragment/snapshot, and every edge endpoint references a node present in the
  * same set — so `restore()` keeps all of them (`droppedEdges === 0`).
  */
 
-import type { EdgeRecord, NodeRecord } from '@ahmazin/core';
+import type { EdgeRecord, NodeRecord } from '@nodus-dev/core';
 import type { Stencil, StencilLibrary, Template } from './types.js';
 
 /** A minimal, valid `rect` node. `id` carries the `node:` prefix required by the branded `Id` type. */

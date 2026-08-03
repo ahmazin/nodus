@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { restore, type NodusRecord, type Snapshot } from '@ahmazin/core';
+import { restore, type NodusRecord, type Snapshot } from '@nodus-dev/core';
 import { serializeLibrary, parseLibrary } from './serialize.js';
 import { builtinStencils, builtinTemplates } from './builtin.js';
 import type { StencilLibrary } from './types.js';

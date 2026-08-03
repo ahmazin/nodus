@@ -1,7 +1,7 @@
 # Changesets
 
 This directory is managed by [changesets](https://github.com/changesets/changesets) — it holds the
-pending release notes for the `@ahmazin/*` packages. Each Markdown file here describes one change and
+pending release notes for the `@nodus-dev/*` packages. Each Markdown file here describes one change and
 the semver bump it warrants; on release, changesets consumes them to bump versions, update the
 per-package `CHANGELOG.md`, and cut the release.
 
@@ -20,7 +20,7 @@ change needs no changeset.
 
 ## Conventions
 
-- **`access: public`** — every `@ahmazin/*` package publishes publicly. The `nodus-example-browser`
+- **`access: public`** — every `@nodus-dev/*` package publishes publicly. The `nodus-example-browser`
   app is `private`, so changesets ignores it automatically.
 - **`updateInternalDependencies: patch`** — when a package bumps, its in-repo dependents
   (`workspace:*`) get at least a patch bump so the published graph stays consistent.

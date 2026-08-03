@@ -12,7 +12,7 @@
  * tests) never throws.
  */
 
-import { renderSVG, type Editor, type Snapshot } from '@ahmazin/core';
+import { renderSVG, type Editor, type Snapshot } from '@nodus-dev/core';
 import { parseSnapshot } from './persistence.js';
 
 // ---------------------------------------------------------------------------

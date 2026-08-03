@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Editor, isNodusError, type EdgeRecord, type NodeRecord, type NodusRecord } from '@ahmazin/core';
-import { installDiagrams } from '@ahmazin/preset-diagrams';
-import { elkLayout } from '@ahmazin/layout-elk';
-import { fromMermaid, importMermaid, MAX_MERMAID_BYTES, parseERDiagram, parseFlowchart, parseStateDiagram } from '@ahmazin/from-mermaid';
+import { Editor, isNodusError, type EdgeRecord, type NodeRecord, type NodusRecord } from '@nodus-dev/core';
+import { installDiagrams } from '@nodus-dev/preset-diagrams';
+import { elkLayout } from '@nodus-dev/layout-elk';
+import { fromMermaid, importMermaid, MAX_MERMAID_BYTES, parseERDiagram, parseFlowchart, parseStateDiagram } from '@nodus-dev/from-mermaid';
 
 const nodesOf = (recs: NodusRecord[]) => recs.filter((r): r is NodeRecord => r.typeName === 'node');
 const edgesOf = (recs: NodusRecord[]) => recs.filter((r): r is EdgeRecord => r.typeName === 'edge');

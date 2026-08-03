@@ -51,35 +51,35 @@ everything else. The infra-architecture tool that seeded it (**InfraCanvas**) no
   delta-based undo/redo where one gesture collapses to one undo entry.
 - **Extensible on four axes** — custom node/edge **types**, design-token **theming**, pluggable
   auto-**layout**, and **plugins/events/overlays**.
-- **Headless-first** — the core has zero framework or DOM dependencies; a thin `@ahmazin/react` binding
+- **Headless-first** — the core has zero framework or DOM dependencies; a thin `@nodus-dev/react` binding
   adds the canvas host and inline text overlay.
 
 ## Packages
 
 pnpm workspace monorepo. Each package points `main`/`types` at `./src/index.ts`, and Vite/Vitest alias
-every `@ahmazin/*` to `packages/*/src` — the example app, tests, and CLI run the TypeScript **source**
+every `@nodus-dev/*` to `packages/*/src` — the example app, tests, and CLI run the TypeScript **source**
 directly, so editing a package is picked up live with no build.
 
 | Package | What |
 |---|---|
-| `@ahmazin/core` | The whole engine: signals, store, scene index, camera, geometry, theming (+ theme pack), pluggable routers, icons, renderer, tools, snapping, history, diff, serialization, editor. Deps: `rbush` + vendored signals. |
-| `@ahmazin/react` | React binding — `<Nodus>` host, panels (`Properties`, `CommandPalette` ⌘K, context menu, `Minimap`, flow controls, cloud-icon picker), the `ui/*` design system (tokens + primitives, light/dark), `useValue`, clipboard/PNG export. |
-| `@ahmazin/preset-infra` | Infra preset: six semantic node types + icons, dark/light themes, connector edge, Freeform/Reveal/Stages arena adapters, and the `InfraCanvas({model, mode, overlays})` façade. |
-| `@ahmazin/preset-diagrams` · `@ahmazin/preset-draw` | General diagram types (flowchart, state-machine, ERD, org-chart, icon nodes) / freehand drawing tools. |
-| `@ahmazin/plugin-freehand` | A pen tool + stroke node type — a whole new interaction, registered through the public plugin API. |
-| `@ahmazin/layout-dagre` · `-tree` · `-force` · `-elk` | Auto-layout adapters (layered · tidy-tree · force-directed · ELK, worker-capable). |
-| `@ahmazin/icons-cloud` | Curated AWS / Azure / GCP glyphs, registered as namespaced `provider:service` icons. |
-| `@ahmazin/from-mermaid` · `@ahmazin/text-to-diagram` · `@ahmazin/import-infra` | Importers — Mermaid, an LLM tool schema (describe a system → a diagram), and `fromTerraform` / `fromKubernetes`. |
-| `@ahmazin/cli` | The `nodus` CLI — `fmt` / `render` / `diff` over `*.nodus.json`. |
-| `@ahmazin/mcp` · `@ahmazin/persistence` | MCP server exposing the engine as tools · snapshot storage. |
+| `@nodus-dev/core` | The whole engine: signals, store, scene index, camera, geometry, theming (+ theme pack), pluggable routers, icons, renderer, tools, snapping, history, diff, serialization, editor. Deps: `rbush` + vendored signals. |
+| `@nodus-dev/react` | React binding — `<Nodus>` host, panels (`Properties`, `CommandPalette` ⌘K, context menu, `Minimap`, flow controls, cloud-icon picker), the `ui/*` design system (tokens + primitives, light/dark), `useValue`, clipboard/PNG export. |
+| `@nodus-dev/preset-infra` | Infra preset: six semantic node types + icons, dark/light themes, connector edge, Freeform/Reveal/Stages arena adapters, and the `InfraCanvas({model, mode, overlays})` façade. |
+| `@nodus-dev/preset-diagrams` · `@nodus-dev/preset-draw` | General diagram types (flowchart, state-machine, ERD, org-chart, icon nodes) / freehand drawing tools. |
+| `@nodus-dev/plugin-freehand` | A pen tool + stroke node type — a whole new interaction, registered through the public plugin API. |
+| `@nodus-dev/layout-dagre` · `-tree` · `-force` · `-elk` | Auto-layout adapters (layered · tidy-tree · force-directed · ELK, worker-capable). |
+| `@nodus-dev/icons-cloud` | Curated AWS / Azure / GCP glyphs, registered as namespaced `provider:service` icons. |
+| `@nodus-dev/from-mermaid` · `@nodus-dev/text-to-diagram` · `@nodus-dev/import-infra` | Importers — Mermaid, an LLM tool schema (describe a system → a diagram), and `fromTerraform` / `fromKubernetes`. |
+| `@nodus-dev/cli` | The `nodus` CLI — `fmt` / `render` / `diff` over `*.nodus.json`. |
+| `@nodus-dev/mcp` · `@nodus-dev/persistence` | MCP server exposing the engine as tools · snapshot storage. |
 
 ## Quick start
 
 ### Headless (Node / any bundler)
 
 ```ts
-import { Editor } from '@ahmazin/core';
-import { installInfraPreset } from '@ahmazin/preset-infra';
+import { Editor } from '@nodus-dev/core';
+import { installInfraPreset } from '@nodus-dev/preset-infra';
 
 const editor = new Editor({ viewport: { w: 1200, h: 700 } });
 installInfraPreset(editor);
@@ -98,8 +98,8 @@ preset for generic diagrams.
 
 ```tsx
 import { useMemo } from 'react';
-import { Nodus } from '@ahmazin/react';
-import { InfraCanvas } from '@ahmazin/preset-infra';
+import { Nodus } from '@nodus-dev/react';
+import { InfraCanvas } from '@nodus-dev/preset-infra';
 
 function App() {
   const { editor } = useMemo(
@@ -113,9 +113,9 @@ function App() {
 `<Nodus>` wires pointer/wheel/keyboard to the editor's tools, runs a signal-reactive rAF render loop,
 and hosts the inline label editor. The full interactive demo is in
 [`examples/browser`](./examples/browser) (`pnpm dev` → http://localhost:5188). See
-[`@ahmazin/react`](./packages/react#readme) for panels, hooks, the design system, and PNG export.
+[`@nodus-dev/react`](./packages/react#readme) for panels, hooks, the design system, and PNG export.
 
-> **React SSR / RSC:** `@ahmazin/react` ships a `'use client'` banner and a server snapshot for its
+> **React SSR / RSC:** `@nodus-dev/react` ships a `'use client'` banner and a server snapshot for its
 > hooks, so importing it never crashes a server render. The canvas paints after hydration; when you
 > need it fully client-only (e.g. Next.js Pages Router) use `dynamic(() => …, { ssr: false })`. See
 > the [React binding guide](./apps/site/src/pages/docs/react.md#server-side-rendering).
@@ -132,7 +132,7 @@ and hosts the inline label editor. The full interactive demo is in
 
 ## Git-native diagrams
 
-`@ahmazin/core` serializes deterministically — stable key order, normalized numbers — so a diagram is a
+`@nodus-dev/core` serializes deterministically — stable key order, normalized numbers — so a diagram is a
 text artifact with clean diffs. The `nodus` CLI (run via `pnpm nodus`) makes that a review workflow,
 and [`.github/workflows/diagrams.yml`](./.github/workflows/diagrams.yml) enforces canonical form on
 any PR touching a `*.nodus.json` and posts rendered previews.
@@ -150,7 +150,7 @@ A **custom node type** is one object implementing `NodeUtil` — geometry (the s
 hit-test/bounds/cull), ports, and a `draw`:
 
 ```ts
-import { Rectangle2d, type NodeUtil } from '@ahmazin/core';
+import { Rectangle2d, type NodeUtil } from '@nodus-dev/core';
 
 const cylinderNode: NodeUtil = {
   type: 'cylinder',
@@ -222,11 +222,11 @@ a layered Canvas-2D renderer, with all type-specific behavior in engine-owned re
 - **Three version concepts** kept distinct: `record.version` (diff/cache), scene-index version
   (render invalidation), `schemaVersion` (migration).
 
-See [`@ahmazin/core`](./packages/core#readme) for the full architecture and extension model.
+See [`@nodus-dev/core`](./packages/core#readme) for the full architecture and extension model.
 
 ## Stability
 
-Every `@ahmazin/*` package is **pre-1.0 (0.x)** — a minor bump (`0.Y.0`) may break; a patch (`0.0.Z`) is
+Every `@nodus-dev/*` package is **pre-1.0 (0.x)** — a minor bump (`0.Y.0`) may break; a patch (`0.0.Z`) is
 additive or fixes only. Canonical `*.nodus.json` bytes are a versioned contract (a byte change is
 breaking). See [`docs/stability.md`](./docs/stability.md) for the full policy — the public-API
 boundary, deprecations, and the canonical-byte contract — and [`RELEASING.md`](./RELEASING.md) for the

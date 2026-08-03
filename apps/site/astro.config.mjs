@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 // Static marketing site for Nodus.
 //   - Landing page ships today (src/pages/index.astro).
 //   - /docs slots in later (Astro Starlight).
-//   - /playground slots in later (the @ahmazin editor — currently examples/browser).
+//   - /playground slots in later (the @nodus-dev editor — currently examples/browser).
 //
 // `site` feeds canonical/OG URLs. It is a PLACEHOLDER — nodus.dev does not exist yet.
 // Keep it in sync with `origin` in src/config.ts (single source of truth for links).

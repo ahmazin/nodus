@@ -1,7 +1,7 @@
 // Capture the playground DEFAULT diagram (examples/browser/src/main.tsx) with flow ON as a looping
 // animated GIF for the README. Drives the real Vite app (localhost:5188 — run `pnpm dev` first) so
 // fonts/icons/theme/layout render exactly as users see them, then grabs deterministic frames via
-// editor.paintRegion({flow:true, time}) — the same path @ahmazin/react's exportFlowGIF uses — and
+// editor.paintRegion({flow:true, time}) — the same path @nodus-dev/react's exportFlowGIF uses — and
 // assembles a looping GIF with ImageMagick.
 //
 //   pnpm dev &                       # Vite on :5188

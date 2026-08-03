@@ -4,7 +4,7 @@ title: Versioning & stability
 description: What you can rely on across Nodus releases — 0.x semver rules, the public-API boundary, deprecations, and the canonical-byte contract.
 ---
 
-Every `@ahmazin/*` package is **pre-1.0 (0.x)**. The public API may change before 1.0 — this page is
+Every `@nodus-dev/*` package is **pre-1.0 (0.x)**. The public API may change before 1.0 — this page is
 what you can rely on in the meantime, and how to read a version bump.
 
 ## Semver under 0.x
@@ -22,11 +22,11 @@ this becomes normal semver.
 
 ## What counts as public
 
-The promise covers exactly what a package exports from its root (`@ahmazin/core`, `@ahmazin/react`, each
+The promise covers exactly what a package exports from its root (`@nodus-dev/core`, `@nodus-dev/react`, each
 preset/layout/plugin). If you import it by name from the package, it is public.
 
 - **`@internal` symbols carry no promise** — nor does anything reached through a deep
-  `@ahmazin/core/src/...` import instead of the barrel. Those can change in any release. Build on the
+  `@nodus-dev/core/src/...` import instead of the barrel. Those can change in any release. Build on the
   barrel.
 - A type reachable from a public function signature is itself public.
 
@@ -45,7 +45,7 @@ earlier than `0.(N+1)`. Removals land on a minor bump and are called out in the 
 
 ## The canonical-byte contract
 
-`@ahmazin/core` writes diagrams as **canonical** `*.nodus.json` — stable key order, normalized numbers
+`@nodus-dev/core` writes diagrams as **canonical** `*.nodus.json` — stable key order, normalized numbers
 — so they diff and review cleanly. That byte format is a versioned contract: **a change to canonical
 output is treated as breaking** (a minor bump). Otherwise a stray byte change in a patch would make
 every committed diagram in your repo fail `nodus fmt --check` in CI on files you never touched. The

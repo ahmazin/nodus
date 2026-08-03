@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/import-infra",
+  "name": "@nodus-dev/import-infra",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -23,7 +23,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@ahmazin/preset-infra": "workspace:^",
+    "@nodus-dev/preset-infra": "workspace:^",
     "yaml": "^2.4.2"
   },
   "scripts": {
@@ -49,10 +49,10 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "devDependencies": {
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

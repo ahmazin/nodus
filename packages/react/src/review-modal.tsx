@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@ahmazin/core';
+import type { Editor } from '@nodus-dev/core';
 import { useBranch, type BranchInfo } from './use-branch.js';
 import { unifiedDiff, type UnifiedDiffLine } from './unified-diff.js';
 import { canonicalOf, editorToCanonical } from './round-trip.js';

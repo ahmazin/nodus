@@ -13,7 +13,7 @@
  */
 
 import { useEffect } from 'react';
-import { effect, type Dispose, type Editor, type Snapshot } from '@ahmazin/core';
+import { effect, type Dispose, type Editor, type Snapshot } from '@nodus-dev/core';
 
 /** localStorage namespace so autosaves never collide with other app keys. */
 const AUTOSAVE_PREFIX = 'nodus:autosave:';

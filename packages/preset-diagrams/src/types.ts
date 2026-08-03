@@ -22,7 +22,7 @@ import {
   type Port,
   type ResolvedTokens,
   type Vec2,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 import { imageNode } from './image.js';
 
 const rectPorts = (): Port[] => [

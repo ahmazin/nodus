@@ -4,7 +4,7 @@
 
 **Goal:** Make official AWS/Azure/GCP service icons available as node glyphs (`props.icon: 'aws:lambda'`), rendered through the existing procedural pipeline in both browser and headless.
 
-**Architecture:** A build-time codegen converts vendored official SVGs into compact vector "packs" (path-command data). A generic `drawVectorIcon` in core replays that data through the existing `Ctx2D` primitives — no `Ctx2D` change, no runtime assets, no async. A new `@ahmazin/icons-cloud` package holds the data and registers each icon under a `provider:service` name into core's icon registry, so `drawStencil`/`iconNode` draw them unchanged.
+**Architecture:** A build-time codegen converts vendored official SVGs into compact vector "packs" (path-command data). A generic `drawVectorIcon` in core replays that data through the existing `Ctx2D` primitives — no `Ctx2D` change, no runtime assets, no async. A new `@nodus-dev/icons-cloud` package holds the data and registers each icon under a `provider:service` name into core's icon registry, so `drawStencil`/`iconNode` draw them unchanged.
 
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), pnpm workspaces (packages resolve `main → src`, no build step), vitest, tsx for scripts, `@napi-rs/canvas` for headless render, dev deps `svgson` + `svgpath` for the converter.
 
@@ -20,7 +20,7 @@
 
 **Preflight (do once before Task 1):**
 - The working tree currently holds the uncommitted "stencil" sub-project and the branch is detached (`HEAD`). Consolidate with the user first: create a feature branch off `main` (e.g. `feat/cloud-icon-packs`) and commit the pending stencil work, so this plan's commits land cleanly.
-- Install converter dev deps: `pnpm --filter @ahmazin/icons-cloud add -D svgson svgpath` (run after Task 3 creates the package; listed here so it isn't forgotten).
+- Install converter dev deps: `pnpm --filter @nodus-dev/icons-cloud add -D svgson svgpath` (run after Task 3 creates the package; listed here so it isn't forgotten).
 
 ---
 
@@ -311,7 +311,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 4: `@ahmazin/icons-cloud` package + install/registration + fixture pack
+### Task 4: `@nodus-dev/icons-cloud` package + install/registration + fixture pack
 
 **Files:**
 - Create: `packages/icons-cloud/package.json`, `packages/icons-cloud/tsconfig.json`
@@ -320,7 +320,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Test: `packages/icons-cloud/src/__tests__/packs.test.ts`
 
 **Interfaces:**
-- Consumes: `registerIcon`, `drawVectorIcon`, `VectorIcon` from `@ahmazin/core`.
+- Consumes: `registerIcon`, `drawVectorIcon`, `VectorIcon` from `@nodus-dev/core`.
 - Produces: `installAwsIcons()`, `installAzureIcons()`, `installGcpIcons()`, `installCloudIcons()`; per-provider packs `awsPack`/`azurePack`/`gcpPack: Record<string, VectorIcon>`.
 
 - [ ] **Step 1: Create package scaffolding**
@@ -328,7 +328,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```json
 // packages/icons-cloud/package.json
 {
-  "name": "@ahmazin/icons-cloud",
+  "name": "@nodus-dev/icons-cloud",
   "version": "0.0.0",
   "type": "module",
   "private": true,
@@ -340,7 +340,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     "./azure": { "types": "./src/azure.ts", "default": "./src/azure.ts" },
     "./gcp": { "types": "./src/gcp.ts", "default": "./src/gcp.ts" }
   },
-  "dependencies": { "@ahmazin/core": "workspace:*" }
+  "dependencies": { "@nodus-dev/core": "workspace:*" }
 }
 ```
 
@@ -355,7 +355,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```ts
 // packages/icons-cloud/src/generated/aws-pack.ts
-import type { VectorIcon } from '@ahmazin/core';
+import type { VectorIcon } from '@nodus-dev/core';
 // GENERATED placeholder — replaced by scripts/build-icon-packs.ts once toolkits are vendored.
 export const awsPack: Record<string, VectorIcon> = {
   'aws:lambda': { vb: [24, 24], sub: [{ fill: '#ED7100', cmds: [0, 3, 3, 1, 21, 3, 1, 21, 21, 1, 3, 21, 3] }] },
@@ -364,7 +364,7 @@ export const awsPack: Record<string, VectorIcon> = {
 
 ```ts
 // packages/icons-cloud/src/generated/azure-pack.ts
-import type { VectorIcon } from '@ahmazin/core';
+import type { VectorIcon } from '@nodus-dev/core';
 export const azurePack: Record<string, VectorIcon> = {
   'azure:functions': { vb: [24, 24], sub: [{ fill: '#0078D4', cmds: [0, 3, 3, 1, 21, 3, 1, 21, 21, 1, 3, 21, 3] }] },
 };
@@ -372,7 +372,7 @@ export const azurePack: Record<string, VectorIcon> = {
 
 ```ts
 // packages/icons-cloud/src/generated/gcp-pack.ts
-import type { VectorIcon } from '@ahmazin/core';
+import type { VectorIcon } from '@nodus-dev/core';
 export const gcpPack: Record<string, VectorIcon> = {
   'gcp:run': { vb: [24, 24], sub: [{ fill: '#4285F4', cmds: [0, 3, 3, 1, 21, 3, 1, 21, 21, 1, 3, 21, 3] }] },
 };
@@ -382,7 +382,7 @@ export const gcpPack: Record<string, VectorIcon> = {
 
 ```ts
 // packages/icons-cloud/src/install.ts
-import { drawVectorIcon, registerIcon, type VectorIcon } from '@ahmazin/core';
+import { drawVectorIcon, registerIcon, type VectorIcon } from '@nodus-dev/core';
 
 export function installPack(pack: Record<string, VectorIcon>): void {
   for (const [name, icon] of Object.entries(pack)) {
@@ -453,7 +453,7 @@ export function installCloudIcons(): void {
 ```ts
 // packages/icons-cloud/src/__tests__/packs.test.ts
 import { describe, expect, it } from 'vitest';
-import { getIcon, getIconMeta } from '@ahmazin/core';
+import { getIcon, getIconMeta } from '@nodus-dev/core';
 import { installCloudIcons } from '../index.js';
 
 function stubCtx() {
@@ -506,19 +506,19 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/icons-cloud/package.json` (add dev deps)
 
 **Interfaces:**
-- Consumes: `svgson` (`parseSync`), `svgpath`, `OP` + `VectorIcon`/`VectorSubpath` from `@ahmazin/core`.
+- Consumes: `svgson` (`parseSync`), `svgpath`, `OP` + `VectorIcon`/`VectorSubpath` from `@nodus-dev/core`.
 - Produces: `function svgToVectorIcon(svg: string): { icon: VectorIcon; warnings: string[] }`.
 
 - [ ] **Step 1: Add dev deps**
 
-Run: `pnpm --filter @ahmazin/icons-cloud add -D svgson svgpath`
+Run: `pnpm --filter @nodus-dev/icons-cloud add -D svgson svgpath`
 
 - [ ] **Step 2: Write the failing test**
 
 ```ts
 // packages/icons-cloud/src/__tests__/svg-to-vector.test.ts
 import { describe, expect, it } from 'vitest';
-import { OP } from '@ahmazin/core';
+import { OP } from '@nodus-dev/core';
 import { svgToVectorIcon } from '../codegen/svg-to-vector.js';
 
 const SVG = `<svg viewBox="0 0 24 24">
@@ -568,7 +568,7 @@ Expected: FAIL — module not found.
  */
 import { parseSync } from 'svgson';
 import svgpath from 'svgpath';
-import { OP, type VectorIcon, type VectorSubpath } from '@ahmazin/core';
+import { OP, type VectorIcon, type VectorSubpath } from '@nodus-dev/core';
 
 interface SvgNode {
   name: string;
@@ -862,7 +862,7 @@ if (missing.length) {
 for (const p of ['aws', 'azure', 'gcp'] as const) {
   const body =
     `// GENERATED by scripts/build-icon-packs.ts — do not edit by hand.\n` +
-    `import type { VectorIcon } from '@ahmazin/core';\n` +
+    `import type { VectorIcon } from '@nodus-dev/core';\n` +
     `export const ${p}Pack: Record<string, VectorIcon> = ${JSON.stringify(packs[p])};\n`;
   writeFileSync(join(GEN, `${p}-pack.ts`), body);
 }
@@ -914,8 +914,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```ts
 // packages/icons-cloud/src/__tests__/integration.test.ts
 import { describe, expect, it } from 'vitest';
-import { Editor, getIcon } from '@ahmazin/core';
-import { installDiagrams } from '@ahmazin/preset-diagrams';
+import { Editor, getIcon } from '@nodus-dev/core';
+import { installDiagrams } from '@nodus-dev/preset-diagrams';
 import { installCloudIcons } from '../index.js';
 
 describe('cloud icons on iconNode', () => {
@@ -940,7 +940,7 @@ Expected: FAIL first if `installDiagrams`/`createNode` names differ — fix to t
 
 - [ ] **Step 3: Wire the browser picker**
 
-In `examples/browser/src/main.tsx`, import `installCloudIcons` from `@ahmazin/icons-cloud` and call it at startup (next to the existing preset installs). Add a second `<select data-testid="cloud-icon-select">` populated from a small static list of provider icon names, and a "Add icon" button that does `editor.createNode({ type: 'icon', x, y, props: { icon: selectedName } })` at the viewport center. Keep it minimal — this proves placement; a searchable picker is future work.
+In `examples/browser/src/main.tsx`, import `installCloudIcons` from `@nodus-dev/icons-cloud` and call it at startup (next to the existing preset installs). Add a second `<select data-testid="cloud-icon-select">` populated from a small static list of provider icon names, and a "Add icon" button that does `editor.createNode({ type: 'icon', x, y, props: { icon: selectedName } })` at the viewport center. Keep it minimal — this proves placement; a searchable picker is future work.
 
 - [ ] **Step 4: Add the visual grid**
 

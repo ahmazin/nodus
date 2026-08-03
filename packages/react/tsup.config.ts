@@ -16,10 +16,10 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   treeshake: true,
-  external: ['react', 'react-dom', 'rbush', '@dagrejs/dagre', '@ahmazin/core'],
+  external: ['react', 'react-dom', 'rbush', '@dagrejs/dagre', '@nodus-dev/core'],
   // gifenc@1.0.3 has a `module` field but no `exports` map, so plain Node ESM resolves its CJS
   // `main` and cjs-module-lexer can't see the named exports (GIFEncoder/quantize/applyPalette) —
-  // a real consumer importing @ahmazin/react from the tarball dies with "Named export not found".
+  // a real consumer importing @nodus-dev/react from the tarball dies with "Named export not found".
   // tsup auto-externalizes dependencies, so bundle gifenc's (small) ESM build into the dist instead.
   noExternal: ['gifenc'],
   async onSuccess() {

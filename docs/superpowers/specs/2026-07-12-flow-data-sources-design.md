@@ -23,7 +23,7 @@ It is a small, core-only addition; no React changes, no new visuals.
 
 - Feed the existing ephemeral `flowMetrics` map from a declarative source (pull or push).
 - **Ephemeral** — sources are **not serialized, not undoable** (a `FlowSource` holds functions).
-- Core-only (`@ahmazin/core`). No renderer, model-visual, or React changes.
+- Core-only (`@nodus-dev/core`). No renderer, model-visual, or React changes.
 - Not in scope: repainting a **frozen/paused** edge on metric change (a ② visual concern);
   making `flowMetrics` reactive; validating that the id is a scaled edge (binding is permissive,
   like `setFlowMetric`).

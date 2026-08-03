@@ -1,6 +1,6 @@
 /**
- * @ahmazin/preset-infra — the infra-architecture preset: six semantic node types, the dark theme,
- * the connector edge, mode adapters, and the `InfraCanvas` facade. Built entirely on `@ahmazin/core`'s
+ * @nodus-dev/preset-infra — the infra-architecture preset: six semantic node types, the dark theme,
+ * the connector edge, mode adapters, and the `InfraCanvas` facade. Built entirely on `@nodus-dev/core`'s
  * public API.
  */
 

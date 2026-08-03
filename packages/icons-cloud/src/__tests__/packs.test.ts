@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getIcon, getIconMeta } from '@ahmazin/core';
+import { getIcon, getIconMeta } from '@nodus-dev/core';
 import { installCloudIcons, installPack } from '../index.js';
 
 function stubCtx() {

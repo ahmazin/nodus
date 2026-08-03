@@ -26,7 +26,7 @@ uses for bounds, culling, hit-testing, and snapping. An edge type is an `EdgeUti
 turns resolved endpoints into a polyline.
 
 ```ts
-import { Rectangle2d, type NodeUtil } from '@ahmazin/core';
+import { Rectangle2d, type NodeUtil } from '@nodus-dev/core';
 
 const cylinder: NodeUtil = {
   type: 'cylinder',
@@ -39,7 +39,7 @@ editor.registerNodeType(cylinder);
 ```
 
 Draw against the resolved theme **tokens** you're handed, never hard-coded colours — that is what
-lets a theme swap re-skin every node in one frame. `@ahmazin/preset-draw` is a small, complete worked
+lets a theme swap re-skin every node in one frame. `@nodus-dev/preset-draw` is a small, complete worked
 reference for both node and edge types.
 
 ## 2. Routers
@@ -54,19 +54,19 @@ A layout engine implements `LayoutEngine` — an async `layout(graph, opts)` ret
 positions per node id. Register it, then run it as one undo entry:
 
 ```ts
-import { dagreLayout } from '@ahmazin/layout-dagre';
+import { dagreLayout } from '@nodus-dev/layout-dagre';
 
 editor.registerLayout(dagreLayout);
 await editor.layout('dagre', { direction: 'LR' });
 ```
 
-The reference adapters are the four `@ahmazin/layout-*` packages (dagre, tree, force, elk).
+The reference adapters are the four `@nodus-dev/layout-*` packages (dagre, tree, force, elk).
 
 ## 4. Plugins
 
 A plugin bundles any of the above — plus tools, overlays, and store/event hooks — behind one install
 call. Its `register(host)` receives an `EngineHost` (the extension surface) and returns a disposer;
-install with `editor.use(plugin)`. `@ahmazin/plugin-freehand` is the full worked example: a pen tool
+install with `editor.use(plugin)`. `@nodus-dev/plugin-freehand` is the full worked example: a pen tool
 **and** a stroke node type, registered with zero core changes.
 
 ## Tools
@@ -75,7 +75,7 @@ A tool is the object behind an interaction mode (select, connect, a freehand pen
 `ToolNode` and is registered with `editor.registerTool(tool)` — directly or bundled in a plugin — then
 activated with `editor.setTool(id)`. The tool receives pointer and keyboard events in **world
 coordinates** and drives the store through the same `apply` channel as everything else;
-`@ahmazin/plugin-freehand`'s `FreehandTool` is the canonical example (it uses `capture: 'later'` on each
+`@nodus-dev/plugin-freehand`'s `FreehandTool` is the canonical example (it uses `capture: 'later'` on each
 pointer-move and calls `editor.mark()` on pointer-up, collapsing a whole stroke into one undo entry).
 
 ## Plugin lifecycle
@@ -157,5 +157,5 @@ behind.
 
 - [Concepts](/docs/concepts) — the store, signals, scene index, and the four axes in depth.
 - [Headless rendering](/docs/headless) — build and render a scene with no browser.
-- Reference packages: `@ahmazin/preset-infra`, `@ahmazin/preset-draw`, the `@ahmazin/layout-*` adapters, and
-  `@ahmazin/plugin-freehand`.
+- Reference packages: `@nodus-dev/preset-infra`, `@nodus-dev/preset-draw`, the `@nodus-dev/layout-*` adapters, and
+  `@nodus-dev/plugin-freehand`.

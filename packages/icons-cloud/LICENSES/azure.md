@@ -1,6 +1,6 @@
 # Azure Architecture Icons — license & terms
 
-`@ahmazin/icons-cloud` can convert artwork from the official **Azure Architecture Icons** toolkit
+`@nodus-dev/icons-cloud` can convert artwork from the official **Azure Architecture Icons** toolkit
 (Microsoft Corporation) into vector icon packs used by this project (via `pnpm build:icons`,
 once you have vendored the toolkit into `packages/icons-cloud/svg/azure/`). That artwork is not
 owned by, or licensed under the license of, this repository.

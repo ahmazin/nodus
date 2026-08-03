@@ -1,4 +1,4 @@
-# @ahmazin/preset-diagrams
+# @nodus-dev/preset-diagrams
 
 General diagram node/edge types for [Nodus](https://github.com/ahmazin/nodus), plus builders that turn friendly specs
 into records. Ships types for flowcharts (`pill` / `process` / `decision`), state machines (`state`),
@@ -9,17 +9,17 @@ diagram shapes rather than the infra preset.
 ## Install
 
 ```bash
-pnpm add @ahmazin/preset-diagrams @ahmazin/core
+pnpm add @nodus-dev/preset-diagrams @nodus-dev/core
 ```
 
-> `@ahmazin/core` is a **peer dependency** — install it alongside so the preset shares your app's single
+> `@nodus-dev/core` is a **peer dependency** — install it alongside so the preset shares your app's single
 > engine instance.
 
 ## Usage
 
 ```ts
-import { Editor } from '@ahmazin/core';
-import { installDiagrams, buildFlowchart } from '@ahmazin/preset-diagrams';
+import { Editor } from '@nodus-dev/core';
+import { installDiagrams, buildFlowchart } from '@nodus-dev/preset-diagrams';
 
 const editor = new Editor();
 installDiagrams(editor);   // registers the diagram node/edge types + applies diagramsTheme
@@ -56,8 +56,8 @@ and the image-node helpers (from `./image`).
 
 ## See also
 
-- [`@ahmazin/from-mermaid`](https://github.com/ahmazin/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`@nodus-dev/from-mermaid`](https://github.com/ahmazin/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
+- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

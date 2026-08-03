@@ -1,5 +1,5 @@
 /**
- * @ahmazin/stencils — reusable element-group fragments (stencils) and starting diagrams (templates)
+ * @nodus-dev/stencils — reusable element-group fragments (stencils) and starting diagrams (templates)
  * for Nodus, plus a canonical, git-diffable (de)serializer for stencil libraries.
  */
 

@@ -6,11 +6,11 @@
  * it at the viewport center. A "Save selection as stencil" control captures the current selection
  * (`editor.captureStencil`) and hands the resulting `Stencil` to the host for persistence.
  *
- * Decoupled from `@ahmazin/stencils`: the libraries arrive as a prop and persistence is the host's job.
+ * Decoupled from `@nodus-dev/stencils`: the libraries arrive as a prop and persistence is the host's job.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import { Editor, isNode, renderSVG, sessionIdFactory, type NodusRecord } from '@ahmazin/core';
-import type { Stencil, StencilLibrary as StencilLibraryData } from '@ahmazin/stencils';
+import { Editor, isNode, renderSVG, sessionIdFactory, type NodusRecord } from '@nodus-dev/core';
+import type { Stencil, StencilLibrary as StencilLibraryData } from '@nodus-dev/stencils';
 import { getCanvas } from './canvas-registry.js';
 import { useUiTokens, type UiMode, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
@@ -21,7 +21,7 @@ const stencilIds = sessionIdFactory();
 
 export interface StencilLibraryProps {
   editor: Editor;
-  /** Libraries to browse. Type re-exported from `@ahmazin/stencils`. */
+  /** Libraries to browse. Type re-exported from `@nodus-dev/stencils`. */
   libraries: StencilLibraryData[];
   /** Called after the current selection is captured into a new stencil (the host owns persistence). */
   onSaveSelection?: (stencil: Stencil) => void;

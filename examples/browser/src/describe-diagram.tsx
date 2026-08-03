@@ -1,6 +1,6 @@
 /**
  * Describe-a-diagram (AI) — a ⌘K / Insert-tab prompt that turns a natural-language description into a
- * Nodus diagram using @ahmazin/text-to-diagram's `diagramTool` + `recordsFromToolUse`. The model call is
+ * Nodus diagram using @nodus-dev/text-to-diagram's `diagramTool` + `recordsFromToolUse`. The model call is
  * a plain browser fetch to the Anthropic Messages API with a BRING-YOUR-OWN key stored only in
  * localStorage and sent only to Anthropic (never to a server of ours) — preserving the local-first /
  * no-login-wall posture. No SDK dependency; forces the render_diagram tool for a single structured call.
@@ -11,9 +11,9 @@
  */
 import { useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor, NodusRecord } from '@ahmazin/core';
-import { useUiTokens } from '@ahmazin/react';
-import { diagramTool, diagramSystemPrompt, recordsFromToolUse } from '@ahmazin/text-to-diagram';
+import type { Editor, NodusRecord } from '@nodus-dev/core';
+import { useUiTokens } from '@nodus-dev/react';
+import { diagramTool, diagramSystemPrompt, recordsFromToolUse } from '@nodus-dev/text-to-diagram';
 
 const KEY_STORAGE = 'nodus.anthropic.key';
 const MODEL = 'claude-opus-4-8';

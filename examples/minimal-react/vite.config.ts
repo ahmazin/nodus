@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// The @ahmazin/* workspace packages point `main`/`types` at their `src/index.ts`, so Vite resolves them
+// The @nodus-dev/* workspace packages point `main`/`types` at their `src/index.ts`, so Vite resolves them
 // straight from source — no build step needed while developing.
 export default defineConfig({
   plugins: [react()],

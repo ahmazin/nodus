@@ -1,4 +1,4 @@
-# Nodus (`@ahmazin/*`) — Pre-Publication Security & Readiness Audit
+# Nodus (`@nodus-dev/*`) — Pre-Publication Security & Readiness Audit
 
 **Date:** 2026-07-22 · **Target:** the working tree at `mainline` (uncommitted modifications present; nothing pushed) · **Scope:** publication = `changeset publish` of 18 npm packages + an optional static demo artifact. There is **no hosted SaaS / server / auth / database** — the classic web-app attack surface (CSP headers, Supabase/RLS, CORS-with-credentials, server-side rasterization) does not exist here and was redirected to the surfaces that do.
 
@@ -15,7 +15,7 @@ The code-side blockers were fixed and verified in this session (with fail-before
 | **H1** stencils | ✅ FIXED | `'stencils'` added to `scripts/build-all.mjs` order (after `core`); `pnpm build` now builds 18/18 and emits `packages/stencils/dist`. |
 | **H2** `/\s+$/` ReDoS | ✅ FIXED | `from-mermaid` `cleanLines` uses `.trimEnd()`; regression asserts a 100k-space input parses <2s (was 7.4s). |
 | **H3** inline-link ReDoS | ✅ FIXED | inner label class bounded `[^|>\n]{0,200}` in both `--`/`==` and `-.` forms; regression asserts 30k-operator input <2s (was 8.4s). |
-| **H4** icons-cloud | ⏸ HELD | `@ahmazin/icons-cloud` marked `private:true` with a `_publishHold` note → `changeset publish` skips it; the other 17 ship. No published package depends on it (react is decoupled). Licensing decision still pending. |
+| **H4** icons-cloud | ⏸ HELD | `@nodus-dev/icons-cloud` marked `private:true` with a `_publishHold` note → `changeset publish` skips it; the other 17 ship. No published package depends on it (react is decoupled). Licensing decision still pending. |
 | **M1** deep-nesting DoS | ✅ FIXED | `restore()` rejects records nesting deeper than `MAX_NEST_DEPTH=256` (iterative, stack-safe check) → protects the `diff`/`share`/`autosave` native-`JSON.stringify` sinks at the trust boundary. |
 | **M2** input-size caps | ✅ FIXED | byte/element caps added: `fromMermaid` (`MAX_MERMAID_BYTES`), `parseSnapshot` (`MAX_SNAPSHOT_BYTES`), `decodeScene` zero-click `#scene=` (`MAX_SCENE_BYTES`), `import-infra` (`MAX_IMPORT_BYTES`/`MAX_IMPORT_ELEMENTS`), `text-to-diagram` (`MAX_SPEC_ELEMENTS`). |
 
@@ -33,9 +33,9 @@ But publishing today would ship (a) a **broken package**, (b) a library with **t
 
 | # | Blocker | Severity | Effort | Owner |
 |---|---|---|---|---|
-| 1 | `@ahmazin/stencils` never builds → `changeset publish` pushes a broken/empty package | HIGH | S | dev |
-| 2 | Two live ReDoS in published `@ahmazin/from-mermaid` (untrusted input, main-thread freeze) | HIGH ×2 | S each | dev |
-| 3 | `@ahmazin/icons-cloud` redistributes real AWS/Azure/GCP trademarked artwork | HIGH | decision | **human/counsel** |
+| 1 | `@nodus-dev/stencils` never builds → `changeset publish` pushes a broken/empty package | HIGH | S | dev |
+| 2 | Two live ReDoS in published `@nodus-dev/from-mermaid` (untrusted input, main-thread freeze) | HIGH ×2 | S each | dev |
+| 3 | `@nodus-dev/icons-cloud` redistributes real AWS/Azure/GCP trademarked artwork | HIGH | decision | **human/counsel** |
 | 4 | Publication-hygiene MEDIUMs: `SECURITY.md`, privacy note, real repo URL, SVG a11y, fix icons-cloud description | MEDIUM | S each | dev |
 
 Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is a **decision only a human can make** (confirm provider terms permit *registry redistribution*, gate to placeholder packs, or hold that one package back — the other 17 need not wait). Everything below MEDIUM is post-publish hardening.
@@ -56,12 +56,12 @@ Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is 
 
 ## HIGH
 
-### [HIGH] H1 — `@ahmazin/stencils` is omitted from the release build → broken npm publish
+### [HIGH] H1 — `@nodus-dev/stencils` is omitted from the release build → broken npm publish
 - **Category:** Build
 - **Location:** `scripts/build-all.mjs:10` (hardcoded `order` array) · `packages/stencils/package.json`
 - **Status:** proven (Lane F)
-- **Repro:** `pnpm build` prints `▸ building @ahmazin/<pkg>` for 17 packages; `stencils` never appears → `ls packages/stencils/dist` = no dist. The package is `private:false` with `publishConfig` pointing `main`/`types` at `./dist/*` and `files:["dist"]`; `dist/` is gitignored repo-wide (Lane D: 0 tracked dist files) so there is **no committed fallback**. `release` = `pnpm build && changeset publish`.
-- **Impact:** Publication blocker. `changeset publish` would push `@ahmazin/stencils@0.1.0` with every entrypoint pointing at files that were never built → broken/empty package on npm (or a publish-time failure).
+- **Repro:** `pnpm build` prints `▸ building @nodus-dev/<pkg>` for 17 packages; `stencils` never appears → `ls packages/stencils/dist` = no dist. The package is `private:false` with `publishConfig` pointing `main`/`types` at `./dist/*` and `files:["dist"]`; `dist/` is gitignored repo-wide (Lane D: 0 tracked dist files) so there is **no committed fallback**. `release` = `pnpm build && changeset publish`.
+- **Impact:** Publication blocker. `changeset publish` would push `@nodus-dev/stencils@0.1.0` with every entrypoint pointing at files that were never built → broken/empty package on npm (or a publish-time failure).
 - **Fix:** Decide intent — if stencils ships, add `'stencils'` to the `order` array (after `core`); if not, add `"private": true`. **Durable fix:** derive the build list (and `verify-dist.mjs`, which only covers 5/18) from the workspace's `private:false` set so the two can't drift again.
 - **Effort:** S
 
@@ -83,14 +83,14 @@ Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is 
 - **Fix:** bound the inner quantifier in **both** the `--`/`==` and dotted `-.` forms (mermaid edge labels are short): `[^|>\n]*` → `[^|>\n]{0,200}`. Verified: N=32000 drops 7790ms → **40.7ms**. Raise the regression test to ~100KB (or assert linear scaling) so residual quadratics can't pass.
 - **Effort:** S
 
-### [HIGH] H4 — `@ahmazin/icons-cloud` redistributes real AWS/Azure/GCP trademarked artwork
+### [HIGH] H4 — `@nodus-dev/icons-cloud` redistributes real AWS/Azure/GCP trademarked artwork
 - **Category:** License
 - **Location:** `packages/icons-cloud/` (`svg/**`, `src/generated/*-pack.ts`, shipped `dist/`)
 - **Status:** facts **proven**; legal conclusion **unverified** (Lane D is not counsel)
 - **Repro:** the committed glyphs are the *genuine* official provider icons, not placeholders — `svg/aws/Arch_Amazon-EC2_48.svg` carries AWS brand-orange `fill="#ED7100"`, the official EC2 path, and the official `Icon-Architecture/48/Arch_Amazon-EC2_48` title. 92 provider SVGs tracked (aws 36 / azure 37 / gcp 19). `npm pack --dry-run` → derived vector packs ship in `dist` (`aws.cjs 124kB`, `azure.cjs 187kB`, `gcp.cjs 78kB`); `grep ED7100 dist/*.cjs` confirms real provider data in the shipped bundle.
 - **Impact:** Publishing redistributes copyrighted + trademarked provider artwork as a standalone library. Provider icon terms generally permit *end-users making diagrams*, not a third party *redistributing the marks via a package registry*. Single largest publication-legal exposure in the repo.
 - **Mitigation already in place (strong — credit it):** dual-body `LICENSE` (MIT for code + explicit carve-out that MIT does **not** cover artwork/derived packs), `NOTICE` with per-provider attribution + non-endorsement disclaimer, `LICENSES/{aws,azure,gcp}.md`, `provenance.json`, `license:"SEE LICENSE IN LICENSE"` (correctly not MIT), and `files` excludes raw `svg/`.
-- **Fix:** (1) written confirmation each provider's current icon terms permit *registry redistribution* before first publish; or (2) ship **empty/placeholder** packs by default and have consumers run `pnpm build:icons` after vendoring artwork themselves (moves the redistribution act to the consumer — matches the package's own stated design); or (3) hold `@ahmazin/icons-cloud` back from the first publish while the other 17 ship. Also fix M6 (misleading description).
+- **Fix:** (1) written confirmation each provider's current icon terms permit *registry redistribution* before first publish; or (2) ship **empty/placeholder** packs by default and have consumers run `pnpm build:icons` after vendoring artwork themselves (moves the redistribution act to the consumer — matches the package's own stated design); or (3) hold `@nodus-dev/icons-cloud` back from the first publish while the other 17 ship. Also fix M6 (misleading description).
 - **Effort:** M (legal review) / M (placeholder-gating refactor)
 
 ---
@@ -130,7 +130,7 @@ Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is 
 - **Impact:** Every published package points to a non-existent repo — breaks the npm "Repository" link, provenance linkage, and issue-reporting path. (Known-open "repo URL" decision.)
 - **Fix:** set the real slug (+ `homepage`/`bugs`) in all 18 before publish. · **Effort:** S
 
-### [MEDIUM] M6 — `@ahmazin/icons-cloud` description falsely claims "fixture placeholders"
+### [MEDIUM] M6 — `@nodus-dev/icons-cloud` description falsely claims "fixture placeholders"
 - **Category:** License / Config · **Location:** `packages/icons-cloud/package.json` `description` · **Status:** proven (Lane D)
 - **Impact:** Description reads "Ships fixture placeholders…" but the package bundles/redistributes the **real** derived provider artwork. Understates what ships; can mislead the very risk assessment in H4.
 - **Fix:** correct the description to state it bundles derived provider artwork under each provider's icon terms — or make the claim true by shipping placeholders (H4 fix #2). · **Effort:** S
@@ -157,7 +157,7 @@ Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is 
 - **Fix:** scheme-gate `drawImage` href before emit — `data:` (optionally `blob:`/same-origin) only; for `http(s)` inline-fetch-and-base64 at export or fall to the dashed placeholder. Escaping can't fix this — a URL stays a fetch capability when escaped. · **Effort:** S
 
 ### [LOW] L3 — MCP `export_png` can overwrite any existing file inside cwd with PNG bytes
-- **Category:** Config (arbitrary-write, contained) · **Location:** `packages/mcp/src/session.ts:360-383` (`path`→`containedPath` `:46-54`→`writeFileSync` `:379`), published `@ahmazin/mcp` · **Status:** proven (Lane E, containment logic executed)
+- **Category:** Config (arbitrary-write, contained) · **Location:** `packages/mcp/src/session.ts:360-383` (`path`→`containedPath` `:46-54`→`writeFileSync` `:379`), published `@nodus-dev/mcp` · **Status:** proven (Lane E, containment logic executed)
 - **Repro:** `export_png {"path":"package.json"}` → `containedPath` returns the in-cwd path (allowed) → `writeFileSync` clobbers it with PNG bytes. `../sibling.png`, `/etc/passwd`, `cwd/../evil.png` are all correctly **rejected**; the gap is *within* cwd, and no `.png` extension is enforced.
 - **Impact:** an MCP client — or, via indirect prompt injection from a malicious imported diagram's labels steering the model — can overwrite `package.json`/`.ts` source with binary PNG: local tamper/DoS, contained to the working dir.
 - **Fix:** after `containedPath`, require the resolved path under `session.exportsDir` (not bare cwd), or `if (!/\.png$/i.test(contained)) return fail(...)` + refuse-if-exists-and-not-ours. · **Effort:** S
@@ -178,9 +178,9 @@ Blockers 1–2 are one-line code/config fixes with proven results. Blocker 3 is 
 - **Impact:** **not reachable by consumers of published packages** — test/build toolchain only, never in `dist`. Not a publish blocker.
 - **Fix:** bump `vitest` → ≥3.2.6 (2→3 major) and let vite/esbuild float to patched, for dev-machine safety. · **Effort:** M
 
-### [LOW] L7 — `@ahmazin/layout-elk` transitively includes EPL-2.0 (`elkjs`)
+### [LOW] L7 — `@nodus-dev/layout-elk` transitively includes EPL-2.0 (`elkjs`)
 - **Category:** License · **Location:** `packages/layout-elk` → `elkjs@0.9.3` (EPL-2.0), unmodified · **Status:** proven (Lane D)
-- **Impact:** EPL-2.0 is weak (file-level) copyleft; as an unmodified dependency it does **not** force relicensing Nodus's MIT code, but installing `@ahmazin/layout-elk` brings EPL-2.0 into a consumer tree. Pure-permissive consumers can use `layout-dagre` (MIT) / `layout-tree` / `layout-force` (ISC).
+- **Impact:** EPL-2.0 is weak (file-level) copyleft; as an unmodified dependency it does **not** force relicensing Nodus's MIT code, but installing `@nodus-dev/layout-elk` brings EPL-2.0 into a consumer tree. Pure-permissive consumers can use `layout-dagre` (MIT) / `layout-tree` / `layout-force` (ISC).
 - **Fix:** none required; optionally note it in the layout-elk README. · **Effort:** S
 
 ### [LOW] L8 — Sourcemaps ship in every published tarball

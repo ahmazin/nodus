@@ -1,9 +1,9 @@
 {
-  "name": "@ahmazin/icons-cloud",
+  "name": "@nodus-dev/icons-cloud",
   "version": "1.0.0",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
-  "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @ahmazin/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
+  "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @nodus-dev/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
   "files": [
     "dist",
     "LICENSE",
@@ -42,10 +42,10 @@
   },
   "sideEffects": false,
   "devDependencies": {
-    "@ahmazin/preset-diagrams": "workspace:*",
+    "@nodus-dev/preset-diagrams": "workspace:*",
     "svgpath": "^2.6.0",
     "svgson": "^5.3.1",
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -100,7 +100,7 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "engines": {
     "node": ">=20"

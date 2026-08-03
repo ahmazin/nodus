@@ -1,5 +1,5 @@
 /**
- * @ahmazin/preset-draw — the "dumb shapes" whiteboard preset: rectangle / ellipse / diamond, multi-line
+ * @nodus-dev/preset-draw — the "dumb shapes" whiteboard preset: rectangle / ellipse / diamond, multi-line
  * text, and line / arrow edges, plus a `LineTool` and `R/E/L/A/T` tool shortcuts. Everything styles
  * off the per-element style bag (right-click → Style, or a properties panel), so shapes are neutral
  * by default and coloured per element.
@@ -25,7 +25,7 @@ import {
   type Port,
   type ResolvedTokens,
   type Vec2,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 
 const shapePorts = (): Port[] => [
   { id: 'l', kind: 'both', anchor: { x: 0, y: 0.5 } },

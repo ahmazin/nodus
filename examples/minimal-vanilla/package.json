@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin-examples/minimal-vanilla",
+  "name": "@nodus-dev-examples/minimal-vanilla",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@ahmazin/core": "workspace:*",
-    "@ahmazin/preset-infra": "workspace:*"
+    "@nodus-dev/core": "workspace:*",
+    "@nodus-dev/preset-infra": "workspace:*"
   }
 }

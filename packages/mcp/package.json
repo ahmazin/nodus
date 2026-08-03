@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/mcp",
+  "name": "@nodus-dev/mcp",
   "version": "0.2.0",
   "files": [
     "dist"
@@ -25,17 +25,17 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@ahmazin/core": "workspace:^",
-    "@ahmazin/preset-diagrams": "workspace:^",
-    "@ahmazin/preset-infra": "workspace:^",
-    "@ahmazin/preset-draw": "workspace:^",
-    "@ahmazin/from-mermaid": "workspace:^",
-    "@ahmazin/import-infra": "workspace:^",
-    "@ahmazin/layout-dagre": "workspace:^",
-    "@ahmazin/layout-elk": "workspace:^",
-    "@ahmazin/layout-force": "workspace:^",
-    "@ahmazin/layout-tree": "workspace:^",
-    "@ahmazin/text-to-diagram": "workspace:^",
+    "@nodus-dev/core": "workspace:^",
+    "@nodus-dev/preset-diagrams": "workspace:^",
+    "@nodus-dev/preset-infra": "workspace:^",
+    "@nodus-dev/preset-draw": "workspace:^",
+    "@nodus-dev/from-mermaid": "workspace:^",
+    "@nodus-dev/import-infra": "workspace:^",
+    "@nodus-dev/layout-dagre": "workspace:^",
+    "@nodus-dev/layout-elk": "workspace:^",
+    "@nodus-dev/layout-force": "workspace:^",
+    "@nodus-dev/layout-tree": "workspace:^",
+    "@nodus-dev/text-to-diagram": "workspace:^",
     "@napi-rs/canvas": "^0.1.60"
   },
   "scripts": {

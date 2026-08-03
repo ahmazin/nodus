@@ -6,7 +6,7 @@
 
 ## Goal
 
-Take `@ahmazin/*` from a strong 0.1 engine to a **credible, shippable GA (1.0)**: a headless
+Take `@nodus-dev/*` from a strong 0.1 engine to a **credible, shippable GA (1.0)**: a headless
 diagram engine plus a **polished, robust, performant web editor** whose interaction model is on par
 with Excalidraw. The canvas render is already Excalidraw-grade; this initiative closes the gap in the
 **product shell, design system, accessibility, engine hardening, performance, and release
@@ -43,7 +43,7 @@ ownership is assigned so no two *concurrently running* agents write the same fil
 
 - **CI code gate:** `.github/workflows/ci.yml` running `pnpm typecheck && pnpm test && pnpm
   verify:render` on every PR. The suite is 3s and green — no reason it isn't gating.
-- **Fix the P0 publish break:** `@ahmazin/react` imports `@ahmazin/icons-cloud` without declaring it, and
+- **Fix the P0 publish break:** `@nodus-dev/react` imports `@nodus-dev/icons-cloud` without declaring it, and
   icons-cloud is `private:true`. Declare the dependency + unprivate (or vendor the catalog).
 - **Release hygiene:** `files:["dist"]` + `repository` on every publishable package; broaden vitest
   `include` to `.test.{ts,tsx}`.
@@ -113,7 +113,7 @@ ShortcutsDialog), the react barrel exports, `examples/browser/src/main.tsx`, and
 
 - Built-in **UX shell**: left tool palette, top toolbar, zoom widget (+/−/reset/%), on-canvas
   undo/redo, shortcut-help dialog (`?`). Replaces the demo's ad-hoc inline button bar.
-- **Autosave + open/save**: wire the unused `@ahmazin/persistence` package to the web layer —
+- **Autosave + open/save**: wire the unused `@nodus-dev/persistence` package to the web layer —
   localStorage autosave, restore-on-reload, open/save `.nodus.json`.
 - Rebuild the example app on the real shell + tokens as the reference product surface.
 
@@ -123,7 +123,7 @@ ShortcutsDialog), the react barrel exports, `examples/browser/src/main.tsx`, and
   baseline to `verify:render`.
 - Tests for `layout-dagre` / `layout-tree` / `layout-force` (no-overlap/determinism, mirroring
   layout-elk).
-- READMEs for `@ahmazin/core` and `@ahmazin/react`; root README polish.
+- READMEs for `@nodus-dev/core` and `@nodus-dev/react`; root README polish.
 - Changesets/CHANGELOG + versioning story; GA release checklist.
 
 ## Integration strategy
@@ -144,7 +144,7 @@ ShortcutsDialog), the react barrel exports, `examples/browser/src/main.tsx`, and
 ## Definition of Done (GA checklist)
 
 - [ ] `pnpm verify:all` green; CI runs it on every PR.
-- [ ] `@ahmazin/*` publish graph valid (no undeclared/private imports); `files`/`repository` set.
+- [ ] `@nodus-dev/*` publish graph valid (no undeclared/private imports); `files`/`repository` set.
 - [ ] Engine: atomic apply, fault-isolated mutation channel, migration API removed, leaks/undef-key
       fixed, with regression tests.
 - [ ] Web parity: shell (palette/toolbar/zoom/undo-redo), system paste, rotate, align/distribute,

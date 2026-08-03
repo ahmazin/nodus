@@ -1,6 +1,6 @@
 /** A minimap overlay: a scaled view of the whole scene with a draggable viewport indicator. */
 import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
-import { effect, type Box, type Editor } from '@ahmazin/core';
+import { effect, type Box, type Editor } from '@nodus-dev/core';
 import { modeOfTheme, uiTokensFor, useUiTokens } from './ui/tokens.js';
 
 /**

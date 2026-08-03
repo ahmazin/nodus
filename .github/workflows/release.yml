@@ -8,7 +8,7 @@ name: Release
 #      `pnpm release` (verify:all -> build -> changeset publish), then pushes git tags and creates
 #      GitHub Releases per package.
 # Publishing needs the NPM_TOKEN repo secret: an npm *granular access* token with read/write on the
-# @ahmazin scope. `id-token: write` + NPM_CONFIG_PROVENANCE enable npm provenance attestation, which
+# @nodus-dev scope. `id-token: write` + NPM_CONFIG_PROVENANCE enable npm provenance attestation, which
 # links every published tarball to this exact commit and workflow run.
 # Note: the Version Packages PR is created with GITHUB_TOKEN, so CI does not auto-run on that PR
 # (GitHub prevents token-triggered workflow recursion) — the publish path re-runs the full verify

@@ -10,7 +10,7 @@
 
 ## Frozen shared contracts (changing any of these requires messaging the lead AND every affected owner)
 
-### Errors — `@ahmazin/core/src/errors/index.ts` (new)
+### Errors — `@nodus-dev/core/src/errors/index.ts` (new)
 ```ts
 export type NodusErrorCode =
   | 'unknown-node-type' | 'unknown-edge-type' | 'unknown-layout' | 'unknown-command'
@@ -19,7 +19,7 @@ export type NodusErrorCode =
   | 'editor-disposed' | 'plugin-install-failed'
   | 'reentrant-apply' | 'apply-in-transaction';
 export class NodusError<C extends string = NodusErrorCode> extends Error {
-  readonly brand: '@ahmazin/core:NodusError';   // dual-package-safe discriminant — never instanceof
+  readonly brand: '@nodus-dev/core:NodusError';   // dual-package-safe discriminant — never instanceof
   readonly code: C;
   readonly context?: Record<string, unknown>;
   constructor(code: C, message: string, opts?: { context?: Record<string, unknown>; cause?: unknown });
@@ -28,7 +28,7 @@ export function isNodusError(e: unknown): e is NodusError<string>;
 ```
 Package-scoped codes elsewhere use a slash namespace, e.g. `'persistence/load-failed'`.
 
-### Events — `@ahmazin/core/src/events/index.ts`
+### Events — `@nodus-dev/core/src/events/index.ts`
 ```ts
 export interface ErrorEventContext {
   phase: 'listener'|'duplicate-add'|'build'|'non-finite'|'missing-util'
@@ -50,7 +50,7 @@ export type NodusEvent =
 // on() overloads narrow by key; EventBus isolates handler throws (recursion-guarded re-surface on 'error').
 ```
 
-### Ids — `@ahmazin/core/src/ids/index.ts` (new)
+### Ids — `@nodus-dev/core/src/ids/index.ts` (new)
 ```ts
 export interface IdFactory {
   make<T extends string>(typeName: T, seed?: string): Id<T>;
@@ -61,7 +61,7 @@ export function deterministicIdFactory(): IdFactory;  // legacy-byte-compatible 
 ```
 `makeId`/`seedIdCounter` become `@internal` and leave the public barrel.
 
-### Interception — `@ahmazin/core/src/store/index.ts`
+### Interception — `@nodus-dev/core/src/store/index.ts`
 ```ts
 export type BeforeApply =
   (changes: readonly Change[], ctx: { source: ChangeSource }) => Change[] | null | void;
@@ -72,7 +72,7 @@ onReset(fn: (info: { records: NodusRecord[]; reason: 'load' }) => void): Dispose
 ```
 `ApplyOptions` gains `intercept?: boolean` (default true; undo/redo/applyRemote pass false).
 
-### Commands — `@ahmazin/core/src/commands/index.ts` (new)
+### Commands — `@nodus-dev/core/src/commands/index.ts` (new)
 ```ts
 export interface Command<A = unknown> {
   id: string; label: string;
@@ -83,7 +83,7 @@ export interface Command<A = unknown> {
 // Editor.commands + installDefaultCommands(editor); EngineHost.registerCommand
 ```
 
-### Migrations — `@ahmazin/core/src/registries/index.ts`
+### Migrations — `@nodus-dev/core/src/registries/index.ts`
 ```ts
 export interface Migration<P extends Record<string, unknown> = Record<string, unknown>> {
   id: string;               // stable, unique per type; APPEND-ONLY (prefix rule on re-register)
@@ -105,7 +105,7 @@ export interface Migration<P extends Record<string, unknown> = Record<string, un
 `0` clean · `1` would-reformat (check mode) · `2` lossy-refused (file untouched; `--force` overrides + prints loss) · `3` newer-file (schema-too-new → "upgrade the CLI").
 
 ### Packaging (Part B policy)
-Class A (13 extension libs): `@ahmazin/core` → `peerDependencies: "workspace:^"` + `devDependencies: "workspace:*"`; companion @ahmazin deps stay `dependencies` at `workspace:^`. Class B (react): peer specifiers → `workspace:^`. Class C (cli/mcp): keep hard deps, de-pin to `workspace:^`. All 18 publishConfigs get per-condition types (`import`→`.d.ts`, `require`→`.d.cts`, types first) + `"./package.json"` export + repository{url,directory}/homepage/bugs (parameterized; `OWNER` placeholder rejected by verify-dist) + `engines.node >=20`.
+Class A (13 extension libs): `@nodus-dev/core` → `peerDependencies: "workspace:^"` + `devDependencies: "workspace:*"`; companion @nodus-dev deps stay `dependencies` at `workspace:^`. Class B (react): peer specifiers → `workspace:^`. Class C (cli/mcp): keep hard deps, de-pin to `workspace:^`. All 18 publishConfigs get per-condition types (`import`→`.d.ts`, `require`→`.d.cts`, types first) + `"./package.json"` export + repository{url,directory}/homepage/bugs (parameterized; `OWNER` placeholder rejected by verify-dist) + `engines.node >=20`.
 
 ## Ownership map (one writer per path)
 
@@ -123,7 +123,7 @@ Class A (13 extension libs): `@ahmazin/core` → `peerDependencies: "workspace:^
 ## Recorded deliberate deferrals (post-closure; not gaps — decisions)
 
 - **Branded `Id<'edge'>`/`Id<'page'>` params** on the edge/page façade helpers: deferred as a lossless fast-follow (boolean-return + isEdge-guard scaffolding landed in #21; narrowing requires a coordinated one-line react change and is purely additive).
-- **`@ahmazin/react/shell` subpath** (F25 leg): the generic shell primitives (Panel/Button/Field/…) stay on the root barrel for now; the surface is pinned by the 104-key snapshot, so moving them later is a reviewed, visible change.
+- **`@nodus-dev/react/shell` subpath** (F25 leg): the generic shell primitives (Panel/Button/Field/…) stay on the root barrel for now; the surface is pinned by the 104-key snapshot, so moving them later is a reviewed, visible change.
 - **`useValue` `isEqual` parameter** (F37 leg): the referential-stability contract is documented on the hook; a comparator parameter is a feature, not a contract, and waits for demand.
 - **Adapter-side `fixed` honoring** in layout-dagre/tree/elk (F38 leg): the editor-side apply filter enforces the lock contract end-to-end regardless of adapter behavior; teaching each adapter to pin fixed nodes natively is a layout-quality enhancement.
 - **Post-dispose programmatic `apply` gating** (F27 leg): interaction/load/history/paint entry points throw `editor-disposed`; raw programmatic writes after dispose remain documented-unsupported rather than guarded (~30 helpers of churn for a documented non-contract).

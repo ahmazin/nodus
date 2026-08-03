@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { Editor } from '@ahmazin/core';
+import type { Editor } from '@nodus-dev/core';
 
 export function useCurrentTool(editor: Editor): string {
   const [id, setId] = useState(() => editor.currentToolId);

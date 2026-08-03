@@ -1,5 +1,5 @@
 /**
- * @ahmazin/layout-force — a force-directed layout (d3-force) with rectangular collision, tuned for
+ * @nodus-dev/layout-force — a force-directed layout (d3-force) with rectangular collision, tuned for
  * general graphs where hierarchy isn't meaningful. Runs the simulation to convergence synchronously
  * inside an async call, then returns world-space top-left positions.
  */
@@ -14,7 +14,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from 'd3-force';
-import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@ahmazin/core';
+import type { Id, LayoutEngine, LayoutGraph, LayoutOptions, LayoutResult } from '@nodus-dev/core';
 
 interface FNode extends SimulationNodeDatum {
   id: Id;

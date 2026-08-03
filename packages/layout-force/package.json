@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/layout-force",
+  "name": "@nodus-dev/layout-force",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@types/d3-force": "^3.0.10",
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/core": "workspace:*"
   },
   "scripts": {
     "build": "tsup",
@@ -52,7 +52,7 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "engines": {
     "node": ">=20"

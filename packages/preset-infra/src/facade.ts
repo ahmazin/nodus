@@ -16,7 +16,7 @@ import {
   type NodeState,
   type NodusRecord,
   type ToPNGOptions,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 import { installInfraPreset } from './install.js';
 import { INFRA_TYPES, type InfraKind } from './theme.js';
 import { freeformMode, revealMode, stagesMode, type RevealController, type StagesController } from './adapters.js';

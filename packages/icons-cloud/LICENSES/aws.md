@@ -1,6 +1,6 @@
 # AWS Architecture Icons — license & terms
 
-`@ahmazin/icons-cloud` can convert artwork from the official **AWS Architecture Icons** toolkit
+`@nodus-dev/icons-cloud` can convert artwork from the official **AWS Architecture Icons** toolkit
 into vector icon packs used by this project (via `pnpm build:icons`, once you have vendored the
 toolkit into `packages/icons-cloud/svg/aws/`). That artwork is not owned by, or licensed under
 the license of, this repository.

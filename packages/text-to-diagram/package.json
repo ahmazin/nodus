@@ -1,5 +1,5 @@
 {
-  "name": "@ahmazin/text-to-diagram",
+  "name": "@nodus-dev/text-to-diagram",
   "version": "1.0.0",
   "files": [
     "dist"
@@ -23,7 +23,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@ahmazin/preset-infra": "workspace:^"
+    "@nodus-dev/preset-infra": "workspace:^"
   },
   "scripts": {
     "build": "tsup",
@@ -48,10 +48,10 @@
     }
   },
   "peerDependencies": {
-    "@ahmazin/core": "workspace:^"
+    "@nodus-dev/core": "workspace:^"
   },
   "devDependencies": {
-    "@ahmazin/core": "workspace:*"
+    "@nodus-dev/core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

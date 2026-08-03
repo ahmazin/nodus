@@ -43,7 +43,7 @@ describe('editor façade — synchronous programmer errors throw a typed NodusEr
   it('layout rejects with unknown-layout for an unregistered engine', async () => {
     const ed = new Editor();
     await expect(ed.layout('nope')).rejects.toMatchObject({
-      brand: '@ahmazin/core:NodusError',
+      brand: '@nodus-dev/core:NodusError',
       code: 'unknown-layout',
     });
   });

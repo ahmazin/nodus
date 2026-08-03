@@ -27,7 +27,7 @@ import {
   type Id,
   type NodeRecord,
   type RenderItem,
-} from '@ahmazin/core';
+} from '@nodus-dev/core';
 import { NodusContextMenu } from './context-menu.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
 import { pasteFromSystem } from './clipboard.js';

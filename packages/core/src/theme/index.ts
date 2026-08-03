@@ -50,7 +50,7 @@ export interface AmbientSpec {
 export interface Theme {
   name: string;
   /**
-   * Light/dark intent of this theme. The DOM chrome (`@ahmazin/react` UI tokens) derives its
+   * Light/dark intent of this theme. The DOM chrome (`@nodus-dev/react` UI tokens) derives its
    * light/dark mode from the *active canvas theme* via `modeOfTheme`, so canvas and chrome
    * re-skin together from one atom. Unset is treated as `'dark'` for back-compat.
    */

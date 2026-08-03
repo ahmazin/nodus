@@ -1,4 +1,4 @@
-# @ahmazin-examples/minimal-react
+# @nodus-dev-examples/minimal-react
 
 The smallest real Nodus UI: one `<Nodus>` canvas host, the `useNodusEditor` lifecycle hook, and one
 custom node type registered on the editor. Pan/zoom, select, drag, connect, inline-rename, and

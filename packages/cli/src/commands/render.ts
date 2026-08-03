@@ -6,10 +6,10 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { Editor, type CreateCanvas, type NodusRecord, type Snapshot } from '@ahmazin/core';
-import { diagramsTheme, installDiagrams } from '@ahmazin/preset-diagrams';
-import { installInfraPreset } from '@ahmazin/preset-infra';
-import { installDrawTools } from '@ahmazin/preset-draw';
+import { Editor, type CreateCanvas, type NodusRecord, type Snapshot } from '@nodus-dev/core';
+import { diagramsTheme, installDiagrams } from '@nodus-dev/preset-diagrams';
+import { installInfraPreset } from '@nodus-dev/preset-infra';
+import { installDrawTools } from '@nodus-dev/preset-draw';
 import { restoreLabeled } from '../load.js';
 
 export type Preset = 'diagrams' | 'infra' | 'draw';

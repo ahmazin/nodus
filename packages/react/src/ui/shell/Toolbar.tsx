@@ -8,7 +8,7 @@
  */
 
 import type { CSSProperties, HTMLAttributes, ReactElement, ReactNode } from 'react';
-import type { Editor } from '@ahmazin/core';
+import type { Editor } from '@nodus-dev/core';
 import { useUiTokens, type UiTokens } from '../tokens.js';
 
 export interface ToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {

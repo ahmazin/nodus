@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Editor } from '@ahmazin/core';
-import { diamondShape, drawShortcut, ellipseShape, installDrawTools, rectShape, textNode } from '@ahmazin/preset-draw';
+import { Editor } from '@nodus-dev/core';
+import { diamondShape, drawShortcut, ellipseShape, installDrawTools, rectShape, textNode } from '@nodus-dev/preset-draw';
 
 describe('preset-draw', () => {
   it('registers shapes, edges, and the line tool', () => {

@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import type { Editor } from '@ahmazin/core';
+import type { Editor } from '@nodus-dev/core';
 import { IconButton } from '../primitives.js';
 import { Divider } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';

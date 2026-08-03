@@ -24,7 +24,7 @@ import {
   type CSSProperties,
   type UIEvent,
 } from 'react';
-import type { Editor } from '@ahmazin/core';
+import type { Editor } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { useUiTokens } from './ui/tokens.js';
 import {

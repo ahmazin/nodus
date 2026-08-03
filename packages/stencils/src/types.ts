@@ -6,11 +6,11 @@
  * A **template** is a whole *starting diagram* — a complete {@link Snapshot} you open as a new
  * document: a blank canvas, a 3-tier web app, a CI/CD pipeline.
  *
- * Both are plain, id-referenced POJOs made of `@ahmazin/core` records, so they round-trip through the
+ * Both are plain, id-referenced POJOs made of `@nodus-dev/core` records, so they round-trip through the
  * engine's canonical serializer and are diff-friendly on disk.
  */
 
-import type { NodusRecord, Snapshot } from '@ahmazin/core';
+import type { NodusRecord, Snapshot } from '@nodus-dev/core';
 
 /** A reusable element-group fragment. `records` are engine records with ids unique within the fragment. */
 export interface Stencil {

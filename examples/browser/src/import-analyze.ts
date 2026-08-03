@@ -4,9 +4,9 @@
  * format and returns a preview summary (counts + skipped + notes) or a real parser error — never
  * throwing. The modal renders this before anything is committed to the canvas.
  */
-import { isEdge, isNode, type NodusRecord } from '@ahmazin/core';
-import { fromMermaid } from '@ahmazin/from-mermaid';
-import { analyzeKubernetes, analyzeTerraform } from '@ahmazin/import-infra';
+import { isEdge, isNode, type NodusRecord } from '@nodus-dev/core';
+import { fromMermaid } from '@nodus-dev/from-mermaid';
+import { analyzeKubernetes, analyzeTerraform } from '@nodus-dev/import-infra';
 
 export type ImportFormat = 'mermaid' | 'terraform' | 'kubernetes';
 

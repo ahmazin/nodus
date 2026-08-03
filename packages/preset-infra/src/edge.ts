@@ -4,7 +4,7 @@
  * dropped by the scene index automatically.
  */
 
-import { drawEdgeLabel, orthogonalRouter, type DrawApi, type EdgeRecord, type EdgeRouteContext, type EdgeUtil, type ResolvedTokens, type Vec2 } from '@ahmazin/core';
+import { drawEdgeLabel, orthogonalRouter, type DrawApi, type EdgeRecord, type EdgeRouteContext, type EdgeUtil, type ResolvedTokens, type Vec2 } from '@nodus-dev/core';
 
 const GAP = 6;
 const ARROW = 8;

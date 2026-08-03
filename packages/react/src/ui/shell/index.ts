@@ -1,5 +1,5 @@
 /**
- * `@ahmazin/react` product shell — the built-in Excalidraw-class editor chrome. Generic, token-driven,
+ * `@nodus-dev/react` product shell — the built-in Excalidraw-class editor chrome. Generic, token-driven,
  * keyboard-accessible components that compose around the `<Nodus>` canvas host. All are
  * preset-agnostic: the app supplies tool lists and the theme pair, so this layer never imports a
  * preset.

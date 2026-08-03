@@ -1,8 +1,8 @@
-# @ahmazin/stencils
+# @nodus-dev/stencils
 
 Reusable **stencils** (element-group fragments) and **templates** (starting diagrams) for
 [Nodus](https://github.com/ahmazin/nodus), plus a canonical, git-diffable (de)serializer for stencil libraries.
-Depends only on [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) — no framework, no DOM.
+Depends only on [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) — no framework, no DOM.
 
 - A **stencil** is a small group of records you drop onto the canvas as a unit (a labeled box, a
   note, a decision shape). Its origin sits near `(0, 0)` so it can be pasted anywhere.
@@ -12,10 +12,10 @@ Depends only on [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/pac
 ## Install
 
 ```bash
-pnpm add @ahmazin/stencils @ahmazin/core
+pnpm add @nodus-dev/stencils @nodus-dev/core
 ```
 
-> `@ahmazin/core` is a **peer dependency** — install it alongside so stencils share your app's single
+> `@nodus-dev/core` is a **peer dependency** — install it alongside so stencils share your app's single
 > engine instance.
 
 ## Usage
@@ -26,8 +26,8 @@ import {
   builtinTemplates,
   serializeLibrary,
   parseLibrary,
-} from '@ahmazin/stencils';
-import { restore } from '@ahmazin/core';
+} from '@nodus-dev/stencils';
+import { restore } from '@nodus-dev/core';
 
 // Open a template as a new document.
 const template = builtinTemplates.find((t) => t.id === 'three-tier-web')!;
@@ -53,7 +53,7 @@ const lib = parseLibrary(text);
 | `builtinTemplates` | Starter `Template`s: `Blank`, `3-Tier Web App`, `CI/CD Pipeline`. |
 
 All built-in content is authored from the core `rect` node and `line` edge types, so it renders on a
-bare `@ahmazin/core` editor with no extra registrations, and every fragment `restore()`s with
+bare `@nodus-dev/core` editor with no extra registrations, and every fragment `restore()`s with
 `droppedEdges === 0`.
 
 ## Serialization contract
@@ -66,6 +66,6 @@ round-trips any well-formed library.
 ## See also
 
 - [Extending Nodus](https://nodus.dev/docs/extending) — the engine's extension axes.
-- [`@ahmazin/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) — records, `Snapshot`, `restore`, `stableStringify`.
+- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) — records, `Snapshot`, `restore`, `stableStringify`.
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
