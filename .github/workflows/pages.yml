@@ -43,6 +43,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The published icons-cloud tarball ships EMPTY placeholder packs (licensing: no provider
+      # artwork in the npm tarball). Regenerate real packs from the committed svg/ for the DEPLOYED
+      # playground only — this repopulates packages/icons-cloud/src/generated/* in the ephemeral CI
+      # checkout (never committed). Skipped silently if the package stays held / svg absent.
+      - name: Regenerate cloud icon packs (deploy only)
+        run: pnpm build:icons || echo "build:icons skipped"
       # Generate the API reference into apps/site/public/api BEFORE the site build so Astro copies it
       # into dist/. Done here explicitly so the deploy is robust even if build.mjs isn't wired to it.
       - name: Generate API reference
