@@ -1,10 +1,11 @@
 /** A right-click context menu with actions contextual to what was clicked (node / edge / canvas). */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react';
-import type { AlignEdge, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus-dev/core';
+import type { AlignEdge, DeepPartial, Editor, EdgeRecord, FlowSpec, Id, RenderItem } from '@nodus-dev/core';
 import { DEFAULT_FLOW } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Menu, MenuItem as UiMenuItem } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 export interface MenuItem {
   label: string;
@@ -110,6 +111,13 @@ export interface NodusContextMenuProps {
   onClose: () => void;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
+  /** Replace the built-in items entirely with a custom set (computed for the clicked `target`). */
+  items?: MenuItem[];
+  /** Transform/extend the resolved item list — receives the built-in (or `items`) list and returns the
+   *  final one (append custom actions, filter, reorder). Runs after `items`. */
+  extendItems?: (editor: Editor, target: RenderItem | null, defaults: MenuItem[]) => MenuItem[];
 }
 
 const MENU_ID = 'nodus-context-menu';
@@ -131,9 +139,11 @@ export function nextMenuIndex(current: number, count: number, key: string): numb
   }
 }
 
-export function NodusContextMenu({ editor, x, y, target, onClose, className, style }: NodusContextMenuProps): ReactElement {
-  const items = contextMenuItems(editor, target);
+export function NodusContextMenu({ editor, x, y, target, onClose, className, style, messages, items: itemsProp, extendItems }: NodusContextMenuProps): ReactElement {
+  const base = itemsProp ?? contextMenuItems(editor, target);
+  const items = extendItems ? extendItems(editor, target, base) : base;
   const t = useUiTokens(editor);
+  const cm = useMessages(editor, messages).contextMenu;
   const [active, setActive] = useState(0);
   const restoreRef = useRef<HTMLElement | null>(null);
 
@@ -169,7 +179,7 @@ export function NodusContextMenu({ editor, x, y, target, onClose, className, sty
         <Menu
           id={MENU_ID}
           tabIndex={-1}
-          aria-label="Actions"
+          aria-label={cm.actions}
           aria-activedescendant={items.length ? `${MENU_ID}-item-${active}` : undefined}
           onKeyDown={onKeyDown}
           onPointerDown={(e) => e.stopPropagation()}

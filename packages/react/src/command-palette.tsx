@@ -1,11 +1,12 @@
 /** A ⌘K command palette. Ships a default command set; accepts custom commands too. */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import type { AlignEdge, Editor } from '@nodus-dev/core';
+import type { AlignEdge, DeepPartial, Editor } from '@nodus-dev/core';
 import { copyOrDownloadImage, downloadImage } from './clipboard.js';
 import { fuzzyRank } from './fuzzy.js';
 import { useUiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 export interface Command {
   id: string;
@@ -104,6 +105,8 @@ export interface CommandPaletteProps {
   storageKey?: string;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for the palette chrome (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 const LIST_ID = 'nodus-command-list';
@@ -174,7 +177,7 @@ function commandBadge(group: string | undefined): string {
   return GROUP_BADGES[group] ?? group.slice(0, 2).toUpperCase();
 }
 
-export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventName = OPEN_COMMAND_PALETTE_EVENT, storageKey = RECENTS_KEY, className, style }: CommandPaletteProps): ReactElement | null {
+export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventName = OPEN_COMMAND_PALETTE_EVENT, storageKey = RECENTS_KEY, className, style, messages }: CommandPaletteProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
@@ -182,6 +185,7 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventNa
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const t = useUiTokens(editor);
+  const pm = useMessages(editor, messages).palette;
 
   useEffect(() => { injectGlobalStyles(); }, []);
 
@@ -267,7 +271,7 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventNa
           elevated
           role="dialog"
           aria-modal="true"
-          aria-label="Command palette"
+          aria-label={pm.label}
           onPointerDown={(e) => e.stopPropagation()}
           style={{ width: 'min(560px, 92vw)', padding: 0, overflow: 'hidden', border: `1px solid ${t.color.borderStrong}`, borderRadius: 14, boxShadow: t.shadow.popover }}
         >
@@ -282,8 +286,8 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventNa
               value={q}
               onChange={(e) => { setQ(e.target.value); setIdx(0); }}
               onKeyDown={onKeyDown}
-              placeholder="Type a command…"
-              aria-label="Search commands"
+              placeholder={pm.placeholder}
+              aria-label={pm.searchLabel}
               role="combobox"
               aria-expanded
               aria-controls={LIST_ID}
@@ -292,10 +296,10 @@ export function CommandPalette({ editor, commands, hotkey = 'mod+k', openEventNa
             />
             <span aria-hidden="true" style={{ fontFamily: t.font.mono, fontSize: '10.5px', color: t.color.textFaint, border: `1px solid ${t.color.borderStrong}`, borderRadius: 4, padding: '2px 6px' }}>ESC</span>
           </div>
-          <div ref={listRef} id={LIST_ID} role="listbox" aria-label="Commands" style={{ maxHeight: 'min(52vh, 380px)', overflowY: 'auto', padding: 6 }}>
+          <div ref={listRef} id={LIST_ID} role="listbox" aria-label={pm.listLabel} style={{ maxHeight: 'min(52vh, 380px)', overflowY: 'auto', padding: 6 }}>
             {filtered.length === 0 ? (
               <div style={{ padding: 26, textAlign: 'center', color: t.color.textFaint, fontSize: t.font.size.md }}>
-                No matching commands
+                {pm.empty}
               </div>
             ) : (
               filtered.map((c, i) => {

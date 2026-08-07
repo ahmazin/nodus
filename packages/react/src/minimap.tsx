@@ -91,13 +91,30 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
       ctx.strokeRect(vx, vy, vw, vh);
     };
 
+    // Trailing ~10Hz throttle: a pan bumps cameraAtom every frame, and each redraw scans every node in
+    // paintOrder(). Coalesce that churn to at most one draw per THROTTLE_MS while always painting the
+    // latest state (the queued draw reads live signals via peek()). Subscriptions still register
+    // synchronously in the effect body below; only the paint is deferred.
+    const THROTTLE_MS = 100;
+    let drawTimer = 0;
+    let lastDraw = -Infinity;
+    const scheduleDraw = (): void => {
+      if (drawTimer) return; // a draw is already queued — it will pick up the latest state
+      const wait = Math.max(0, THROTTLE_MS - (performance.now() - lastDraw));
+      drawTimer = window.setTimeout(() => {
+        drawTimer = 0;
+        lastDraw = performance.now();
+        draw();
+      }, wait) as unknown as number;
+    };
+
     const stop = effect(() => {
       editor.sceneIndex.version.get();
       editor.cameraAtom.get();
       editor.viewportAtom.get();
       editor.themeAtom.get();
       editor.selectedAtom.get();
-      draw();
+      scheduleDraw();
     });
 
     let dragging = false;
@@ -128,6 +145,7 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
 
     return () => {
       stop();
+      if (drawTimer) clearTimeout(drawTimer);
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);

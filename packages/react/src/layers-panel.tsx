@@ -21,10 +21,11 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import type { Editor, EdgeRecord, Id, NodeRecord } from '@nodus-dev/core';
+import type { DeepPartial, Editor, EdgeRecord, Id, NodeRecord } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 // ---- pure tree model ---------------------------------------------------------------------------
 
@@ -128,6 +129,8 @@ export interface LayersPanelProps {
   editor: Editor;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this panel (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 const svg = (paths: ReactNode, size = 14): ReactElement => (
@@ -154,9 +157,10 @@ function typeGlyph(ln: LayerNode): ReactElement {
   return svg(<rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" stroke="none" />, 13);
 }
 
-export function LayersPanel({ editor, className, style }: LayersPanelProps): ReactElement {
+export function LayersPanel({ editor, className, style, messages }: LayersPanelProps): ReactElement {
   useEffect(() => { injectGlobalStyles(); }, []);
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).layers;
 
   // Subscribe to document + selection changes via STABLE values, then derive the tree with useMemo.
   // Returning a fresh buildLayerTree(...) array straight from useValue makes useSyncExternalStore's
@@ -228,7 +232,7 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
               <button
                 data-nodus-ui=""
                 type="button"
-                aria-label={isCollapsed ? 'Expand group' : 'Collapse group'}
+                aria-label={isCollapsed ? m.expandGroup : m.collapseGroup}
                 aria-expanded={!isCollapsed}
                 onMouseDown={(e) => { e.stopPropagation(); }}
                 onClick={(e) => { e.stopPropagation(); toggleCollapse(ln.id); }}
@@ -264,7 +268,7 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
                 border: `1px solid ${t.color.accent}`, borderRadius: t.radius.sm,
                 fontSize: t.font.size.sm, fontFamily: t.font.family, outline: 'none',
               }}
-              aria-label="Rename layer"
+              aria-label={m.rename}
             />
           ) : (
             <span
@@ -287,9 +291,9 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
                 data-testid="layer-visibility"
                 data-nodus-ui=""
                 type="button"
-                aria-label={ln.hidden ? 'Show' : 'Hide'}
+                aria-label={ln.hidden ? m.show : m.hide}
                 aria-pressed={ln.hidden}
-                title={ln.hidden ? 'Show' : 'Hide'}
+                title={ln.hidden ? m.show : m.hide}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); editor.setNodesHidden([ln.id], !ln.hidden); }}
                 style={rowBtn(ln.hidden)}
@@ -300,9 +304,9 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
                 data-testid="layer-lock"
                 data-nodus-ui=""
                 type="button"
-                aria-label={ln.locked ? 'Unlock' : 'Lock'}
+                aria-label={ln.locked ? m.unlock : m.lock}
                 aria-pressed={ln.locked}
-                title={ln.locked ? 'Unlock' : 'Lock'}
+                title={ln.locked ? m.unlock : m.lock}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); ln.locked ? editor.unlock([ln.id]) : editor.lock([ln.id]); }}
                 style={rowBtn(ln.locked)}
@@ -313,8 +317,8 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
                 data-testid="layer-up"
                 data-nodus-ui=""
                 type="button"
-                aria-label="Bring forward"
-                title="Bring forward"
+                aria-label={m.bringForward}
+                title={m.bringForward}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); editor.bringForward([ln.id]); }}
                 style={rowBtn()}
@@ -325,8 +329,8 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
                 data-testid="layer-down"
                 data-nodus-ui=""
                 type="button"
-                aria-label="Send backward"
-                title="Send backward"
+                aria-label={m.sendBackward}
+                title={m.sendBackward}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => { e.stopPropagation(); editor.sendBackward([ln.id]); }}
                 style={rowBtn()}
@@ -354,14 +358,14 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
   };
 
   return (
-    <div data-testid="layers-panel" data-nodus-ui="" role="tree" aria-label="Layers" className={className} style={rootStyle}>
+    <div data-testid="layers-panel" data-nodus-ui="" role="tree" aria-label={m.title} className={className} style={rootStyle}>
       <div
         style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '11px 13px',
           borderBottom: `1px solid ${t.color.border}`, flex: '0 0 auto',
         }}
       >
-        <span style={{ fontSize: t.font.size.md, fontWeight: 600, color: t.color.text }}>Layers</span>
+        <span style={{ fontSize: t.font.size.md, fontWeight: 600, color: t.color.text }}>{m.title}</span>
         <span style={{ marginLeft: 'auto', fontFamily: t.font.mono, fontSize: '10.5px', color: t.color.textFaint }}>
           {tree.length}
         </span>
@@ -370,7 +374,7 @@ export function LayersPanel({ editor, className, style }: LayersPanelProps): Rea
       <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: 6 }}>
         {tree.length === 0 ? (
           <div style={{ padding: '18px 12px', textAlign: 'center', color: t.color.textFaint, fontSize: t.font.size.sm }}>
-            No objects yet
+            {m.empty}
           </div>
         ) : (
           tree.map(renderRow)
