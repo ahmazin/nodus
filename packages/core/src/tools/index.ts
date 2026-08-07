@@ -6,6 +6,7 @@
  */
 
 import { isEdge, isNode } from '../model.js';
+import { rotateAbout } from '../geometry/index.js';
 import { NodusError } from '../errors/index.js';
 import type { Box, Endpoint, Id, NodeRecord, Vec2 } from '../model.js';
 import type { RenderItem } from '../scene-index/index.js';
@@ -124,6 +125,7 @@ export class SelectTool extends ToolNode {
   private resizeId: Id | null = null;
   private resizeHandle: ResizeHandle = 'se';
   private resizeOrig: Box = { x: 0, y: 0, w: 0, h: 0 };
+  private resizeRot = 0;
   private resizeGrab: Vec2 = { x: 0, y: 0 };
   private epEdge: Id | null = null;
   private epWhich: 'from' | 'to' = 'from';
@@ -160,12 +162,19 @@ export class SelectTool extends ToolNode {
         return;
       }
       if (item && item.kind === 'node' && this.editor.canResizeNode(sel[0]!)) {
-        const handle = this.editor.hitResizeHandle(item.aabb, p.world);
+        // Resize in the node's LOCAL (un-rotated) frame: the record stores the un-rotated x/y/w/h and
+        // rotation is a render-time transform, so feeding the enlarged rotated AABB into resizeBox would
+        // rewrite the record to that inflated box (a zero-move grab would balloon a 45°-rotated node).
+        const rec = item.record as NodeRecord;
+        const local = { x: rec.x, y: rec.y, w: rec.w, h: rec.h };
+        const rot = rec.rotation ?? 0;
+        const handle = this.editor.hitResizeHandle(local, p.world, rot);
         if (handle) {
           this.resizeId = sel[0]!;
           this.resizeHandle = handle;
-          this.resizeOrig = item.aabb;
-          const hp = this.editor.resizeHandlePoints(item.aabb)[handle];
+          this.resizeOrig = local;
+          this.resizeRot = rot;
+          const hp = this.editor.resizeHandlePoints(local, rot)[handle];
           this.resizeGrab = { x: hp.x - p.world.x, y: hp.y - p.world.y }; // so the edge tracks the grab, not the raw pointer
           this.state = 'resizing';
           return;
@@ -300,8 +309,29 @@ export class SelectTool extends ToolNode {
   override onPointerMove(p: PointerInfo): void {
     if (this.state === 'resizing' && this.resizeId) {
       const grabbed = { x: p.world.x + this.resizeGrab.x, y: p.world.y + this.resizeGrab.y };
-      const box = resizeBox(this.resizeOrig, this.resizeHandle, grabbed);
-      this.editor.updateNode(this.resizeId, box, { capture: 'later' });
+      const rot = this.resizeRot;
+      if (!rot) {
+        // unrotated fast path — identical to the historical behavior (resize in world = local frame)
+        const box = resizeBox(this.resizeOrig, this.resizeHandle, grabbed);
+        this.editor.updateNode(this.resizeId, box, { capture: 'later' });
+        return;
+      }
+      // Rotated: map the grab into the local frame, resize there (keeps the opposite local edge fixed),
+      // then shift the box so the handle-opposite anchor stays put in world. The rendered box rotates
+      // about its OWN center, so changing the box changes that center; the correction Δ = (I−R)(c0−c1)
+      // (handle-independent; Δ=0 when rot=0) compensates. See rotation.test.ts for the derivation check.
+      const o = this.resizeOrig;
+      const c0 = { x: o.x + o.w / 2, y: o.y + o.h / 2 };
+      const pLocal = rotateAbout(grabbed, -rot, c0);
+      const nb = resizeBox(o, this.resizeHandle, pLocal);
+      const c1 = { x: nb.x + nb.w / 2, y: nb.y + nb.h / 2 };
+      const d = { x: c0.x - c1.x, y: c0.y - c1.y };
+      const rd = rotateAbout(d, rot, { x: 0, y: 0 });
+      this.editor.updateNode(
+        this.resizeId,
+        { x: nb.x + (d.x - rd.x), y: nb.y + (d.y - rd.y), w: nb.w, h: nb.h },
+        { capture: 'later' },
+      );
       return;
     }
     if (this.state === 'endpoint' && this.epEdge) {

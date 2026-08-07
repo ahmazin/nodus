@@ -16,7 +16,29 @@ describe('flow runtime config', () => {
     const { ed } = build();
     expect(ed.flowConfig()).toEqual({
       enabled: true, paused: false, speedScale: 1, respectReducedMotion: true,
+      maxFps: 30, animateSelection: true,
     });
+  });
+
+  it('caps the flow tick rate at 30fps by default (keeps pan/animation responsive at scale)', () => {
+    const { ed } = build();
+    expect(ed.flowConfig().maxFps).toBe(30);
+  });
+
+  it('animateSelection defaults on; disabling it idles the selection-halo rAF gate', () => {
+    const ed = new Editor();
+    const n = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100 });
+    ed.select([n]);
+    expect(ed.flowConfig().animateSelection).toBe(true);
+    expect(ed.hasAnimatedSelection()).toBe(true); // halo animates while selected
+
+    ed.setFlowConfig({ animateSelection: false });
+    expect(ed.hasAnimatedSelection()).toBe(false); // rAF no longer kept alive by selection alone
+    // ...and the selection is still selected — only the animation gate flipped
+    expect(ed.selectedIdsArray()).toEqual([n]);
+
+    ed.setFlowConfig({ animateSelection: true });
+    expect(ed.hasAnimatedSelection()).toBe(true);
   });
 
   it('setFlowConfig merges patches and clamps speedScale to >= 0', () => {

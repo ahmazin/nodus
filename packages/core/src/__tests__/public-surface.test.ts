@@ -24,6 +24,7 @@ const CORE_SURFACE: string[] = [
   'History',
   'IDENTITY',
   'IconRegistry',
+  'MAX_EXPORT_PIXELS',
   'MAX_NEST_DEPTH',
   'NodusError',
   'OP',
@@ -54,6 +55,7 @@ const CORE_SURFACE: string[] = [
   'colorForValue',
   'compareRecords',
   'computed',
+  'defaultCoreMessages',
   'defaultLightTheme',
   'defaultRouters',
   'defaultTheme',
@@ -73,6 +75,7 @@ const CORE_SURFACE: string[] = [
   'fillBackground',
   'fillHandle',
   'fitBox',
+  'fmt',
   'formatRate',
   'formatRateWithUnit',
   'parseRate',
@@ -94,6 +97,7 @@ const CORE_SURFACE: string[] = [
   'linear',
   'matMul',
   'measureStencil',
+  'mergeMessages',
   'neonTheme',
   'orthogonalRouter',
   'padBox',
@@ -166,6 +170,13 @@ const PRESET_DIAGRAMS_SURFACE: string[] = [
 
 // @nodus-dev/react — value exports (components, hooks, helpers). Imports cleanly under vitest's esbuild
 // interop (the raw-tsx gifenc issue does not affect the test env).
+//
+// i18n PRE-REGISTRATION (PRR wave E1→E2): `MessagesProvider`, `defaultReactMessages`, and
+// `useMessages` are the react i18n surface the E2 react lane will add (react chrome message table +
+// provider + hook, layered on core's `defaultCoreMessages`/`mergeMessages`/`fmt`). They are pinned
+// here first so the react lane implements to match this contract; until that lane lands, THIS react
+// snapshot assertion is expected-red (the names aren't exported yet). The core snapshot above is
+// authoritative for wave E1.
 const REACT_SURFACE: string[] = [
   'ArrowIcon',
   'BranchBar',
@@ -194,6 +205,7 @@ const REACT_SURFACE: string[] = [
   'LineIcon',
   'Menu',
   'MenuItem',
+  'MessagesProvider', // i18n pre-registration (E2 react lane)
   'Minimap',
   'MinusIcon',
   'MoonIcon',
@@ -241,6 +253,7 @@ const REACT_SURFACE: string[] = [
   'copySvg',
   'decodeScene',
   'defaultCommands',
+  'defaultReactMessages', // i18n pre-registration (E2 react lane)
   'downloadImage',
   'editorToCanonical',
   'editorToSource',
@@ -268,6 +281,7 @@ const REACT_SURFACE: string[] = [
   'useAutosave',
   'useBranch',
   'useCurrentTool',
+  'useMessages', // i18n pre-registration (E2 react lane)
   'useNodusEditor',
   'useUiTokens',
   'useUiTokensContext',

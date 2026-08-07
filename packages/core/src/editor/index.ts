@@ -33,10 +33,11 @@ import {
   viewportWorldBounds,
   zoomAt,
 } from '../camera/index.js';
-import { boxEncloses, dist, padBox, unionBox } from '../geometry/index.js';
+import { boxEncloses, dist, padBox, rotateAbout, unionBox } from '../geometry/index.js';
 import { defaultTheme, type ResolvedTokens, type StateTokens, type Theme } from '../theme/index.js';
 import { Store, type ChangeInfo, type StoreListener, type BeforeApply } from '../store/index.js';
 import { CommandRegistry, installDefaultCommands, type Command } from '../commands/index.js';
+import { defaultCoreMessages, mergeMessages, type CoreMessages, type DeepPartial } from '../messages/index.js';
 import { SceneIndex, type RenderItem } from '../scene-index/index.js';
 import { History } from '../history/index.js';
 import {
@@ -121,6 +122,8 @@ const FLOW_DEFAULTS: FlowRuntimeConfig = {
   paused: false,
   speedScale: 1,
   respectReducedMotion: true,
+  maxFps: 30,
+  animateSelection: true,
 };
 
 /**
@@ -191,7 +194,7 @@ export interface EditorOptions {
    */
   readOnly?: boolean;
   /** Undo-history tuning. `limit` caps the number of undo entries (oldest evicted past it). Default:
-   *  unbounded. */
+   *  **500**; pass `Infinity` for an unbounded stack. */
   history?: { limit?: number };
   /** Id generator for this editor (default: a fresh {@link sessionIdFactory}). Two editors with the
    *  default factory mint disjoint ids; pass `deterministicIdFactory()` for reproducible fixtures. */
@@ -200,6 +203,9 @@ export interface EditorOptions {
    *  inert-but-preserved (unindexed, still in the document); `true` uses the built-in dashed-box
    *  placeholder; a `NodeUtil` uses your own. Unknown types always warn once per load regardless. */
   unknownTypePlaceholder?: boolean | NodeUtil;
+  /** Localization overrides for the engine-owned message table (command labels, built-in defaults).
+   *  Deep-merged over {@link defaultCoreMessages}; only the keys you provide change. Default: English. */
+  messages?: DeepPartial<CoreMessages>;
 }
 
 export interface PointerMods {
@@ -257,6 +263,15 @@ export interface ToPNGOptions {
   flow?: boolean;
   time?: number;
 }
+
+/**
+ * Upper bound on an export's raster size (`width × height` device pixels) — a DoS guard on
+ * `toPNG`/`renderSVG`/`paintRegion`. 256 MP ≈ 1 GB of RGBA; a node parked at extreme coordinates (or a
+ * huge `pixelRatio`) would otherwise drive the export canvas allocation unbounded. Exceeding it throws
+ * a catchable `NodusError('export-too-large')` BEFORE any allocation. Lower `pixelRatio` or the
+ * exported `bounds` to stay under it. Documented in SECURITY.md's limits table.
+ */
+export const MAX_EXPORT_PIXELS = 268_435_456;
 
 /** Above this fraction of the canvas covered by the dirty region, the drag fast path isn't worth it —
  *  clip/region bookkeeping costs about a full repaint anyway — so `paintStatic` falls back to a full
@@ -342,6 +357,9 @@ export class Editor implements EngineHost {
   readonly layouts = new Map<string, LayoutEngine>();
   readonly routers = new RouterRegistry();
   readonly commands = new CommandRegistry();
+  /** Resolved, English-by-default message table (host overrides deep-merged at construction). Command
+   *  labels are read from here at install time; `@nodus-dev/react` layers its chrome strings on top. */
+  readonly messages: CoreMessages;
   /** Per-editor icon registry: instance registrations are isolated; lookups fall through to the shared
    *  built-in glyphs. Threaded into this editor's `DrawApi` so `draw()` resolves icons per-instance. */
   readonly icons = new IconRegistry();
@@ -514,6 +532,8 @@ export class Editor implements EngineHost {
     // instance. `this.events` (a field initializer) is already set, so the store's onError closure is safe.
     this.ids = opts.idFactory ?? sessionIdFactory();
     this.readOnly = opts.readOnly ?? false;
+    // Resolve messages before installDefaultCommands (which snapshots command labels from this table).
+    this.messages = mergeMessages(defaultCoreMessages, opts.messages);
     this.unknownNodeUtil =
       opts.unknownTypePlaceholder === true
         ? unknownNodeUtil
@@ -552,7 +572,7 @@ export class Editor implements EngineHost {
           severity: context.phase === 'missing-util' ? 'warning' : 'error',
         }),
     });
-    this.history = new History((changes, o) => this.store.apply(changes, o), opts.history?.limit);
+    this.history = new History((changes, o) => this.store.apply(changes, o), opts.history?.limit ?? 500);
     this.toolManager = new ToolManager(this, defaultTools());
     // Override observability parity across ALL registration axes (F14): routers and tools report
     // id collisions through the same warning channel as node/edge types and layouts.
@@ -1726,6 +1746,7 @@ export class Editor implements EngineHost {
     if (!r) return false;
     if (isEdge(r)) return this.edgeCapabilitiesOf(r.type).canEdit;
     if (!isNode(r)) return false;
+    if (r.locked === true) return false; // edit-locked: no label editing (matches move/resize/rotate)
     return this.capabilitiesOf(r.type).canEdit;
   }
 
@@ -1738,22 +1759,29 @@ export class Editor implements EngineHost {
     return this.capabilitiesOf(r.type).canResize;
   }
 
-  /** World positions of a box's 8 resize handles. */
-  resizeHandlePoints(b: Box): Record<ResizeHandle, Vec2> {
+  /** World positions of a box's 8 resize handles. When `rotation` is non-zero the box is treated as a
+   *  node's local (un-rotated) frame and each handle is rotated about the box center, so the handles sit
+   *  on the corners/edges of the rotated node (matching how the node is drawn). */
+  resizeHandlePoints(b: Box, rotation = 0): Record<ResizeHandle, Vec2> {
     const midX = b.x + b.w / 2;
     const midY = b.y + b.h / 2;
     const x2 = b.x + b.w;
     const y2 = b.y + b.h;
-    return {
+    const raw: Record<ResizeHandle, Vec2> = {
       nw: { x: b.x, y: b.y }, n: { x: midX, y: b.y }, ne: { x: x2, y: b.y },
       e: { x: x2, y: midY }, se: { x: x2, y: y2 }, s: { x: midX, y: y2 },
       sw: { x: b.x, y: y2 }, w: { x: b.x, y: midY },
     };
+    if (!rotation || !Number.isFinite(rotation)) return raw;
+    const c = { x: midX, y: midY };
+    for (const k of Object.keys(raw) as ResizeHandle[]) raw[k] = rotateAbout(raw[k], rotation, c);
+    return raw;
   }
-  /** @internal Host-wiring surface. Which resize handle (if any) is under `world`, within a screen-scaled tolerance. */
-  hitResizeHandle(b: Box, world: Vec2): ResizeHandle | null {
+  /** @internal Host-wiring surface. Which resize handle (if any) is under `world`, within a screen-scaled
+   *  tolerance. `rotation` (radians) rotates the handle geometry to match a rotated node. */
+  hitResizeHandle(b: Box, world: Vec2, rotation = 0): ResizeHandle | null {
     const tol = 7 / this.camera.z;
-    const pts = this.resizeHandlePoints(b);
+    const pts = this.resizeHandlePoints(b, rotation);
     let best: ResizeHandle | null = null;
     let bd = Infinity;
     for (const h of Object.keys(pts) as ResizeHandle[]) {
@@ -1851,11 +1879,14 @@ export class Editor implements EngineHost {
   }
   commitEdit(label: string): void {
     const id = this.editingAtom.peek();
-    if (id) {
-      this.updateNode(id, { label }, { capture: 'immediately' });
-      this.editingAtom.set(null);
-      this.events.emit({ type: 'edit:end', id, committed: true });
-    }
+    if (!id) return;
+    // A node locked mid-edit must not have its label rewritten on commit — drop the write and end the
+    // edit as uncommitted (mirrors the canEdit guard that stops a locked node from being edited at all).
+    const r = this.store.peek(id);
+    const locked = !!r && isNode(r) && r.locked === true;
+    if (!locked) this.updateNode(id, { label }, { capture: 'immediately' });
+    this.editingAtom.set(null);
+    this.events.emit({ type: 'edit:end', id, committed: !locked });
   }
   cancelEdit(): void {
     const id = this.editingAtom.peek();
@@ -2494,9 +2525,10 @@ export class Editor implements EngineHost {
     const accent = theme.palette.accent ?? '#3b82f6';
     this.setWorldTransform(ctx, dpr);
 
-    // S2 motion: under reduced motion, everything below renders exactly as the static S1 appearance
-    // (fixed shadowBlur, no dash animation). Otherwise the halo breathes and dashed outlines march.
-    const reducedMotion = this.reducedMotionAtom.peek();
+    // S2 motion: under reduced motion — OR when flowConfig.animateSelection is off — everything below
+    // renders exactly as the static S1 appearance (fixed shadowBlur, no dash animation). Otherwise the
+    // halo breathes and dashed outlines march.
+    const reducedMotion = this.reducedMotionAtom.peek() || this.flowConfigAtom.peek().animateSelection === false;
     const antOffset = -(time / 50);
 
     const single = this.selectedAtom.peek().size === 1;
@@ -2530,9 +2562,12 @@ export class Editor implements EngineHost {
         strokeWorldBox(ctx, box, accent, px(1.5), locked ? [px(5), px(4)] : undefined);
         if (locked && !reducedMotion) ctx.lineDashOffset = 0;
         if (single && this.canResizeNode(id)) {
-          // handles drawn on the RAW aabb so they coincide with the hit-test box (hitResizeHandle)
+          // handles drawn on the record's LOCAL box + rotation so they sit on the rotated node's corners
+          // and coincide with the hit-test (hitResizeHandle uses the same local box + rotation).
+          const rec = item.record as NodeRecord;
+          const local = { x: rec.x, y: rec.y, w: rec.w, h: rec.h };
           const hs = px(6);
-          for (const c of Object.values(this.resizeHandlePoints(item.aabb))) {
+          for (const c of Object.values(this.resizeHandlePoints(local, rec.rotation ?? 0))) {
             fillHandle(ctx, c, hs, '#ffffff', accent);
           }
         }
@@ -2649,8 +2684,11 @@ export class Editor implements EngineHost {
       const item = this.sceneIndex.getItem(hoverId);
       if (item && item.kind === 'node') {
         const node = item.record as NodeRecord;
+        const rot = node.rotation ?? 0;
+        const center = { x: node.x + node.w / 2, y: node.y + node.h / 2 };
         for (const port of this.nodes.get(node.type)?.getPorts?.(node) ?? []) {
-          fillHandle(ctx, { x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h }, px(4), accent, '#0b110e');
+          const pw = rotateAbout({ x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h }, rot, center);
+          fillHandle(ctx, pw, px(4), accent, '#0b110e');
         }
       }
     }
@@ -2878,7 +2916,11 @@ export class Editor implements EngineHost {
    *  (OR-ed with `isFlowAnimating()` / `isAnimating()`). False with nothing selected, or under
    *  reduced motion (where the halo/outline render as today's static, non-animated appearance). */
   hasAnimatedSelection(): boolean {
-    return this.selectedAtom.peek().size > 0 && !this.reducedMotionAtom.peek();
+    return (
+      this.flowConfigAtom.peek().animateSelection !== false &&
+      this.selectedAtom.peek().size > 0 &&
+      !this.reducedMotionAtom.peek()
+    );
   }
   /** True while the idle shimmer overlay should keep ticking — the fourth (and last) rAF gate
    *  (OR-ed with `isFlowAnimating()` / `isAnimating()` / `hasAnimatedSelection()`). Opt-in
@@ -3095,6 +3137,13 @@ export class Editor implements EngineHost {
     const theme = this.themeAtom.peek();
     const dw = Math.ceil(region.w * pixelRatio);
     const dh = Math.ceil(region.h * pixelRatio);
+    // DoS guard: refuse an export whose raster would exceed MAX_EXPORT_PIXELS. Covers renderSVG and any
+    // direct paintRegion caller; toPNG re-checks BEFORE allocating its canvas (see toPNG).
+    if (dw * dh > MAX_EXPORT_PIXELS) {
+      throw new NodusError('export-too-large', `paintRegion: export ${dw}×${dh} exceeds MAX_EXPORT_PIXELS (${MAX_EXPORT_PIXELS}).`, {
+        context: { width: dw, height: dh, max: MAX_EXPORT_PIXELS },
+      });
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, dw, dh);
     if (opts.background !== false) {
@@ -3132,6 +3181,13 @@ export class Editor implements EngineHost {
     const ratio = opts.pixelRatio ?? 2;
     const cw = Math.max(1, Math.ceil(region.w * ratio));
     const ch = Math.max(1, Math.ceil(region.h * ratio));
+    // Enforce the raster cap BEFORE allocating the export canvas — otherwise the multi-GB `create()`
+    // (the DoS) happens first and paintRegion's guard fires too late. Same constant, checked twice.
+    if (cw * ch > MAX_EXPORT_PIXELS) {
+      throw new NodusError('export-too-large', `toPNG: export ${cw}×${ch} exceeds MAX_EXPORT_PIXELS (${MAX_EXPORT_PIXELS}).`, {
+        context: { width: cw, height: ch, max: MAX_EXPORT_PIXELS },
+      });
+    }
     const canvas = create(cw, ch);
     const ctx = canvas.getContext('2d') as unknown as Ctx2D;
     this.paintRegion(ctx, region, ratio, {
@@ -3220,9 +3276,15 @@ export class Editor implements EngineHost {
       const node = item.record as NodeRecord;
       const util = this.nodes.get(node.type);
       const ports = util?.getPorts?.(node) ?? [];
+      const rot = node.rotation ?? 0;
+      const center = { x: node.x + node.w / 2, y: node.y + node.h / 2 };
       for (const port of ports) {
         if (kind !== 'both' && port.kind !== 'both' && port.kind !== kind) continue;
-        const pw = { x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h };
+        const pw = rotateAbout(
+          { x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h },
+          rot,
+          center,
+        );
         const d = dist(world, pw);
         if (d < bestD) {
           bestD = d;
@@ -3250,8 +3312,14 @@ export class Editor implements EngineHost {
     for (const item of this.sceneIndex.visible(box)) {
       if (item.kind !== 'node') continue;
       const node = item.record as NodeRecord;
+      const rot = node.rotation ?? 0;
+      const center = { x: node.x + node.w / 2, y: node.y + node.h / 2 };
       for (const port of this.nodes.get(node.type)?.getPorts?.(node) ?? []) {
-        const pw = { x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h };
+        const pw = rotateAbout(
+          { x: node.x + port.anchor.x * node.w, y: node.y + port.anchor.y * node.h },
+          rot,
+          center,
+        );
         const d = dist(world, pw);
         if (d <= bestD) {
           bestD = d;

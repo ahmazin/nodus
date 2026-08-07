@@ -208,6 +208,7 @@ function paintNode(
   const rot = node.rotation;
   if (!rot || !Number.isFinite(rot)) {
     util.draw(api, node, tokens);
+    paintOverlayBadge(ctx, node, tokens);
     return;
   }
   const cx = node.x + node.w / 2;
@@ -220,8 +221,75 @@ function paintNode(
     ctx.rotate(rot);
     ctx.translate(-cx, -cy);
     util.draw(api, node, tokens);
+    paintOverlayBadge(ctx, node, tokens);
   } finally {
     ctx.restore();
+  }
+}
+
+/** The three status overlays that get a non-color corner badge. Other overlay names draw no badge. */
+export type OverlayBadgeKind = 'met' | 'partial' | 'missed';
+
+/**
+ * Draw a small STROKED status glyph badge at a node's top-right corner for its active status overlay
+ * (`met` → check, `partial` → half, `missed` → cross). It is a *non-color* accessibility channel that
+ * complements the overlay's hue: users who can't distinguish the colors still read the shape.
+ *
+ * Deliberately drawn as stroked/filled vector primitives — NEVER a Unicode/font glyph — because
+ * `@napi-rs/canvas` (Skia) font coverage for symbols like ✓/◐/✕ is unverified; primitives rasterize
+ * identically under a DOM canvas and headless Skia, keeping exports deterministic.
+ */
+export function drawOverlayBadge(
+  ctx: Ctx2D,
+  kind: OverlayBadgeKind,
+  cx: number,
+  cy: number,
+  r: number,
+  color: string,
+): void {
+  ctx.save();
+  // dark disc background + accent ring, so the glyph reads on any fill
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#0b110e';
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, r * 0.16);
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  // glyph — stroked vector paths only
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1, r * 0.22);
+  ctx.beginPath();
+  if (kind === 'met') {
+    ctx.moveTo(cx - r * 0.42, cy + r * 0.02);
+    ctx.lineTo(cx - r * 0.1, cy + r * 0.38);
+    ctx.lineTo(cx + r * 0.48, cy - r * 0.4);
+  } else if (kind === 'missed') {
+    ctx.moveTo(cx - r * 0.38, cy - r * 0.38);
+    ctx.lineTo(cx + r * 0.38, cy + r * 0.38);
+    ctx.moveTo(cx + r * 0.38, cy - r * 0.38);
+    ctx.lineTo(cx - r * 0.38, cy + r * 0.38);
+  } else {
+    // partial: a "half" glyph — a vertical diameter plus the right-hand semicircle (a 'D' shape)
+    ctx.moveTo(cx, cy - r * 0.5);
+    ctx.lineTo(cx, cy + r * 0.5);
+    ctx.arc(cx, cy, r * 0.5, -Math.PI / 2, Math.PI / 2);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Draw the status badge for a node iff it carries a met/partial/missed overlay. Corner-anchored,
+ *  size clamped to [5,10] world units. Wrapped so a bad badge can never abort the node's paint. */
+function paintOverlayBadge(ctx: Ctx2D, node: NodeRecord, tokens: ResolvedTokens): void {
+  const overlay = node.visual.overlay;
+  if (overlay !== 'met' && overlay !== 'partial' && overlay !== 'missed') return;
+  const r = Math.max(5, Math.min(10, Math.min(node.w, node.h) * 0.14));
+  try {
+    drawOverlayBadge(ctx, overlay, node.x + node.w - r, node.y + r, r, tokens.stroke);
+  } catch {
+    // a status badge must never take down the frame (paintItem's try/finally is the outer guard)
   }
 }
 

@@ -49,7 +49,8 @@ export class History {
       this.open.inverse.unshift(...info.inverse);
     }
     // Evict the oldest entries past the limit (the open group, if any, is the newest — never evicted).
-    if (this.limit !== undefined) {
+    // `Number.isFinite` makes `Infinity` (the explicit unbounded opt-out) skip trimming outright.
+    if (this.limit !== undefined && Number.isFinite(this.limit)) {
       while (this.undoStack.length > this.limit) this.undoStack.shift();
     }
     this.bump();

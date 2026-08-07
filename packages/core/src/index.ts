@@ -143,6 +143,15 @@ export {
 // commands
 export { CommandRegistry, installDefaultCommands, type Command } from './commands/index.js';
 
+// i18n message tables (English defaults + merge/format helpers, shared with @nodus-dev/react)
+export {
+  defaultCoreMessages,
+  mergeMessages,
+  fmt,
+  type CoreMessages,
+  type DeepPartial,
+} from './messages/index.js';
+
 // scene index
 export { SceneIndex, type RenderItem, type SceneIndexDeps, type SceneIndexErrorContext } from './scene-index/index.js';
 
@@ -263,6 +272,7 @@ export {
 // editor
 export {
   Editor,
+  MAX_EXPORT_PIXELS,
   type EditorOptions,
   type PointerMods,
   type ConnectDraft,

@@ -8,7 +8,7 @@
 
 import RBush from 'rbush';
 import { atom, type Atom } from '../signals/index.js';
-import { Polyline2d, boxIntersects, padBox, type Geometry2d } from '../geometry/index.js';
+import { Polyline2d, boxIntersects, padBox, rotateAbout, type Geometry2d } from '../geometry/index.js';
 import type { Box, Change, EdgeRecord, Endpoint, Id, NodeRecord, NodusRecord, Vec2 } from '../model.js';
 import { isEdge, isNode } from '../model.js';
 import type { EdgeRegistry, NodeRegistry, NodeUtil } from '../registries/index.js';
@@ -380,9 +380,9 @@ export class SceneIndex {
     const from = this.resolveEndpoint(edge.from);
     const to = this.resolveEndpoint(edge.to);
     if (!from || !to) return null; // drop edges with missing endpoints
-    // outline endpoints attach at the boundary point toward the *other* end
-    const fromPoint = from.outline && from.geom ? from.geom.boundaryToward(to.point) : from.point;
-    const toPoint = to.outline && to.geom ? to.geom.boundaryToward(from.point) : to.point;
+    // outline endpoints attach at the boundary point toward the *other* end (rotation-aware)
+    const fromPoint = outlineAttach(from, to.point);
+    const toPoint = outlineAttach(to, from.point);
     const waypoints = Array.isArray(edge.props.waypoints)
       ? (edge.props.waypoints as Vec2[])
       : undefined;
@@ -473,7 +473,15 @@ export class SceneIndex {
       if (port) normalized = port.anchor;
     }
     const a = normalized ?? { x: 0.5, y: 0.5 };
-    return { point: { x: node.x + a.x * node.w, y: node.y + a.y * node.h }, node, geom };
+    // The port anchor is authored in the node's local (un-rotated) frame; rotate it about the node's
+    // center so edges attach to where the port is actually drawn on a rotated node (else arrows point
+    // at empty space). A zero/absent rotation is the identity fast path inside `rotateAbout`.
+    const point = rotateAbout(
+      { x: node.x + a.x * node.w, y: node.y + a.y * node.h },
+      node.rotation ?? 0,
+      { x: node.x + node.w / 2, y: node.y + node.h / 2 },
+    );
+    return { point, node, geom };
   }
 
   private linkEdge(edge: EdgeRecord): void {
@@ -565,6 +573,25 @@ function localHitPoint(item: RenderItem, p: Vec2): Vec2 {
   const dx = p.x - rc.cx;
   const dy = p.y - rc.cy;
   return { x: rc.cx + dx * cos + dy * sin, y: rc.cy - dx * sin + dy * cos };
+}
+
+/**
+ * The attach point for one edge endpoint toward the other end. Fixed-port (`node`) and `point`
+ * endpoints already carry their resolved (rotation-aware) `point`. An `outline` endpoint slides along
+ * the shape boundary: for a rotated node we map the *other* end into the node's local (un-rotated)
+ * frame, run the generic `boundaryToward` on the axis-aligned geometry there, then rotate the result
+ * back — so the attachment lands on the rotated outline rather than the un-rotated one.
+ */
+function outlineAttach(
+  end: { point: Vec2; node?: NodeRecord; geom?: Geometry2d; outline?: boolean },
+  other: Vec2,
+): Vec2 {
+  if (!end.outline || !end.geom) return end.point;
+  const rot = end.node?.rotation;
+  const c = end.geom.center();
+  if (!rot || !Number.isFinite(rot)) return end.geom.boundaryToward(other);
+  const localOther = rotateAbout(other, -rot, c);
+  return rotateAbout(end.geom.boundaryToward(localOther), rot, c);
 }
 
 /**

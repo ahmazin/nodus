@@ -195,7 +195,9 @@ export const defaultTheme: Theme = {
   },
   overlays: {
     met: { stroke: '#10b981', glow: '#10b981' },
-    partial: { stroke: '#f59e0b', glow: '#f59e0b' },
+    // `dash` is the non-color channel for the partial state (a11y): status is distinguishable without
+    // relying on hue alone. Renders as a dashed outline via the same `resolveTokens` dash path as locked.
+    partial: { stroke: '#f59e0b', glow: '#f59e0b', dash: [5, 3] },
     missed: { stroke: '#ef4444', glow: '#ef4444' },
   },
   focus: { strokeWidth: 2, glow: '#ffffff' },
@@ -246,7 +248,8 @@ export const defaultLightTheme: Theme = {
   },
   overlays: {
     met: { stroke: '#059669', glow: '#10b981' },
-    partial: { stroke: '#d97706', glow: '#f59e0b' },
+    // Non-color channel (a11y): partial gets a dashed outline in addition to its hue. See dark theme.
+    partial: { stroke: '#d97706', glow: '#f59e0b', dash: [5, 3] },
     missed: { stroke: '#dc2626', glow: '#ef4444' },
   },
   // On light, a white glow is invisible — focus reads via a stronger accent stroke.

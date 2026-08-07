@@ -79,6 +79,33 @@ describe('edit-lock enforcement', () => {
     expect((ed.store.peek(id) as NodeRecord).rotation).toBeCloseTo(Math.PI / 4);
   });
 
+  it('a locked node cannot be label-edited via double-click; unlocking restores it', () => {
+    const ed = new Editor();
+    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100, label: 'orig' });
+    ed.lock([id]);
+    expect(ed.canEdit(id)).toBe(false); // gate the double-click path
+
+    // double-click on the locked node must NOT enter edit mode
+    ed.doubleClick({ x: 50, y: 50 });
+    expect(ed.editingAtom.peek()).toBeNull();
+
+    ed.unlock([id]);
+    expect(ed.canEdit(id)).toBe(true);
+    ed.doubleClick({ x: 50, y: 50 });
+    expect(ed.editingAtom.peek()).toBe(id);
+    ed.cancelEdit();
+  });
+
+  it('commitEdit drops the write for a node locked mid-edit (label unchanged)', () => {
+    const ed = new Editor();
+    const id = ed.createNode({ type: 'rect', x: 0, y: 0, w: 100, h: 100, label: 'orig' });
+    ed.beginEdit(id); // enter edit while unlocked
+    ed.lock([id]); // lock arrives before commit
+    ed.commitEdit('hacked');
+    expect((ed.store.peek(id) as NodeRecord).label).toBe('orig'); // write dropped
+    expect(ed.editingAtom.peek()).toBeNull(); // edit still ends
+  });
+
   it('a mixed selection drags only its unlocked members', () => {
     const ed = new Editor();
     ed.snap.toObjects = false; // deterministic drag deltas

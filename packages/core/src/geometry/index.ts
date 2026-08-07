@@ -91,6 +91,23 @@ export function invertMat(m: Mat2D): Mat2D {
   ];
 }
 
+// ---------- rotation ----------
+
+/**
+ * Rotate point `p` by `rad` (radians, clockwise in Canvas2D's +y-down space) about center `c`. Matches
+ * the frozen node-rotation contract shared by the renderer, scene-index, and select tool. A zero or
+ * non-finite angle returns `p` unchanged (identity fast path). Exported from the geometry module for
+ * internal reuse (ports, resize, edge attach); intentionally NOT re-exported from the package barrel.
+ */
+export function rotateAbout(p: Vec2, rad: number, c: Vec2): Vec2 {
+  if (!rad || !Number.isFinite(rad)) return p;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = p.x - c.x;
+  const dy = p.y - c.y;
+  return { x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos };
+}
+
 // ---------- point/segment distance ----------
 
 export function distToSegment(p: Vec2, a: Vec2, b: Vec2): number {
