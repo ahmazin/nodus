@@ -141,7 +141,8 @@ touching serialization, keep output canonical (stable key order, normalized numb
   — don't mutate records in place.
 - After changes: `pnpm typecheck` always; `pnpm test` for logic; a `playwright-core` drive of the Vite app
   for anything visual/interactive.
-- `BUGS.md` at the root is the working bug tracker (checkbox list).
+- `docs/audits/BUGS.md` is an archived internal checkbox log (provenance only); public bug intake is
+  GitHub Issues. Internal audit artifacts live under `docs/audits/`, not the repo root.
 
 # Agent Team Protocol
 

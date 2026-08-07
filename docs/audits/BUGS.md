@@ -1,4 +1,8 @@
-# Bugs
+# Bugs (archived)
+
+> **Archived.** This file is a historical internal checkbox log and is **no longer the intake channel.**
+> Report bugs and request features via **[GitHub Issues](https://github.com/ahmazin/nodus/issues)**
+> (see the issue templates) and ask questions in **GitHub Discussions**. Kept here for provenance only.
 
 Tracking list of known issues. Check off when fixed.
 
