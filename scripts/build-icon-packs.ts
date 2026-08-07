@@ -1,6 +1,13 @@
 /**
  * Convert vendored official SVGs (packages/icons-cloud/svg/<provider>/) into vector packs.
  * Run after dropping the toolkits + curating svg/. Usage: pnpm build:icons
+ *
+ * Option-2 licensing model (PRE-PUBLICATION-AUDIT.md H4): the committed
+ * `src/generated/*-pack.ts` are EMPTY placeholders so the published npm tarball ships no
+ * provider artwork. This script regenerates the REAL packs from committed `svg/` for local
+ * dev / the site / the gallery, and lets a consumer who vendors artwork do the same. Its
+ * output is a transient local build artifact — do NOT commit the regenerated packs or the
+ * regenerated `provenance.json` (mirrors the "trust committed bytes" gallery/PNG convention).
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';

@@ -1,55 +1,63 @@
 /**
- * Integrity gate for the generated packs: guarantees the committed `src/generated/*-pack.ts` and
- * `provenance.json` stay in lockstep with `allowlist.ts`. Runs against the REAL generated packs, so
- * a stale/forgotten `pnpm build:icons` (missing icon, orphan, or gray-fallback color) fails here.
+ * Integrity gate for the icon SOURCE + CODEGEN (`pnpm build:icons`).
+ *
+ * Under the option-2 licensing model (PRE-PUBLICATION-AUDIT.md H4) the committed
+ * `src/generated/*-pack.ts` are EMPTY placeholders — no provider artwork ships in the tarball
+ * (see published-shape.test.ts for that invariant). Real packs are (re)generated on demand from
+ * committed `svg/**` by the same conversion the CLI uses. So this suite validates that pipeline
+ * DIRECTLY — running `svgToVectorIcon` over every allowlisted SVG — rather than the (empty)
+ * generated packs. It therefore proves "build:icons would populate real, valid packs" and still
+ * catches a missing source SVG, a bad conversion, or an unresolved (gray-fallback) paint —
+ * regardless of whether a maintainer has run build:icons locally.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { getIcon } from '@nodus-dev/core';
 import { ALLOWLIST } from '../allowlist.js';
-import { awsPack } from '../generated/aws-pack.js';
-import { azurePack } from '../generated/azure-pack.js';
-import { gcpPack } from '../generated/gcp-pack.js';
+import { svgToVectorIcon } from '../codegen/svg-to-vector.js';
+import { installPack } from '../install.js';
 import { cloudIconCatalog } from '../catalog.js';
 
-const packs = { aws: awsPack, azure: azurePack, gcp: gcpPack } as const;
+const svgPath = (provider: string, file: string): string =>
+  fileURLToPath(new URL(`../../svg/${provider}/${file}`, import.meta.url));
 
-describe('generated pack integrity', () => {
-  it('produces exactly one pack icon per allowlist entry — no missing, no orphans', () => {
+/** The pack build:icons would emit — computed here from committed svg/ + allowlist. */
+function buildPack(provider: 'aws' | 'azure' | 'gcp'): Record<string, ReturnType<typeof svgToVectorIcon>['icon']> {
+  const pack: Record<string, ReturnType<typeof svgToVectorIcon>['icon']> = {};
+  for (const e of ALLOWLIST) {
+    if (e.provider !== provider) continue;
+    const { icon } = svgToVectorIcon(readFileSync(svgPath(e.provider, e.file), 'utf8'));
+    if (e.needsChip) icon.needsChip = true;
+    pack[e.name] = icon;
+  }
+  return pack;
+}
+
+describe('source + codegen (build:icons) produces valid real packs', () => {
+  it('converts exactly one valid icon per allowlist entry — every source SVG present & non-empty', () => {
     for (const e of ALLOWLIST) {
-      const icon = packs[e.provider][e.name];
-      expect(icon, `${e.name} missing from ${e.provider} pack — run pnpm build:icons`).toBeDefined();
-      expect(icon!.sub.length, `${e.name} converted to no geometry`).toBeGreaterThan(0);
-    }
-    for (const p of ['aws', 'azure', 'gcp'] as const) {
-      const allowed = new Set(ALLOWLIST.filter((e) => e.provider === p).map((e) => e.name));
-      expect(Object.keys(packs[p]).length, `${p} pack size`).toBe(allowed.size);
-      for (const key of Object.keys(packs[p])) {
-        expect(allowed.has(key), `orphan ${key} not in allowlist`).toBe(true);
+      const { icon } = svgToVectorIcon(readFileSync(svgPath(e.provider, e.file), 'utf8'));
+      expect(icon.sub.length, `${e.name} (${e.file}) converted to no geometry`).toBeGreaterThan(0);
+      expect(icon.vb[0], `${e.name} viewBox width`).toBeGreaterThan(0);
+      expect(icon.vb[1], `${e.name} viewBox height`).toBeGreaterThan(0);
+      for (const sp of icon.sub) {
+        expect(sp.fill, `${e.name} empty fill`).toBeTruthy();
+        expect(sp.fill, `${e.name} unresolved paint (gray fallback)`).not.toBe('#888888');
       }
     }
   });
 
-  it('every icon carries a positive viewBox and real (non-fallback) fills', () => {
-    for (const p of ['aws', 'azure', 'gcp'] as const) {
-      for (const [name, icon] of Object.entries(packs[p])) {
-        expect(icon.vb[0], `${name} viewBox width`).toBeGreaterThan(0);
-        expect(icon.vb[1], `${name} viewBox height`).toBeGreaterThan(0);
-        for (const sp of icon.sub) {
-          expect(sp.fill, `${name} empty fill`).toBeTruthy();
-          expect(sp.fill, `${name} unresolved paint`).not.toBe('#888888');
-        }
-      }
+  it('registers a codegen-produced (real-data) pack end to end through installPack', () => {
+    const pack = buildPack('aws');
+    expect(Object.keys(pack).length, 'aws pack size from svg').toBe(
+      ALLOWLIST.filter((e) => e.provider === 'aws').length,
+    );
+    installPack(pack);
+    for (const name of ['aws:ec2', 'aws:lambda', 'aws:s3']) {
+      const draw = getIcon(name);
+      expect(draw, name).toBeTypeOf('function');
     }
-  });
-
-  it('provenance.json records every allowlist entry exactly once', () => {
-    const prov = JSON.parse(
-      readFileSync(fileURLToPath(new URL('../../provenance.json', import.meta.url)), 'utf8'),
-    ) as Array<{ name: string }>;
-    expect(prov.length, 'provenance count').toBe(ALLOWLIST.length);
-    const provNames = new Set(prov.map((p) => p.name));
-    for (const e of ALLOWLIST) expect(provNames.has(e.name), `${e.name} absent from provenance`).toBe(true);
   });
 });
 
