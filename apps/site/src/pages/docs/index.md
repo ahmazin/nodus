@@ -17,13 +17,15 @@ preset (`@nodus-dev/preset-infra`) is one preset among several built on the gene
 ## Install
 
 ```bash
-# the React binding + the infra node/edge types & theme
-npm i @nodus-dev/react @nodus-dev/preset-infra
-# or: pnpm add @nodus-dev/react @nodus-dev/preset-infra
+# the React binding + the core engine + the infra node/edge types & theme
+npm i @nodus-dev/react @nodus-dev/core @nodus-dev/preset-infra
+# or: pnpm add @nodus-dev/react @nodus-dev/core @nodus-dev/preset-infra
 ```
 
-`@nodus-dev/react` pulls in `@nodus-dev/core` as a dependency. If you only need the headless engine (no React),
-install `@nodus-dev/core` on its own.
+`@nodus-dev/core` is a **peer dependency** of `@nodus-dev/react` and `@nodus-dev/preset-infra` — install it
+alongside them. (npm 7+ and pnpm auto-install peers, but listing `@nodus-dev/core` explicitly is the safe,
+portable choice, and it pins the one shared version — everything ships on the same
+[synchronized line](/docs/versioning).) Headless-only, with no React? Install `@nodus-dev/core` on its own.
 
 ## Quick start (React)
 

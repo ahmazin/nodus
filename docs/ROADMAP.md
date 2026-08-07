@@ -1,69 +1,102 @@
-# Nodus build roadmap
+# Nodus roadmap
 
-Tracking the full feature push. Each batch lands typecheck-clean + tests green.
+Where the engine is going, framed as **Now / Next / Later**, with the deliberate **non-goals** that
+keep the scope honest. Each batch lands typecheck-clean with tests green.
 
-## Phase 1 — Deepen the four axes
+This file is the strategic roadmap; the long "what already shipped" checklist is preserved in the
+[Shipped](#shipped-appendix) appendix at the bottom.
 
-**Axis 1 — types**
+## Now — launch readiness (0.3.x)
+
+Getting the already-built engine in front of people without broken promises:
+
+- **Deploy** the docs/marketing site and the hosted playground at a stable public URL.
+- **Version coherence** — every publishable package on the synchronized `0.3.x` line (see
+  [Stability & versioning](https://ahmazin.github.io/nodus/docs/versioning)).
+- **Link & policy sweep** — canonical URLs, support matrix, privacy/telemetry statement, accessibility
+  statement, comparison page.
+- **Correctness gates** — rotation geometry fix, first-session playground defects, export pixel cap,
+  bounded undo history, capped idle rAF.
+- **Touch** — basic two-finger pan and pinch-zoom so the public playground works on a tablet/phone.
+- **Performance envelope** — a committed `pnpm bench` baseline and a published
+  [performance envelope](https://ahmazin.github.io/nodus/docs/performance); pan fast path if it can be
+  proven pixel-safe (otherwise the cliff is documented, not hidden).
+
+## Next — reach & migration
+
+- **Framework reach** — extract a framework-free DOM host from the React binding; ship a vanilla
+  interactive example and CDN docs; add a React 19 verification leg; scope Vue/Svelte bindings.
+- **Migration path** — `fromExcalidraw` / draw.io import so teams can bring existing diagrams.
+- **Parity fills** — SVG editing backend, images (hashed sidecar), align/distribute, eraser,
+  stencils, `toMermaid` export.
+- **i18n** — ship real translations on top of the message-override foundation (English defaults exist
+  today; no shipped locales yet).
+
+## Later — depth
+
+- **Collaboration extension point** — a `yjs` (or similar) adapter layered over the change-delta
+  stream for teams that want live multiplayer, kept as an opt-in extension rather than a core
+  concern (see the non-goal below and the
+  [collaboration position](https://ahmazin.github.io/nodus/docs/collaboration)).
+- **Zoom LOD** — skip labels/detail below a zoom threshold so a fully-zoomed-out large estate stays
+  interactive.
+- **Screen-reader depth** — an accessible structural mirror of canvas content beyond selection
+  announcements (see the [accessibility statement](https://ahmazin.github.io/nodus/docs/accessibility)).
+- **Distribution** — VS Code diagram previewer, marketplace Action for the diagrams-in-CI workflow,
+  IndexedDB persistence store.
+
+## Non-goals
+
+- **Built-in real-time multiplayer sync is a deliberate non-goal.** Nodus's collaboration model is
+  **git-native async review**: diagrams are canonical `*.nodus.json` text, so they branch, diff
+  (`nodus diff`), review (the diagrams-in-CI workflow + in-app PR-diff), and merge like code. This is
+  a different, deliberate bet from a live cursors-on-a-shared-doc editor — the two demand opposite
+  ID/merge models (counter IDs and a CRDT vs. distributed creation and canonical text). Live sync
+  remains possible as a *Later* extension over the change-delta stream, but it is not something the
+  core will grow. See the [collaboration position](https://ahmazin.github.io/nodus/docs/collaboration).
+- **Not a general illustration tool.** Nodus is structured-diagram-first (nodes, edges, layout,
+  git-native review). Freehand drawing exists as a plugin, but pixel-art / rich vector illustration is
+  out of scope.
+- **No bundled backend / account system.** The engine is headless and local-first; persistence and
+  auth are the host's concern (a `DocStore` interface is provided, not a hosted service).
+
+---
+
+## Shipped appendix
+
+The capability the *Now/Next/Later* plan builds on. Legend: `[x]` done · `[~]` in progress · `[ ]` todo.
+
+### Phase 1 — the four axes
+
 - [x] Pluggable edge routing (straight / orthogonal / bezier) + router registry
-- [x] Edge labels (render + inline edit)
-- [x] Edge waypoints (data + render + editor API)
+- [x] Edge labels (render + inline edit); edge waypoints (data + render + editor API)
 - [x] Grouping / frames (group, ungroup, move-with-parent)
+- [x] Theme pack (light, blueprint, neon, paper) + per-type icon glyphs
+- [x] Layout adapters — dagre, tree, force, ELK (worker-capable)
+- [x] Snapping + alignment guides, minimap, copy/paste/duplicate, command palette (⌘K), context menu
 
-**Axis 2 — theming**
-- [x] Theme pack (light, blueprint, neon, paper) in core
-- [x] Per-type icon glyphs (12-icon registry + infra type icons)
+### Phase 2 — killer demos (shipped as packages)
 
-**Axis 3 — layout**
-- [x] Tree layout adapter (`@nodus-dev/layout-tree`)
-- [x] Force layout adapter (`@nodus-dev/layout-force`)
-- [x] ELK layout adapter (`@nodus-dev/layout-elk`, worker-capable via workerUrl)
-- [x] Off-main-thread layout (ELK worker option; supersedes dagre-worker)
-
-**Axis 4 — plugins / editor UX**
-- [x] Snapping + alignment guides
-- [x] Minimap
-- [x] Copy / paste / duplicate (+ keyboard shortcuts)
-- [x] Command palette (⌘K)
-- [x] Context menu (right-click)
-
-## Phase 2 — Killer demos (shipped as packages)
 - [x] Freehand / sketch plugin (`@nodus-dev/plugin-freehand`)
-- [x] ERD visualizer (`@nodus-dev/preset-diagrams`)
-- [x] State-machine editor (`@nodus-dev/preset-diagrams`)
+- [x] ERD + state-machine editors (`@nodus-dev/preset-diagrams`)
 - [x] Cloud architecture with icons (icon node + glyph set)
 
-## Phase 3 — Three highest-leverage moves
+### Phase 3 — highest-leverage moves
+
 - [x] Arenas: Studio / Reverse / Evolution (infra preset adapters)
 - [x] Text → diagram (`@nodus-dev/text-to-diagram`)
 - [x] Live infra from Terraform / Kubernetes (`@nodus-dev/import-infra`)
 
----
-Legend: [x] done · [~] in progress · [ ] todo
+### Excalidraw-replacement tiers (structured-first)
 
----
+- [x] **Tier 0** — resize + z-order, per-element style bag, floating/re-binding arrows, persistence,
+  draw preset, properties panel, copy-as-image.
+- [~] **Tier 1** — parity fills (SVG backend, images, `fromExcalidraw`, align/distribute, eraser,
+  pinch, stencils) — in progress; see *Next*.
+- [x] **Tier 2** — PIS phosphor theme, `fromMermaid` + ELK, MCP server, structured-diagram speed
+  (double-click create, drag-from-port connect), flow animation, data-driven flow.
 
-## Post-launch: Excalidraw-replacement tiers (structured-first)
+### Robustness
 
-**Tier 0 — blocks daily adoption**
-- [x] Resize (8 handles, grab-offset, min-clamp) + z-order (bring-to-front / send-to-back)
-- [x] Per-element style bag (`setStyle`/`clearStyle`, merged last in resolveTokens, serialized, undoable)
-- [x] Floating / re-binding arrows — endpoint union `node | outline | point`, drag endpoints to re-bind, connect-to-body
-- [x] Persistence (`@nodus-dev/persistence` + doc server; localStorage autosave in playground)
-- [x] Draw preset (`@nodus-dev/preset-draw`: rect/ellipse/diamond/text + line/arrow + R/E/L/A/T)
-- [x] Properties panel (`<Properties>` over the style bag — stroke/fill/text/width/dashed/state/clear; React example + vanilla)
-- [x] Copy-as-image (`copyImage`/`downloadImage`/`renderPngBlob`; ClipboardItem PNG via OffscreenCanvas; verified image/png to clipboard on Chromium/Fedora)
-
-**Tier 1 — parity**
-- [ ] SVG backend (Ctx2D seam) · images (hashed sidecar) · `fromExcalidraw` · align/distribute · eraser · pinch · stencils
-
-**Tier 2 — beat Excalidraw**
-- [x] PIS phosphor brand theme
-- [x] `fromMermaid` + ELK — `@nodus-dev/from-mermaid` parses flowchart/state/ER subsets → reuses `@nodus-dev/preset-diagrams` builders → ELK layout; `importMermaid(editor, src)`; verified headless render of all 3 subsets; live "⤓ Mermaid" import in the playground
-- [x] MCP server (`@nodus-dev/mcp`) — dependency-free stdio JSON-RPC around a headless `Editor`; 14 tools (import_mermaid, add/connect/update/delete, layout, **set_flow / set_flow_metric** for data-driven flow, export_png inline traffic-snapshot, export_json, save/load_doc); review-hardened (path containment, replace-on-import, graceful drain); verified via real stdio handshake
-- [x] structured-diagram speed — double-click empty canvas → create+edit node; drag-from-port → connect (or quick-create a node in empty space); port dots on hover. (obstacle-nudged elbows deferred — needs obstacle threading through the router)
-- [x] flow animation — animated packets/dashes traveling along edges (`FlowSpec` on `EdgeRecord`, `editor.setFlow`/`hasFlow`/`paintFlow`); a gated rAF layer that animates only while flows exist so idle stays 0-paints; "⇢ Flow" toggle in the playground
-- [x] **data-driven flow** — `FlowScale` maps a live metric → packet speed/count/size/threshold-or-gradient color (`resolveFlow`); live values are EPHEMERAL (`editor.setFlowMetric`, not serialized/historied/autosaved) so a dashboard ticks freely without doc churn; "📊 Live" playground demo; **exposed over MCP** (`set_flow`/`set_flow_metric` + `export_png` traffic snapshot) so an agent can colour links by real metrics
-- [ ] optional "rough" hand-drawn paint variant (cosmetic; deferred)
-
-**Robustness pass (2026-07-11)** — property/fuzz invariant suite (`invariants.test.ts`: store↔index bijection, no dangling refs, undo∘redo identity, toJSON round-trip over 8 seeded random op-sequences) + a 9-subsystem adversarial core audit. **17 real bugs fixed + regression-tested**: 2 fuzzer-found integrity bugs (group-delete orphaned children; ungroup left dangling edges) and 15 audit-confirmed (signals: transaction rollback dropped/stale effects+computeds, computed leak; serialization: NaN endpoints, page style; events: reentrancy + set leaks; renderer: grid infinite-loop, save/restore leak; scene-index: dropped-edge rebuild + nodeEdges leak; geometry/routing: single-point distance, short-segment arrowhead gap; editor: duplicate clobbered clipboard; tools: mid-gesture tool-switch state/history leak).
+- [x] Property/fuzz invariant suite (store↔index bijection, no dangling refs, undo∘redo identity,
+  round-trip) + a multi-subsystem adversarial core audit; 17 real bugs fixed + regression-tested.
