@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev/text-to-diagram",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "files": [
     "dist"
   ],
@@ -56,7 +56,7 @@
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/text-to-diagram#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/mainline/packages/text-to-diagram#readme",
   "bugs": {
     "url": "https://github.com/ahmazin/nodus/issues"
   }

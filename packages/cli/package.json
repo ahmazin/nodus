@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "files": [
     "dist"
   ],
@@ -61,7 +61,7 @@
     "node": ">=20"
   },
   "sideEffects": false,
-  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/cli#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/mainline/packages/cli#readme",
   "bugs": {
     "url": "https://github.com/ahmazin/nodus/issues"
   }

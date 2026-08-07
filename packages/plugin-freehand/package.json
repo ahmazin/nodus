@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev/plugin-freehand",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "files": [
     "dist"
   ],
@@ -53,7 +53,7 @@
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/plugin-freehand#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/mainline/packages/plugin-freehand#readme",
   "bugs": {
     "url": "https://github.com/ahmazin/nodus/issues"
   }
