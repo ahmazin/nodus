@@ -522,8 +522,26 @@ async function main() {
   }
 
   console.log('8j) edge-label editor is finitely positioned (no NaN) ...');
-  await page.evaluate(() => { const ed = window.__editor; ed.zoomToFit(60); ed.beginEdit(ed.store.edges()[0].id); });
-  await page.waitForTimeout(60);
+  // Trigger via a REAL double-click on the edge's route midpoint — the faithful user path for editing
+  // an edge label. (A programmatic beginEdit() sets the atom but does not wake the example's
+  // idle-parked render loop, so EditOverlay never re-renders; a real pointer interaction does.)
+  {
+    const at = await page.evaluate(() => {
+      const ed = window.__editor;
+      ed.zoomToFit(60);
+      ed.cancelEdit();
+      const e = ed.store.edges()[0];
+      const route = ed.sceneIndex.getItem(e.id)?.route ?? [];
+      const a = route[0];
+      const b = route[route.length - 1] ?? a;
+      const cam = ed.cameraAtom.peek();
+      const r = document.querySelector('[role="application"]').getBoundingClientRect();
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      return { sx: r.left + (mid.x - cam.x) * cam.z, sy: r.top + (mid.y - cam.y) * cam.z };
+    });
+    await page.mouse.dblclick(at.sx, at.sy);
+  }
+  await page.waitForTimeout(80);
   {
     const box = await page.evaluate(() => {
       const ta = document.querySelector('[role="application"] textarea');

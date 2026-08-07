@@ -10,8 +10,9 @@
  *
  * All values are plain CSS strings/numbers consumed via inline styles (repo convention — no CSS
  * modules). Contrast: `text`/`textMuted` meet WCAG AA (>= 4.5:1) on surface/panel/canvas;
- * `textFaint` is tertiary/placeholder text and only meets the 3:1 large/non-essential-text floor
- * (~3.5:1) — it is NOT for small essential body copy. `focusRing` and accent-used-as-fill meet the
+ * dark `textFaint` (#8b8e99, ~5.6:1) now meets AA for small text too (raised from ~3.5:1 so the
+ * status bar and other tertiary chrome pass axe); the light tertiary remains a large-text floor.
+ * `focusRing` and accent-used-as-fill meet the
  * 3:1 non-text minimum (WCAG 1.4.11) against surface/panel/canvas. Measured ratios are recorded
  * inline below. `border`/`borderStrong` are decorative dividers (exempt from 1.4.11); interactive
  * affordance comes from fill/hover/text and the focus ring.
@@ -88,7 +89,7 @@ const space = (n: number): number => n * 4;
  * Dark tokens — the Playground ramp: near-black canvas `#0a0b0e` with the lime accent `#c4f24e`.
  * Lime as text/icon on the dark surfaces is very high contrast (accent-on-canvas 15.1:1), so it
  * doubles as the active text color and the focus ring. Text ramp: `text` 15.4:1, `textMuted`
- * 7.3:1, `textFaint` ~3.5:1 (tertiary), `danger` 6.0:1 — all on surface `#101319`.
+ * 7.3:1, `textFaint` ~5.6:1 (tertiary, now AA for small text), `danger` 6.0:1 — all on surface `#101319`.
  */
 const dark: UiTokens = {
   mode: 'dark',
@@ -101,7 +102,7 @@ const dark: UiTokens = {
     borderStrong: 'rgba(255,255,255,0.14)',
     text: '#e9e9ee',
     textMuted: '#9fa2ad',
-    textFaint: '#676a76',
+    textFaint: '#8b8e99',
     accent: '#c4f24e',
     accentText: '#0a0b0e', // 15.1:1 on the lime fill
     danger: '#f0655c',
