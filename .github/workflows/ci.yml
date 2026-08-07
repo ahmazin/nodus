@@ -170,3 +170,109 @@ jobs:
         with:
           name: browser-verify-screenshots
           path: examples/output/
+
+  # Coverage gate: re-runs the suite under V8 coverage (@vitest/coverage-v8, pinned to the vitest 2.x
+  # line) and publishes the text summary to the job summary. Its own job so it runs in parallel with
+  # `verify` and never slows the critical path. No threshold at launch per the PRR exit criteria — the
+  # bar is "the number is visible"; tighten to a floor once a baseline lands.
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test with coverage
+        run: |
+          set -o pipefail
+          pnpm test:coverage 2>&1 | tee /tmp/coverage.txt
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage'
+            echo '```'
+            sed -n '/-----|/,/-----/p' /tmp/coverage.txt 2>/dev/null | tail -40 || tail -40 /tmp/coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Bundle-size budgets: builds the packages (dist is required — the src-first dev loop never produces
+  # it) and checks the gzip size of the published core + react ESM entries against the `size-limit`
+  # budgets declared in each package.json. This gate FAILS on a budget breach, so an accidental
+  # dependency bloat is caught at PR time.
+  size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build all packages (dist required for size-limit)
+        run: pnpm build
+      - name: Bundle size budgets (core + react, gzip)
+        run: pnpm size
+
+  # Perf benchmark: NON-BLOCKING advisory signal at launch. Runs the headless engine benchmark
+  # (build/render/reflow/hit-test at N=500/2000 + layer-cache invariant checks) and publishes the
+  # table to the job summary. continue-on-error keeps runner variance and the documented pan-cliff
+  # invariant from gating a merge; promote to a hard gate once cross-runner variance is characterized.
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Benchmark (headless engine)
+        run: |
+          set -o pipefail
+          pnpm bench 2>&1 | tee /tmp/bench.txt
+      - name: Publish benchmark table
+        if: always()
+        run: |
+          {
+            echo '### Benchmark (advisory)'
+            echo '```'
+            cat /tmp/bench.txt 2>/dev/null || echo 'no benchmark output'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Golden-image diff: NON-BLOCKING advisory at launch. Renders the fixed-coordinate fixtures through
+  # the headless Skia path and pixel-diffs them against the committed baselines. Held non-blocking
+  # because cross-toolchain (sandbox vs. CI Skia) antialiasing jitter is not yet characterized; the
+  # diff PNGs are uploaded for inspection. Promote to a hard gate once CI-rendered baselines are the
+  # committed source of truth.
+  golden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Golden-image diff (headless Skia)
+        run: pnpm golden
+      - name: Upload golden diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: golden-diffs
+          path: scripts/golden/diff/
+          if-no-files-found: ignore

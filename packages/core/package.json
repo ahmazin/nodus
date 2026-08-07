@@ -30,8 +30,17 @@
   },
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "size": "size-limit"
   },
+  "size-limit": [
+    {
+      "name": "core ESM (gzip)",
+      "path": "dist/index.js",
+      "limit": "90 KB",
+      "gzip": true
+    }
+  ],
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",

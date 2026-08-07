@@ -44,8 +44,23 @@
   },
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "size": "size-limit"
   },
+  "size-limit": [
+    {
+      "name": "react binding ESM (gzip, peers external)",
+      "path": "dist/index.js",
+      "limit": "60 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "@nodus-dev/core",
+        "@nodus-dev/stencils"
+      ]
+    }
+  ],
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",
