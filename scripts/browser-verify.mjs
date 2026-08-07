@@ -612,6 +612,99 @@ async function main() {
     await tp.close();
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // PRR wave E3 — accessibility verification (A11Y-VERIFY lane). Runs axe-core (the bundled build,
+  // injected from node_modules — zero-network, no CDN, CSP-safe) against the shell chrome, plus a
+  // keyboard smoke proving Tab reaches the canvas selection and Escape is not a focus trap
+  // (WCAG 2.1.2 — the E2 keyboard-trap fix). Kept AFTER the touch block and BEFORE the twin-harness
+  // navigation so the main app page is still loaded.
+  // ---------------------------------------------------------------------------------------------
+
+  console.log('8l) a11y: axe-core reports no serious/critical violations in the shell chrome ...');
+  {
+    // Reload to a pristine shell — 8g–8k mutated the model heavily; axe should audit the clean UI.
+    await page.goto(URL, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.__editor, { timeout: 10000 });
+    await page.waitForTimeout(300);
+    // Inject the bundled axe source read from node_modules (no network — CSP/offline safe). Dynamic
+    // import of node:fs keeps this section fully self-contained.
+    const { readFileSync } = await import('node:fs');
+    const axeSource = readFileSync(join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
+    await page.addScriptTag({ content: axeSource });
+    assert(await page.evaluate(() => typeof window.axe?.run === 'function'), 'axe-core injected into the page');
+    // Audit the whole document but EXCLUDE the <canvas> — its pixels are opaque to axe and would
+    // only yield meaningless color-contrast noise. Report every violation for triage, but fail the
+    // gate only on serious/critical, which is the shell-chrome accessibility bar.
+    const axeResult = await page.evaluate(async () => {
+      const res = await window.axe.run(
+        { exclude: [['canvas']] },
+        {
+          resultTypes: ['violations'],
+          // rules that cannot meaningfully apply to a single-page canvas editor / are harness noise
+          rules: { region: { enabled: false }, 'page-has-heading-one': { enabled: false } },
+        },
+      );
+      return res.violations.map((v) => ({
+        id: v.id,
+        impact: v.impact,
+        help: v.help,
+        nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')),
+      }));
+    });
+    const serious = axeResult.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    if (serious.length) {
+      console.error('     axe serious/critical violations:');
+      for (const v of serious) console.error(`       [${v.impact}] ${v.id}: ${v.help} — e.g. ${v.nodes.join(', ')}`);
+    } else if (axeResult.length) {
+      // minor/moderate findings are surfaced for triage but do NOT fail the gate
+      console.log(`     (axe: ${axeResult.length} minor/moderate finding(s), not gating)`);
+    }
+    assert(serious.length === 0, `axe-core: 0 serious/critical violations in the shell chrome (found ${serious.length})`);
+    await page.screenshot({ path: join(OUT, 'verify-a11y.png') });
+  }
+
+  console.log('8m) a11y: keyboard reaches the canvas and Escape is not a focus trap ...');
+  {
+    await page.evaluate(() => window.__editor.select([]));
+    // Tab traversal must move focus INTO the canvas host (role=application) ...
+    await page.locator('[role="application"]').first().focus();
+    assert(
+      await page.evaluate(() => document.activeElement?.getAttribute('role') === 'application'),
+      'keyboard focus lands on the canvas host (role=application)',
+    );
+    // ... and Tab THROUGH the canvas cycles the selection via the reading-order traversal.
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(60);
+    const sel1 = await page.evaluate(() => window.__editor.selectedIdsArray().length);
+    assert(sel1 === 1, `Tab inside the canvas selects a node (selection size=${sel1})`);
+    const firstId = await page.evaluate(() => window.__editor.selectedIdsArray()[0]);
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(60);
+    const secondId = await page.evaluate(() => window.__editor.selectedIdsArray()[0]);
+    assert(!!secondId && secondId !== firstId, 'a second Tab advances the selection to the next node');
+    // The aria-live region must exist and announce the current selection for screen readers.
+    assert(
+      await page.evaluate(() => !!document.querySelector('[data-testid="nodus-selection-live"][aria-live="polite"]')),
+      'aria-live selection region exists',
+    );
+    {
+      const liveText = await page.evaluate(
+        () => document.querySelector('[data-testid="nodus-selection-live"]').textContent || '',
+      );
+      assert(/ of \d+/.test(liveText), `aria-live announces the Tab selection ("${liveText.trim()}")`);
+    }
+    // WCAG 2.1.2 — Escape must be able to move focus OUT of the canvas (the E2 keyboard-trap fix).
+    // First Escape clears the (Tab-built) selection; a second, now-empty Escape blurs the host.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(40);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(60);
+    assert(
+      await page.evaluate(() => document.activeElement?.getAttribute('role') !== 'application'),
+      'Escape (nothing selected) moves focus OUT of the canvas host — no keyboard trap',
+    );
+  }
+
   console.log('9b) keyboard-scope isolation (twin harness, keyboardScope="host") ...');
   await page.goto(URL + '?harness=twin', { waitUntil: 'networkidle' });
   await page.waitForFunction(
