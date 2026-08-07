@@ -22,7 +22,7 @@ origin. (In `dev`, `/playground/` is not served — run the editor separately wi
 
 ```
 apps/site/
-  astro.config.mjs        # static config; `site` = canonical origin (placeholder)
+  astro.config.mjs        # static config; `site` = host, `base` = /nodus/ (Pages subpath)
   src/
     config.ts             # SITE — single source of truth for every link + copy
     content/landing.html  # design body (framework-free markup), rendered via set:html
@@ -48,11 +48,17 @@ The design body is imported **raw** (`?raw`) and rendered with `set:html`, so th
 (`{ presets: [...] }`) are never parsed as Astro expressions. Links are `%%TOKENS%%` resolved from
 `config.ts` at build time.
 
-## ⚠️ Placeholder URLs
+## Links & the deploy base
 
-Every external link (GitHub org `nodus-dev`, domain `nodus.dev`, Discord) is a **placeholder** — those
-destinations do not exist yet. Edit **only** [`src/config.ts`](./src/config.ts) to make them real (and
-`site` in `astro.config.mjs` to match `origin`). `docs` and `playground` are intentionally same-origin
+Every link is resolved from a single source of truth, [`src/config.ts`](./src/config.ts) — edit only
+that file (and `site`/`base` in `astro.config.mjs`) to change destinations.
+
+The interim host is a GitHub Pages **project** site served under a subpath:
+`https://ahmazin.github.io/nodus/`. Because of the subpath, every in-app root-relative path must carry
+the deploy base (`/nodus/`). `config.ts` exports `withBase()` (for hand-written `href`/`src`) and
+`absoluteUrl()` (for canonical/OG/sitemap); use them instead of hand-writing `/nodus/…` or
+`new URL(path, origin)` (which drops the subpath). Astro auto-prefixes **bundled** assets (imported
+CSS/JS) with `base`; only hand-written links need `withBase()`. `docs` and `playground` are same-origin
 paths.
 
 ## Pages

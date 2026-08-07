@@ -1,6 +1,7 @@
 ---
 import SiteHead from '../components/SiteHead.astro';
-import { SITE } from '../config';
+import { SITE, withBase } from '../config';
+const home = withBase('/');
 ---
 
 <!doctype html>
@@ -12,7 +13,7 @@ import { SITE } from '../config';
     <div class="bg" aria-hidden="true"></div>
 
     <header class="hdr">
-      <a href="/" class="brand" aria-label="Nodus home">
+      <a href={home} class="brand" aria-label="Nodus home">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="5" cy="6.5" r="2.5" style="fill:var(--accent)"></circle>
           <circle cx="18.5" cy="6" r="2.3" style="stroke:var(--fg)" stroke-width="1.6"></circle>
@@ -41,7 +42,7 @@ import { SITE } from '../config';
       <h1>Off the graph.</h1>
       <p class="lede">That page has no edges — nothing here points to it. Let's get you back to a connected node.</p>
       <div class="actions">
-        <a href="/" class="cta">Back home <span aria-hidden="true">→</span></a>
+        <a href={home} class="cta">Back home <span aria-hidden="true">→</span></a>
         <a href={SITE.docs} class="ghost">Read the docs</a>
         <a href={SITE.playground} class="ghost">Try the demo</a>
       </div>

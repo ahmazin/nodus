@@ -10,7 +10,7 @@
   "includeVersion": false,
   "categorizeByGroup": true,
   "navigationLinks": {
-    "Docs": "/docs/",
+    "Docs": "https://ahmazin.github.io/nodus/docs/",
     "GitHub": "https://github.com/ahmazin/nodus"
   },
   "hideGenerator": true,

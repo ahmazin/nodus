@@ -2,7 +2,7 @@
 // Shared <head> for every page. Emits meta + OG + fonts + favicon + the anti-FOUC theme
 // script, and pulls in the shared theme stylesheet.
 import '../styles/theme.css';
-import { SITE } from '../config';
+import { SITE, withBase, absoluteUrl } from '../config';
 
 interface Props {
   title: string;
@@ -10,8 +10,10 @@ interface Props {
   path?: string;
 }
 const { title, description = SITE.description, path = '/' } = Astro.props;
-const canonical = new URL(path, SITE.origin).href;
-const ogImage = new URL('/og-image.png', SITE.origin).href;
+// Base-aware: absoluteUrl() folds in the /nodus/ subpath (new URL(path, origin) would drop it).
+const canonical = absoluteUrl(path);
+const ogImage = absoluteUrl('/og-image.png');
+const favicon = withBase('/favicon.svg');
 ---
 
 <meta charset="utf-8" />
@@ -19,7 +21,7 @@ const ogImage = new URL('/og-image.png', SITE.origin).href;
 <title>{title}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonical} />
-<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href={favicon} type="image/svg+xml" />
 <meta name="color-scheme" content="dark light" />
 <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)" />
 <meta name="theme-color" content="#f7f7f3" media="(prefers-color-scheme: light)" />
@@ -35,6 +37,10 @@ const ogImage = new URL('/og-image.png', SITE.origin).href;
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={ogImage} />
 
+<!-- Fonts: Space Grotesk + JetBrains Mono (both OFL-1.1). RESIDUAL (P3): self-host these
+     to remove third-party font egress (GDPR/offline). Vendor the .woff2 into
+     public/fonts/ and swap this CDN block for @font-face rules in theme.css. Left on the
+     Google CDN for now — font binaries are not committed (provenance). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link

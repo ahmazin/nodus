@@ -1,5 +1,5 @@
 ---
-import { SITE } from '../config';
+import { SITE, withBase, absoluteUrl } from '../config';
 import '../styles/theme.css'; // shared resets + theme tokens + toggle icon-swap
 // Raw design body (Claude-Design `Nodus.dc.html`, transformed to framework-free markup).
 // Imported raw so Astro does NOT parse the code-sample braces as `{expr}`.
@@ -18,14 +18,15 @@ const urls: Record<string, string> = {
   '%%NPM_PRESET_INFRA%%': SITE.npm.presetInfra,
   '%%NPM_MCP%%': SITE.npm.mcp,
   '%%NPM_ORG%%': SITE.npmOrg,
-  '%%DISCORD%%': SITE.discord,
 };
 let body = rawBody;
 for (const [token, value] of Object.entries(urls)) body = body.split(token).join(value);
 
 const title = `${SITE.name} — ${SITE.tagline} Headless diagram engine for TypeScript`;
-const ogImage = new URL('/og-image.png', SITE.origin).href;
-const canonical = new URL('/', SITE.origin).href;
+// Base-aware: fold in the /nodus/ subpath (new URL(path, origin) would drop it).
+const ogImage = absoluteUrl('/og-image.png');
+const canonical = absoluteUrl('/');
+const favicon = withBase('/favicon.svg');
 ---
 
 <!doctype html>
@@ -36,7 +37,7 @@ const canonical = new URL('/', SITE.origin).href;
     <title>{title}</title>
     <meta name="description" content={SITE.description} />
     <link rel="canonical" href={canonical} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={favicon} type="image/svg+xml" />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0a0b0e" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f7f7f3" media="(prefers-color-scheme: light)" />
@@ -55,7 +56,8 @@ const canonical = new URL('/', SITE.origin).href;
     <meta name="twitter:description" content={SITE.description} />
     <meta name="twitter:image" content={ogImage} />
 
-    <!-- Fonts (design system: Space Grotesk display, JetBrains Mono code) -->
+    <!-- Fonts (Space Grotesk display, JetBrains Mono code; both OFL-1.1).
+         RESIDUAL (P3): self-host to remove third-party egress — see SiteHead.astro. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
