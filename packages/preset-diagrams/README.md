@@ -56,8 +56,8 @@ and the image-node helpers (from `./image`).
 
 ## See also
 
-- [`@nodus-dev/from-mermaid`](https://github.com/ahmazin/nodus/tree/main/packages/from-mermaid) — reuses these builders to import Mermaid text.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`@nodus-dev/from-mermaid`](https://github.com/ahmazin/nodus/tree/mainline/packages/from-mermaid) — reuses these builders to import Mermaid text.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

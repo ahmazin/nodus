@@ -29,10 +29,10 @@ between nodes in a rank, default 44), `rankGap` (gap between ranks, default 90).
 
 ## See also
 
-- [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
-- Sibling adapters: [`@nodus-dev/layout-tree`](https://github.com/ahmazin/nodus/tree/main/packages/layout-tree) ·
-  [`@nodus-dev/layout-force`](https://github.com/ahmazin/nodus/tree/main/packages/layout-force) ·
-  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/main/packages/layout-elk).
+- [Extending Nodus → Layouts](https://ahmazin.github.io/nodus/docs/extending#3-layouts) — the layout extension axis.
+- Sibling adapters: [`@nodus-dev/layout-tree`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-tree) ·
+  [`@nodus-dev/layout-force`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-force) ·
+  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-elk).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

@@ -143,14 +143,14 @@ The engine renders identically without a DOM: inject any Canvas-2D factory (Node
 `@napi-rs/canvas`) and call `editor.toPNG(createCanvas)` — remember `GlobalFonts.loadSystemFonts()`
 first or labels render as boxes, and register the node types your document uses before loading it.
 The full recipe (fonts, presets, `LoadReport` diagnostics) lives in the
-[headless guide](https://nodus.dev/docs/headless).
+[headless guide](https://ahmazin.github.io/nodus/docs/headless).
 
 ## Stability
 
 Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only; canonical
 serialization bytes are themselves a breaking-change surface. Details in
-[stability policy](https://github.com/ahmazin/nodus/blob/main/docs/stability.md) and
-[RELEASING](https://github.com/ahmazin/nodus/blob/main/RELEASING.md).
+[stability policy](https://github.com/ahmazin/nodus/blob/mainline/docs/stability.md) and
+[RELEASING](https://github.com/ahmazin/nodus/blob/mainline/RELEASING.md).
 
 ## Git-native serialization
 

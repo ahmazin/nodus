@@ -3,7 +3,7 @@
 Freehand / sketch drawing for [Nodus](https://github.com/ahmazin/nodus) — a pen tool plus a `freehand` stroke node
 type, registered **entirely through the public plugin API**. It's the proof that a whole new
 interaction and a new node type need zero core changes, and the canonical worked example for
-[writing a plugin](https://nodus.dev/docs/extending#4-plugins). Each stroke is one undoable node; points are
+[writing a plugin](https://ahmazin.github.io/nodus/docs/extending#4-plugins). Each stroke is one undoable node; points are
 stored relative to the node origin so a stroke moves and undoes like any other node.
 
 ## Install
@@ -39,8 +39,8 @@ const dispose = editor.use(freehandPlugin);
 
 ## See also
 
-- [`docs/EXTENDING.md`](https://nodus.dev/docs/extending#4-plugins) — the plugin axis and the `EngineHost` surface.
-- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`docs/EXTENDING.md`](https://ahmazin.github.io/nodus/docs/extending#4-plugins) — the plugin axis and the `EngineHost` surface.
+- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

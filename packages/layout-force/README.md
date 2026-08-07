@@ -29,10 +29,10 @@ graph are pinned. The engine id is `'force'`. `forceLayout` is also the default 
 
 ## See also
 
-- [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
-- Sibling adapters: [`@nodus-dev/layout-dagre`](https://github.com/ahmazin/nodus/tree/main/packages/layout-dagre) ·
-  [`@nodus-dev/layout-tree`](https://github.com/ahmazin/nodus/tree/main/packages/layout-tree) ·
-  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/main/packages/layout-elk).
+- [Extending Nodus → Layouts](https://ahmazin.github.io/nodus/docs/extending#3-layouts) — the layout extension axis.
+- Sibling adapters: [`@nodus-dev/layout-dagre`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-dagre) ·
+  [`@nodus-dev/layout-tree`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-tree) ·
+  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-elk).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>
