@@ -213,6 +213,10 @@ export interface PointerMods {
   shift?: boolean;
   meta?: boolean;
   alt?: boolean;
+  /** Hit-test radius for this pointer, in **screen pixels** (converted to world units by the camera
+   *  zoom at test time). Defaults to `5`. Hosts widen it for coarse pointers — e.g. touch passes a
+   *  fatter radius so fat-finger taps still land on thin edges and small nodes. */
+  tolerance?: number;
 }
 
 export interface ConnectDraft {
@@ -389,6 +393,12 @@ export class Editor implements EngineHost {
   readonly editingAtom: Atom<Id | null> = atom<Id | null>(null);
   readonly marqueeAtom: Atom<Box | null> = atom<Box | null>(null);
   readonly connectDraftAtom: Atom<ConnectDraft | null> = atom<ConnectDraft | null>(null);
+  /** Keyboard-authoring "connect from selection" source node, or `null` when no such gesture is
+   *  active. SEPARATE from {@link connectDraftAtom} (which the renderer consumes for the live
+   *  pointer-drag connection preview): this one is driven by {@link beginConnectFromSelection} /
+   *  {@link commitPendingConnect} / {@link cancelPendingConnect} and lets any host wire the
+   *  "press-to-connect, step-to-target, commit" flow without re-implementing its state. */
+  readonly pendingConnectAtom: Atom<Id | null> = atom<Id | null>(null);
   readonly createPreviewAtom: Atom<Box | null> = atom<Box | null>(null);
   readonly overlaysAtom: Atom<OverlayLayer[]> = atom<OverlayLayer[]>([]);
   readonly snapGuidesAtom: Atom<Guide[]> = atom<Guide[]>([]);
@@ -1726,6 +1736,58 @@ export class Editor implements EngineHost {
     }
     return next.id;
   }
+
+  // ==========================================================================
+  // keyboard-authoring: connect-from-selection (portable across hosts)
+  // ==========================================================================
+
+  /**
+   * Begin a "connect from selection" gesture: when exactly one selected node is connectable
+   * ({@link canConnectTo}), record it as the pending source in {@link pendingConnectAtom} and return
+   * `true`; otherwise leave the atom untouched and return `false`. From here a host steps the target
+   * selection with {@link stepPendingConnect} and finishes with {@link commitPendingConnect} /
+   * {@link cancelPendingConnect}. State lives in the engine so any host (not just the React binding)
+   * gets the flow for free; hosts layer their own affordance (e.g. an aria-live announcement).
+   */
+  beginConnectFromSelection(): boolean {
+    const sel = this.selectedIdsArray();
+    if (sel.length === 1 && this.canConnectTo(sel[0]!)) {
+      this.pendingConnectAtom.set(sel[0]!);
+      return true;
+    }
+    return false;
+  }
+
+  /** Move the candidate target during a pending connect — reading-order traversal via
+   *  {@link selectNextNode}. Returns the newly-selected node id, or `null` when there are no nodes. */
+  stepPendingConnect(dir: 1 | -1): Id | null {
+    return this.selectNextNode(dir);
+  }
+
+  /**
+   * Commit a pending connect: draw an edge from the recorded source to the currently-selected target
+   * when {@link connectAllowed} accepts the pair. Clears {@link pendingConnectAtom} regardless (no-op
+   * when there is no pending source, when no valid target is selected, or when the target is the
+   * source itself). Returns whether an edge was actually created.
+   */
+  commitPendingConnect(): boolean {
+    const src = this.pendingConnectAtom.peek();
+    if (!src) return false;
+    const to = this.selectedIdsArray()[0];
+    this.pendingConnectAtom.set(null);
+    if (!to || to === src) return false;
+    const from: Endpoint = { kind: 'node', nodeId: src as Id<'node'> };
+    const toEp: Endpoint = { kind: 'node', nodeId: to as Id<'node'> };
+    if (!this.connectAllowed(from, toEp)) return false;
+    this.connect(from, toEp);
+    return true;
+  }
+
+  /** Cancel a pending connect, clearing {@link pendingConnectAtom} without creating an edge. */
+  cancelPendingConnect(): void {
+    this.pendingConnectAtom.set(null);
+  }
+
   private emitSelection(): void {
     this.events.emit({ type: 'selection', ids: [...this.selectedAtom.peek()] });
   }
@@ -3230,7 +3292,7 @@ export class Editor implements EngineHost {
       shift: mods.shift ?? false,
       meta: mods.meta ?? false,
       alt: mods.alt ?? false,
-      target: this.sceneIndex.hitTest(world, 5 / this.camera.z),
+      target: this.sceneIndex.hitTest(world, (mods.tolerance ?? 5) / this.camera.z),
     };
   }
   pointerDown(screen: Vec2, mods: PointerMods = {}): void {

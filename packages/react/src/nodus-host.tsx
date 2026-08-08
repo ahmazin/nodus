@@ -26,7 +26,6 @@ import {
   type Ctx2D,
   type DeepPartial,
   type Editor,
-  type Endpoint,
   type Id,
   type NodeRecord,
   type RenderItem,
@@ -36,7 +35,7 @@ import { NodusContextMenu, type MenuItem } from './context-menu.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
 import { pasteFromSystem } from './clipboard.js';
 import { useMessages, type ReactMessages } from './messages.js';
-import { pinchDelta, pinchSample, type PinchSample, type TouchPoint } from './touch.js';
+import { pinchDelta, pinchSample, TOUCH_HIT_TOL, type PinchSample, type TouchPoint } from './touch.js';
 
 export interface NodusProps {
   editor: Editor;
@@ -255,31 +254,16 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
     let pinch: PinchSample | null = null;
     let suppressTool = false;
 
-    // ---- keyboard authoring: connect-from-selection mode (host-side; no core state needed) ----
-    // When set, Tab/arrows move a *candidate* target selection and Enter commits an edge from this
-    // source node to it; Escape cancels. Announced via the aria-live region.
-    let connectFrom: Id | null = null;
+    // ---- keyboard authoring: connect-from-selection mode ----
+    // State + logic live in the engine (editor.pendingConnectAtom + begin/step/commit/cancel), so any
+    // host gets the flow; the announcement below is the only host-side (presentation) piece — it reads
+    // the pending source from the atom and speaks the aria-live prompt.
     const announceConnect = (): void => {
-      if (!connectFrom) return;
-      const rec = editor.store.peek(connectFrom);
+      const src = editor.pendingConnectAtom.peek();
+      if (!src) return;
+      const rec = editor.store.peek(src);
       const label = (rec && 'label' in rec && rec.label?.trim()) || (rec && 'type' in rec ? rec.type : 'node');
       setSrMessage(fmt(messagesRef.current.host.connectPrompt, { label }));
-    };
-    const cancelConnect = (): void => {
-      if (!connectFrom) return;
-      connectFrom = null;
-      setSrMessage('');
-    };
-    const commitConnect = (): void => {
-      if (!connectFrom) return;
-      const to = editor.selectedIdsArray()[0];
-      const src = connectFrom;
-      connectFrom = null;
-      setSrMessage('');
-      if (!to || to === src) return;
-      const from: Endpoint = { kind: 'node', nodeId: src as Id<'node'> };
-      const toEp: Endpoint = { kind: 'node', nodeId: to as Id<'node'> };
-      if (editor.connectAllowed(from, toEp)) editor.connect(from, toEp);
     };
     // Drop a default node at the viewport center (Enter while the Create tool is active).
     const createAtViewportCenter = (): void => {
@@ -332,6 +316,9 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
       shift: e.shiftKey,
       meta: e.metaKey || e.ctrlKey,
       alt: e.altKey,
+      // Coarse (touch) pointers get a fatter hit radius so fat-finger taps still land on thin edges
+      // and small nodes; mouse/pen keep the core default.
+      tolerance: e.pointerType === 'touch' ? TOUCH_HIT_TOL : undefined,
     });
 
     const onPointerDown = (e: PointerEvent): void => {
@@ -443,14 +430,14 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
       }
       // ---- connect-from-selection: while active, Tab/arrows pick the target and Enter commits an
       //      edge from the source; Escape cancels. Reuses the reading-order traversal (selectNextNode). ----
-      if (connectFrom) {
-        if (e.key === 'Escape') { e.preventDefault(); cancelConnect(); return; }
-        if (e.key === 'Enter') { e.preventDefault(); commitConnect(); return; }
+      if (editor.pendingConnectAtom.peek()) {
+        if (e.key === 'Escape') { e.preventDefault(); editor.cancelPendingConnect(); setSrMessage(''); return; }
+        if (e.key === 'Enter') { e.preventDefault(); editor.commitPendingConnect(); setSrMessage(''); return; }
         if (e.key === 'Tab' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
           const dir = e.key === 'Tab' ? (e.shiftKey ? -1 : 1) : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1;
-          editor.selectNextNode(dir);
-          announceConnect(); // wins over the plain selection announcement fired by selectNextNode
+          editor.stepPendingConnect(dir);
+          announceConnect(); // wins over the plain selection announcement fired by stepPendingConnect
           return;
         }
       }
@@ -513,10 +500,8 @@ export const Nodus = forwardRef<NodusHandle, NodusProps>(function Nodus(
       }
       // 'c' begins connect-from-selection when exactly one connectable node is selected.
       if (!meta && (e.key === 'c' || e.key === 'C') && document.activeElement === host) {
-        const sel = editor.selectedIdsArray();
-        if (sel.length === 1 && editor.canConnectTo(sel[0]!)) {
+        if (editor.beginConnectFromSelection()) {
           e.preventDefault();
-          connectFrom = sel[0]!;
           announceConnect();
           return;
         }
