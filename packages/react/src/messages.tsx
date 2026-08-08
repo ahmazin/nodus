@@ -66,6 +66,290 @@ export interface ReactMessages {
     /** Empty-results text. */
     empty: string;
   };
+  /** Source / code panel — the editable document-JSON view. */
+  codePanel: {
+    /** aria-label on the panel region. */
+    regionLabel: string;
+    /** Panel heading / tab title. */
+    title: string;
+    /** aria-label on the JSON `<textarea>`. */
+    editorLabel: string;
+    /** Parse-error banner with a line number. Token: `{line}`. */
+    parseErrorLine: string;
+    /** Parse-error banner without a line number. */
+    parseError: string;
+    /** Status pill while the user is editing (unsynced). */
+    statusEditing: string;
+    /** Status pill when the editor matches the document. */
+    statusSynced: string;
+  };
+  /** Minimap overview control. */
+  minimap: {
+    /** aria-label on the minimap. */
+    label: string;
+  };
+  /** Template gallery (new-document starting points). */
+  templates: {
+    /** The empty-canvas / no-template option. */
+    blank: string;
+    /** Empty-state when no templates are registered. */
+    empty: string;
+  };
+  /** Cloud-icon picker (AWS/Azure/GCP service glyphs). */
+  cloudIcons: {
+    /** aria-label on the picker trigger. */
+    triggerLabel: string;
+    /** Visible label on the picker trigger. */
+    trigger: string;
+    /** Search input placeholder. */
+    searchPlaceholder: string;
+    /** aria-label on the clear-search button. */
+    clearSearch: string;
+    /** Result count. Token: `{count}`. */
+    servicesCount: string;
+    /** Recently-used section heading. */
+    recent: string;
+    /** Empty-results text. Tokens: `{provider}`, `{query}`. */
+    empty: string;
+  };
+  /** Stencil picker (reusable saved selections + built-in shapes). */
+  stencils: {
+    /** Visible label on the picker trigger. */
+    trigger: string;
+    /** Search input placeholder. */
+    searchPlaceholder: string;
+    /** aria-label on the clear-search button. */
+    clearSearch: string;
+    /** Save-hint when nothing is selected on the canvas. */
+    saveHintEmpty: string;
+    /** Save-hint for the current selection. Token: `{count}`. */
+    saveHint: string;
+    /** Save-selection button label. */
+    saveButton: string;
+    /** Empty-results text for a search. Token: `{query}`. */
+    emptyQuery: string;
+    /** Empty-state when no stencils exist. */
+    empty: string;
+    /** Recently-used section heading. */
+    recent: string;
+    /** aria-label on the recent-stencils region. */
+    recentLabel: string;
+    /** Footer help/keyboard hint. Tokens: `{count}`, `{total}`. */
+    footerHelp: string;
+  };
+  /** Git-review / version-history chrome (in-app diff & merge). */
+  review: {
+    /** title on the in-memory branch chip. */
+    branchChipTitle: string;
+    /** title on the pending-changes pill. Tokens: `{adds}`, `{dels}`. */
+    pillTitle: string;
+    /** title on the save-version button. */
+    saveVersionTitle: string;
+    /** Save-version button label. */
+    saveVersion: string;
+    /** title on the history button. */
+    historyTitle: string;
+    /** History button label. */
+    history: string;
+    /** Review button label. */
+    review: string;
+    /** aria-label on the review dialog. Token: `{branch}`. */
+    dialogLabel: string;
+    /** Review-dialog heading. */
+    heading: string;
+    /** Change summary. Tokens: `{added}`, `{removed}`, `{changed}`. */
+    summary: string;
+    /** aria-label on the close-review button. */
+    closeReview: string;
+    /** No-changes empty-state. Token: `{branch}`. */
+    noChanges: string;
+    /** title on the discard button before confirmation. */
+    confirmDiscard: string;
+    /** Discard button label. */
+    discard: string;
+    /** Close button label. */
+    close: string;
+    /** Approve-and-merge button label. */
+    approveMerge: string;
+    /** aria-label on the history dialog. Token: `{branch}`. */
+    historyDialogLabel: string;
+    /** Back-navigation label. */
+    back: string;
+    /** Version-to-current diff label. Token: `{label}`. */
+    versionToCurrent: string;
+    /** History-dialog heading. */
+    versionHistory: string;
+    /** Saved-version count. Token: `{count}`. */
+    versionCount: string;
+    /** aria-label on the close-history button. */
+    closeHistory: string;
+    /** No-differences empty-state for a version diff. */
+    noDifferences: string;
+    /** No-versions empty-state. Token: `{branch}`. */
+    noVersions: string;
+    /** View-diff action label. */
+    viewDiff: string;
+    /** Restore action label. */
+    restore: string;
+    /** title on the restore button. */
+    restoreThis: string;
+  };
+  /** Properties / style inspector panel. */
+  properties: {
+    /** Duplicate action label. */
+    actionDuplicate: string;
+    /** Bring-to-front action label. */
+    actionBringToFront: string;
+    /** Send-to-back action label. */
+    actionSendToBack: string;
+    /** Lock action label. */
+    actionLock: string;
+    /** Unlock action label. */
+    actionUnlock: string;
+    /** Delete action label. */
+    actionDelete: string;
+    /** aria-label on a color swatch. Tokens: `{name}`, `{color}`. */
+    swatchLabel: string;
+    /** aria-label on a custom-color input. Token: `{name}`. */
+    customColor: string;
+    /** aria-label on the X-position input. */
+    posX: string;
+    /** aria-label on the Y-position input. */
+    posY: string;
+    /** Width field label. */
+    width: string;
+    /** Height field label. */
+    height: string;
+    /** aria-label on the panel region. */
+    regionLabel: string;
+    /** Position section heading. */
+    position: string;
+    /** Fill field label. */
+    fill: string;
+    /** Stroke field label. */
+    stroke: string;
+    /** Stroke-width field label. */
+    strokeWidth: string;
+    /** Opacity field label. */
+    opacity: string;
+    /** Stroke-style field label. */
+    strokeStyle: string;
+    /** Roughness field label. */
+    roughness: string;
+    /** aria-label on the roughness control. */
+    roughnessLabel: string;
+    /** Text field label. */
+    text: string;
+    /** Text-color field label. */
+    textColor: string;
+    /** State field label. */
+    state: string;
+    /** aria-label on the state control. */
+    stateLabel: string;
+    /** Multi-selection heading. Token: `{count}`. */
+    multiSelect: string;
+  };
+  /** Flow / animated-edge controls. */
+  flow: {
+    /** Panel heading. Token: `{count}`. */
+    heading: string;
+    /** Animate toggle label. */
+    animate: string;
+    /** Style field label. */
+    style: string;
+    /** Speed field label. */
+    speed: string;
+    /** Size field label. */
+    size: string;
+    /** Count field label. */
+    count: string;
+    /** Reverse toggle label. */
+    reverse: string;
+    /** Rate field label. */
+    rate: string;
+    /** Rate input placeholder. */
+    ratePlaceholder: string;
+    /** Color field label. */
+    color: string;
+    /** title on the reset-color button. */
+    resetColorTitle: string;
+    /** Reset-color button label. */
+    reset: string;
+    /** Advanced / data-driven section heading. */
+    advanced: string;
+    /** Flow-off state label. */
+    off: string;
+    /** Color-stops section heading. */
+    colorStops: string;
+    /** Remove-stop button label. */
+    removeStop: string;
+    /** aria-label on a remove-stop button. Token: `{n}`. */
+    removeStopN: string;
+    /** Add-stop button label. */
+    addStop: string;
+    /** Metric field label. */
+    metric: string;
+  };
+  /** Zoom controls group. */
+  zoom: {
+    /** aria-label on the group. */
+    groupLabel: string;
+    /** Zoom-out button label. */
+    out: string;
+    /** aria-label on the zoom-level reset button. Token: `{pct}`. */
+    resetLabel: string;
+    /** title on the zoom-level reset button. */
+    resetTitle: string;
+    /** Zoom-in button label. */
+    in: string;
+    /** Fit-to-content button label. */
+    fit: string;
+  };
+  /** Undo/redo controls group. */
+  history: {
+    /** aria-label on the group. */
+    groupLabel: string;
+    /** Undo button label. */
+    undo: string;
+    /** title on the undo button. */
+    undoTitle: string;
+    /** Redo button label. */
+    redo: string;
+    /** title on the redo button. */
+    redoTitle: string;
+  };
+  /** Theme toggle. */
+  theme: {
+    /** aria-label when the current theme is dark (action switches to light). */
+    toLight: string;
+    /** aria-label when the current theme is light (action switches to dark). */
+    toDark: string;
+    /** title when the current theme is dark. */
+    lightTitle: string;
+    /** title when the current theme is light. */
+    darkTitle: string;
+  };
+  /** Tool palette (drawing/selection tools). */
+  toolPalette: {
+    /** aria-label on the palette. */
+    label: string;
+  };
+  /** Main toolbar. */
+  toolbar: {
+    /** aria-label on the toolbar. */
+    label: string;
+  };
+  /** Keyboard-shortcuts dialog. */
+  shortcuts: {
+    /** Dialog heading. */
+    title: string;
+    /** Close button label. */
+    close: string;
+    /** aria-label on the open button. */
+    buttonLabel: string;
+    /** title on the open button. */
+    buttonTitle: string;
+  };
 }
 
 /** The English defaults. A locale copies this shape, translates the values, and passes it back. */
@@ -99,6 +383,155 @@ export const defaultReactMessages: ReactMessages = {
     searchLabel: 'Search commands',
     listLabel: 'Commands',
     empty: 'No matching commands',
+  },
+  codePanel: {
+    regionLabel: 'Document source (JSON)',
+    title: 'Source',
+    editorLabel: 'Editable document JSON',
+    parseErrorLine: 'Parse error · line {line}',
+    parseError: 'Parse error',
+    statusEditing: 'Editing…',
+    statusSynced: 'Synced',
+  },
+  minimap: {
+    label: 'Minimap — drag to pan the viewport',
+  },
+  templates: {
+    blank: 'Blank canvas',
+    empty: 'No templates available',
+  },
+  cloudIcons: {
+    triggerLabel: 'Cloud icons',
+    trigger: 'Cloud icons',
+    searchPlaceholder: 'Search services… (lambda, database, gcp)',
+    clearSearch: 'Clear search',
+    servicesCount: '{count} services',
+    recent: 'Recent',
+    empty: 'No {provider}services match "{query}"',
+  },
+  stencils: {
+    trigger: 'Stencils',
+    searchPlaceholder: 'Search stencils… (box, note, flowchart)',
+    clearSearch: 'Clear search',
+    saveHintEmpty: 'Select something on the canvas first',
+    saveHint: 'Save {count} selected as a stencil',
+    saveButton: 'Save selection as stencil',
+    emptyQuery: 'No stencils match "{query}"',
+    empty: 'No stencils available',
+    recent: 'Recent',
+    recentLabel: 'Recent stencils',
+    footerHelp: '{count} of {total} · ↑↓←→ to move · Enter to add · drag to place',
+  },
+  review: {
+    branchChipTitle: 'In-memory main branch',
+    pillTitle: '{adds} added, {dels} removed line(s) — open review',
+    saveVersionTitle: 'Save the current document as a version',
+    saveVersion: 'Save version',
+    historyTitle: 'Browse and restore saved versions',
+    history: 'History',
+    review: 'Review',
+    dialogLabel: 'Review changes against {branch}',
+    heading: 'Review changes',
+    summary: '{added} added · {removed} removed · {changed} changed',
+    closeReview: 'Close review',
+    noChanges: 'No changes — working tree matches {branch}.',
+    confirmDiscard: 'Confirm discard',
+    discard: 'Discard',
+    close: 'Close',
+    approveMerge: 'Approve & merge',
+    historyDialogLabel: 'Version history for {branch}',
+    back: '← Back',
+    versionToCurrent: '{label} → current',
+    versionHistory: 'Version history',
+    versionCount: '{count} versions',
+    closeHistory: 'Close history',
+    noDifferences: 'No differences — this version matches the current document.',
+    noVersions: 'No saved versions yet — Save version, or Approve & merge to snapshot {branch}.',
+    viewDiff: 'View diff',
+    restore: 'Restore',
+    restoreThis: 'Restore this version',
+  },
+  properties: {
+    actionDuplicate: 'Duplicate',
+    actionBringToFront: 'Bring to front',
+    actionSendToBack: 'Send to back',
+    actionLock: 'Lock',
+    actionUnlock: 'Unlock',
+    actionDelete: 'Delete',
+    swatchLabel: '{name} {color}',
+    customColor: 'Custom {name} color',
+    posX: 'X position',
+    posY: 'Y position',
+    width: 'Width',
+    height: 'Height',
+    regionLabel: 'Element style properties',
+    position: 'Position',
+    fill: 'Fill',
+    stroke: 'Stroke',
+    strokeWidth: 'Stroke width',
+    opacity: 'Opacity',
+    strokeStyle: 'Stroke style',
+    roughness: 'Roughness',
+    roughnessLabel: 'Roughness (hand-drawn style)',
+    text: 'Text',
+    textColor: 'Text color',
+    state: 'State',
+    stateLabel: 'Node visual state',
+    multiSelect: '{count} selected',
+  },
+  flow: {
+    heading: 'Flow · {count} edges',
+    animate: 'Animate',
+    style: 'Style',
+    speed: 'Speed',
+    size: 'Size',
+    count: 'Count',
+    reverse: 'Reverse',
+    rate: 'Rate',
+    ratePlaceholder: 'e.g. 350 req/s',
+    color: 'Color',
+    resetColorTitle: 'Reset to edge stroke',
+    reset: 'reset',
+    advanced: 'Advanced · data-driven',
+    off: 'flow off',
+    colorStops: 'Color stops',
+    removeStop: 'Remove stop',
+    removeStopN: 'Remove color stop {n}',
+    addStop: '+ Add stop',
+    metric: 'Metric',
+  },
+  zoom: {
+    groupLabel: 'Zoom',
+    out: 'Zoom out',
+    resetLabel: 'Zoom {pct}% — reset to 100%',
+    resetTitle: 'Reset zoom to 100%',
+    in: 'Zoom in',
+    fit: 'Fit to content',
+  },
+  history: {
+    groupLabel: 'History',
+    undo: 'Undo',
+    undoTitle: 'Undo (⌘Z)',
+    redo: 'Redo',
+    redoTitle: 'Redo (⇧⌘Z)',
+  },
+  theme: {
+    toLight: 'Switch to light theme',
+    toDark: 'Switch to dark theme',
+    lightTitle: 'Light theme',
+    darkTitle: 'Dark theme',
+  },
+  toolPalette: {
+    label: 'Tools',
+  },
+  toolbar: {
+    label: 'Main toolbar',
+  },
+  shortcuts: {
+    title: 'Keyboard shortcuts',
+    close: 'Close',
+    buttonLabel: 'Keyboard shortcuts',
+    buttonTitle: 'Keyboard shortcuts (?)',
   },
 };
 

@@ -24,9 +24,10 @@ import {
   type CSSProperties,
   type UIEvent,
 } from 'react';
-import type { Editor } from '@nodus-dev/core';
+import { fmt, type DeepPartial, type Editor } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { useUiTokens } from './ui/tokens.js';
+import { useMessages, type ReactMessages } from './messages.js';
 import {
   applySource,
   editorToSource,
@@ -42,10 +43,13 @@ type SyncStatus = 'synced' | 'editing' | 'error';
 export interface CodePanelProps {
   editor: Editor;
   style?: CSSProperties;
+  /** Localized string overrides for this panel (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
-export function CodePanel({ editor, style }: CodePanelProps): JSX.Element {
+export function CodePanel({ editor, style, messages }: CodePanelProps): JSX.Element {
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).codePanel;
 
   const [draft, setDraft] = useState<string>(() => editorToSource(editor));
   const [status, setStatus] = useState<SyncStatus>('synced');
@@ -134,7 +138,7 @@ export function CodePanel({ editor, style }: CodePanelProps): JSX.Element {
   const mono = t.font.mono;
 
   // ---- styling (rebuilt per render so the panel re-skins with the theme) ----
-  const pill = statusPill(status, errorLine, t);
+  const pill = statusPill(status, errorLine, t, m);
 
   const root: CSSProperties = {
     display: 'flex',
@@ -211,10 +215,10 @@ export function CodePanel({ editor, style }: CodePanelProps): JSX.Element {
   };
 
   return (
-    <div data-testid="code-panel" role="region" aria-label="Document source (JSON)" style={root}>
+    <div data-testid="code-panel" role="region" aria-label={m.regionLabel} style={root}>
       <div style={header}>
         <span style={{ fontFamily: mono, fontSize: '11px', letterSpacing: '.06em', textTransform: 'uppercase', color: t.color.textFaint }}>
-          Source
+          {m.title}
         </span>
         <span style={{ marginLeft: 'auto' }} />
         <span
@@ -255,7 +259,7 @@ export function CodePanel({ editor, style }: CodePanelProps): JSX.Element {
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          aria-label="Editable document JSON"
+          aria-label={m.editorLabel}
           aria-invalid={status === 'error'}
           style={textarea}
         />
@@ -273,10 +277,15 @@ interface Pill {
 }
 
 /** Map the sync status to the status-pill's label + colors (green / amber / red). */
-function statusPill(status: SyncStatus, errorLine: number | null, t: ReturnType<typeof useUiTokens>): Pill {
+function statusPill(
+  status: SyncStatus,
+  errorLine: number | null,
+  t: ReturnType<typeof useUiTokens>,
+  m: ReactMessages['codePanel'],
+): Pill {
   if (status === 'error') {
     return {
-      label: errorLine != null ? `Parse error · line ${errorLine}` : 'Parse error',
+      label: errorLine != null ? fmt(m.parseErrorLine, { line: errorLine }) : m.parseError,
       fg: t.color.danger,
       bg: 'transparent',
       border: t.color.danger,
@@ -285,10 +294,10 @@ function statusPill(status: SyncStatus, errorLine: number | null, t: ReturnType<
   }
   if (status === 'editing') {
     const amber = '#f0a53e';
-    return { label: 'Editing…', fg: amber, bg: 'transparent', border: amber, dot: amber };
+    return { label: m.statusEditing, fg: amber, bg: 'transparent', border: amber, dot: amber };
   }
   return {
-    label: 'Synced',
+    label: m.statusSynced,
     fg: t.color.accent,
     bg: t.color.selection,
     border: t.color.accent,

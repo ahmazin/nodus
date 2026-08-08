@@ -5,10 +5,11 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react';
-import type { Editor } from '@nodus-dev/core';
+import { fmt, type DeepPartial, type Editor } from '@nodus-dev/core';
 import { Button, Divider, IconButton } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
 import { useValue } from '../../use-value.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 import { FitIcon, MinusIcon, PlusIcon } from './icons.js';
 
 /** Multiplicative step per −/＋ press. */
@@ -19,12 +20,15 @@ export interface ZoomControlsProps {
   tokens?: UiTokens;
   /** Padding passed to `zoomToFit` (default 64). */
   fitPadding?: number;
+  /** Localized string overrides for these controls (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   style?: CSSProperties;
 }
 
-export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomControlsProps): ReactElement {
+export function ZoomControls({ editor, tokens, fitPadding = 64, messages, style }: ZoomControlsProps): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).zoom;
   const zoom = useValue(() => editor.cameraAtom.get().z);
   const pct = Math.round(zoom * 100);
 
@@ -51,13 +55,13 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
   const zBtnStyle: CSSProperties = { width: 28, height: 28, color: t.color.textMuted };
 
   return (
-    <div data-nodus-ui="" role="group" aria-label="Zoom" style={containerStyle}>
+    <div data-nodus-ui="" role="group" aria-label={m.groupLabel} style={containerStyle}>
       <IconButton
         tokens={t}
         size="sm"
         icon={<MinusIcon />}
-        aria-label="Zoom out"
-        title="Zoom out"
+        aria-label={m.out}
+        title={m.out}
         onClick={() => editor.zoomBy(1 / STEP)}
         style={zBtnStyle}
       />
@@ -65,8 +69,8 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         tokens={t}
         variant="ghost"
         size="sm"
-        aria-label={`Zoom ${pct}% — reset to 100%`}
-        title="Reset zoom to 100%"
+        aria-label={fmt(m.resetLabel, { pct })}
+        title={m.resetTitle}
         onClick={resetTo100}
         style={{
           minWidth: 52,
@@ -84,8 +88,8 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         tokens={t}
         size="sm"
         icon={<PlusIcon />}
-        aria-label="Zoom in"
-        title="Zoom in"
+        aria-label={m.in}
+        title={m.in}
         onClick={() => editor.zoomBy(STEP)}
         style={zBtnStyle}
       />
@@ -94,8 +98,8 @@ export function ZoomControls({ editor, tokens, fitPadding = 64, style }: ZoomCon
         tokens={t}
         size="sm"
         icon={<FitIcon />}
-        aria-label="Fit to content"
-        title="Fit to content"
+        aria-label={m.fit}
+        title={m.fit}
         onClick={() => editor.zoomToFit(fitPadding)}
         style={zBtnStyle}
       />

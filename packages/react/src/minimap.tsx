@@ -1,7 +1,8 @@
 /** A minimap overlay: a scaled view of the whole scene with a draggable viewport indicator. */
 import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
-import { effect, type Box, type Editor } from '@nodus-dev/core';
+import { effect, type Box, type DeepPartial, type Editor } from '@nodus-dev/core';
 import { modeOfTheme, uiTokensFor, useUiTokens } from './ui/tokens.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 /**
  * A tiny version-keyed memo. Returns a getter that recomputes only when the passed `version` differs
@@ -27,11 +28,14 @@ export interface MinimapProps {
   height?: number;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this control (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
-export function Minimap({ editor, width = 200, height = 140, className, style }: MinimapProps): ReactElement {
+export function Minimap({ editor, width = 200, height = 140, className, style, messages }: MinimapProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).minimap;
   // Persist the bounds cache across renders/redraws; contentBounds() spreads the whole item map, so
   // caching it by scene version keeps a drag (many pointermove → recenter → fit calls) allocation-free.
   const boundsCacheRef = useRef<((version: number, compute: () => Box | null) => Box | null) | null>(null);
@@ -157,7 +161,7 @@ export function Minimap({ editor, width = 200, height = 140, className, style }:
       ref={canvasRef}
       data-nodus-ui=""
       className={className}
-      aria-label="Minimap — drag to pan the viewport"
+      aria-label={m.label}
       style={{
         width,
         height,

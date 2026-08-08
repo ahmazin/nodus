@@ -5,11 +5,12 @@
  * center. Decoupled from @nodus-dev/icons-cloud — the catalog arrives as a prop.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { getIcon, type Ctx2D, type Editor } from '@nodus-dev/core';
+import { fmt, getIcon, type Ctx2D, type DeepPartial, type Editor } from '@nodus-dev/core';
 import { getCanvas } from './canvas-registry.js';
 import { catalogCounts, filterCatalog, type IconCatalogEntry, type ProviderFilter } from './cloud-icon-catalog.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 export interface CloudIconPickerProps {
   editor: Editor;
@@ -33,6 +34,8 @@ export interface CloudIconPickerProps {
   /** Style override for the trigger button (e.g. a square rail button). An `open` accent is layered
    *  on top so the toggle still shows its active state. */
   triggerStyle?: CSSProperties;
+  /** Localized string overrides for this picker (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 const TILE = 46; // preview size in css px
@@ -215,8 +218,9 @@ function Preview({ name, color }: { name: string; color: string }): ReactElement
   return <canvas ref={ref} style={{ width: TILE, height: TILE, display: 'block' }} />;
 }
 
-export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popover', triggerContent, triggerTitle, triggerStyle }: CloudIconPickerProps): ReactElement {
+export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popover', triggerContent, triggerTitle, triggerStyle, messages }: CloudIconPickerProps): ReactElement {
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).cloudIcons;
   const S = buildStyles(t, variant);
   const inline = variant === 'inline';
   // Monochrome-glyph fallback tint: caller override wins, else the themed text color so glyphs stay
@@ -346,7 +350,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
         aria-expanded={open}
         aria-haspopup="listbox"
         title={triggerTitle}
-        aria-label={triggerContent ? (triggerTitle ?? 'Cloud icons') : undefined}
+        aria-label={triggerContent ? (triggerTitle ?? m.triggerLabel) : undefined}
         style={
           triggerContent
             ? { ...triggerStyle, ...(open ? { borderColor: t.color.accent, color: t.color.accent } : null) }
@@ -356,7 +360,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
         }
         onClick={() => setOpen((o) => !o)}
       >
-        {triggerContent ?? 'Cloud icons ▾'}
+        {triggerContent ?? <>{m.trigger} ▾</>}
       </button>
       {open && (
         <div data-testid="cloud-picker-panel" style={S.panel} onPointerDown={(e) => e.stopPropagation()}>
@@ -366,7 +370,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
               ref={inputRef}
               data-testid="cloud-picker-search"
               style={S.input}
-              placeholder="Search services… (lambda, database, gcp)"
+              placeholder={m.searchPlaceholder}
               value={query}
               role="combobox"
               aria-expanded
@@ -397,8 +401,8 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
                 data-testid="cloud-picker-clear"
                 style={S.clearBtn}
                 onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-                title="Clear search"
-                aria-label="Clear search"
+                title={m.clearSearch}
+                aria-label={m.clearSearch}
               >
                 ×
               </button>
@@ -414,7 +418,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
                 onClick={() => setProvider(p)}
                 onMouseEnter={() => setHoveredChip(p)}
                 onMouseLeave={() => setHoveredChip((h) => (h === p ? null : h))}
-                title={`${counts[p]} ${p === 'all' ? 'services' : p.toUpperCase()}`}
+                title={p === 'all' ? fmt(m.servicesCount, { count: counts[p] }) : `${counts[p]} ${p.toUpperCase()}`}
               >
                 <ProviderMark p={p} />
                 <span>{p}</span>
@@ -424,7 +428,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
           </div>
           {query.trim() === '' && recents.length > 0 && (
             <div>
-              <div style={S.recentLabel}>Recent</div>
+              <div style={S.recentLabel}>{m.recent}</div>
               <div style={RECENT_ROW}>
                 {recents.map((entry) => (
                   <div
@@ -443,7 +447,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
           )}
           {results.length === 0 ? (
             <div data-testid="cloud-picker-empty" style={S.empty}>
-              No {provider === 'all' ? '' : `${provider.toUpperCase()} `}services match “{query.trim()}”
+              {fmt(m.empty, { provider: provider === 'all' ? '' : `${provider.toUpperCase()} `, query: query.trim() })}
             </div>
           ) : (
             <div ref={gridRef} id="cloud-picker-grid" data-testid="cloud-picker-grid" data-cloud-grid="" role="listbox" style={GRID}>

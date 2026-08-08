@@ -6,10 +6,11 @@
  */
 
 import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import type { Editor } from '@nodus-dev/core';
+import type { DeepPartial, Editor } from '@nodus-dev/core';
 import { IconButton } from '../primitives.js';
 import { Divider } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 import { useCurrentTool } from './use-current-tool.js';
 
 export interface ToolItem {
@@ -37,14 +38,17 @@ export interface ToolPaletteProps {
   tokens?: UiTokens;
   orientation?: 'vertical' | 'horizontal';
   'aria-label'?: string;
+  /** Localized string overrides for this palette (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   style?: CSSProperties;
 }
 
 export function ToolPalette(
-  { editor, tools, tokens, orientation = 'vertical', 'aria-label': ariaLabel, style }: ToolPaletteProps,
+  { editor, tools, tokens, orientation = 'vertical', 'aria-label': ariaLabel, messages, style }: ToolPaletteProps,
 ): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).toolPalette;
   const currentToolId = useCurrentTool(editor);
   const [pickedId, setPickedId] = useState<string | null>(null);
 
@@ -96,7 +100,7 @@ export function ToolPalette(
       data-nodus-ui=""
       role="toolbar"
       aria-orientation={vertical ? 'vertical' : 'horizontal'}
-      aria-label={ariaLabel ?? 'Tools'}
+      aria-label={ariaLabel ?? m.label}
       style={containerStyle}
     >
       {tools.map((entry, i) =>

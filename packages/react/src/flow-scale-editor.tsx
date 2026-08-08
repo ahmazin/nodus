@@ -1,9 +1,13 @@
 /** Data-driven flow scale authoring: the color-stop ramp (draggable handles), Domain, the three
  *  visual ranges, Gradient, the stops list, and the live metric scrubber. */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import type { Editor, EdgeRecord, FlowColorStop, FlowScale, FlowSpec, Id } from '@nodus-dev/core';
+import { fmt, type DeepPartial, type Editor, type EdgeRecord, type FlowColorStop, type FlowScale, type FlowSpec, type Id } from '@nodus-dev/core';
 import { buildRampCss, clamp, DEFAULT_SCALE, flowStyles, isHex6, type FlowStyles } from './flow-shared.js';
 import { useUiTokens } from './ui/tokens.js';
+import { useMessages, type ReactMessages } from './messages.js';
+
+/** The resolved `flow` message subtree, threaded into the leaf sub-components. */
+type FlowMessages = ReactMessages['flow'];
 
 // Parse a number field, treating empty/NaN as "no change" — so clearing a field to retype it
 // doesn't write 0 (and re-stamp "0" under the caret) into the scale.
@@ -16,10 +20,13 @@ export interface FlowScaleEditorProps {
   editor: Editor;
   edgeIds: Id[];
   firstEdge: Id;
+  /** Localized string overrides for this panel (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
-export function FlowScaleEditor({ editor, edgeIds, firstEdge }: FlowScaleEditorProps): ReactElement {
+export function FlowScaleEditor({ editor, edgeIds, firstEdge, messages }: FlowScaleEditorProps): ReactElement {
   const s = flowStyles(useUiTokens(editor));
+  const m = useMessages(editor, messages).flow;
   const rec = editor.store.peek(firstEdge) as EdgeRecord | undefined;
   const flow = rec?.flow ?? {};
   const scale = flow.scale;
@@ -73,18 +80,18 @@ export function FlowScaleEditor({ editor, edgeIds, firstEdge }: FlowScaleEditorP
             </span>,
           )}
 
-          <RangeRow label="Speed range" testid="speed" value={scale.speed} fallback={[40, 120]} onToggle={(v) => patchScale({ speed: v }, 'immediately')} onEdit={(v) => patchScale({ speed: v })} onCommit={commit} s={s} />
-          <RangeRow label="Count range" testid="count" value={scale.count} fallback={[2, 16]} onToggle={(v) => patchScale({ count: v }, 'immediately')} onEdit={(v) => patchScale({ count: v })} onCommit={commit} s={s} />
-          <RangeRow label="Size range" testid="size" value={scale.size} fallback={[2, 6]} onToggle={(v) => patchScale({ size: v }, 'immediately')} onEdit={(v) => patchScale({ size: v })} onCommit={commit} s={s} />
+          <RangeRow label={m.speed} testid="speed" value={scale.speed} fallback={[40, 120]} onToggle={(v) => patchScale({ speed: v }, 'immediately')} onEdit={(v) => patchScale({ speed: v })} onCommit={commit} s={s} />
+          <RangeRow label={m.count} testid="count" value={scale.count} fallback={[2, 16]} onToggle={(v) => patchScale({ count: v }, 'immediately')} onEdit={(v) => patchScale({ count: v })} onCommit={commit} s={s} />
+          <RangeRow label={m.size} testid="size" value={scale.size} fallback={[2, 6]} onToggle={(v) => patchScale({ size: v }, 'immediately')} onEdit={(v) => patchScale({ size: v })} onCommit={commit} s={s} />
 
           {row(
             'Gradient',
             <input data-testid="flow-gradient" type="checkbox" checked={!!scale.gradient} onChange={(e) => patchScale({ gradient: e.target.checked }, 'immediately')} style={s.checkbox} />,
           )}
 
-          <StopsList scale={scale} domain={domain} onChange={(colors, capture) => patchScale({ colors }, capture)} onCommit={commit} s={s} />
+          <StopsList scale={scale} domain={domain} onChange={(colors, capture) => patchScale({ colors }, capture)} onCommit={commit} s={s} m={m} />
 
-          <MetricScrubber editor={editor} edgeIds={edgeIds} firstEdge={firstEdge} domain={domain} s={s} />
+          <MetricScrubber editor={editor} edgeIds={edgeIds} firstEdge={firstEdge} domain={domain} s={s} m={m} />
         </>
       )}
     </div>
@@ -176,12 +183,13 @@ function RangeRow({ label, testid, value, fallback, onToggle, onEdit, onCommit, 
 //      NOT sorted for display: re-sorting on each keystroke would rebind the focused input to a
 //      different stop when an `at` edit crosses a neighbor. buildRampCss/the ramp sort internally,
 //      and RampStrip's handles use this same raw order, so the two surfaces agree on stop identity.
-function StopsList({ scale, domain, onChange, onCommit, s }: {
+function StopsList({ scale, domain, onChange, onCommit, s, m }: {
   scale: FlowScale;
   domain: [number, number];
   onChange: (colors: FlowColorStop[], capture?: 'later' | 'immediately') => void;
   onCommit: () => void;
   s: FlowStyles;
+  m: FlowMessages;
 }): ReactElement {
   const [min, max] = domain;
   const stops = scale.colors ?? [];
@@ -198,27 +206,28 @@ function StopsList({ scale, domain, onChange, onCommit, s }: {
   };
   return (
     <div style={{ marginTop: 4 }}>
-      <div style={{ ...s.micro, marginBottom: 4 }}>Color stops</div>
+      <div style={{ ...s.micro, marginBottom: 4 }}>{m.colorStops}</div>
       {stops.map((stop, i) => (
         <div key={i} data-testid={`flow-stop-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span style={{ color: s.accent }}>●</span>
           <input data-testid={`flow-stop-at-${i}`} type="number" style={s.numField} value={stop.at} onChange={(e) => { const n = num(e.target.value); if (n !== null) editAt(i, n); }} onKeyDown={(e) => { if (e.key === 'Enter') onCommit(); }} onBlur={onCommit} />
           <input data-testid={`flow-stop-color-${i}`} type="color" style={s.swatch} value={isHex6(stop.color) ? stop.color : '#2dd4bf'} onChange={(e) => editColor(i, e.target.value)} onBlur={onCommit} />
-          <button data-testid={`flow-stop-remove-${i}`} style={s.ghostBtn} title="Remove stop" aria-label={`Remove color stop ${i + 1}`} onClick={() => remove(i)}>✕</button>
+          <button data-testid={`flow-stop-remove-${i}`} style={s.ghostBtn} title={m.removeStop} aria-label={fmt(m.removeStopN, { n: i + 1 })} onClick={() => remove(i)}>✕</button>
         </div>
       ))}
-      <button data-testid="flow-stop-add" style={{ ...s.ghostBtn, width: '100%', marginTop: 2 }} onClick={add}>+ Add stop</button>
+      <button data-testid="flow-stop-add" style={{ ...s.ghostBtn, width: '100%', marginTop: 2 }} onClick={add}>{m.addStop}</button>
     </div>
   );
 }
 
 // ---- live metric scrubber: drives the REAL edge via ephemeral setFlowMetric ----
-function MetricScrubber({ editor, edgeIds, firstEdge, domain, s }: {
+function MetricScrubber({ editor, edgeIds, firstEdge, domain, s, m }: {
   editor: Editor;
   edgeIds: Id[];
   firstEdge: Id;
   domain: [number, number];
   s: FlowStyles;
+  m: FlowMessages;
 }): ReactElement {
   const [min, max] = domain;
   const [value, setValue] = useState<number>(() => editor.flowMetric(firstEdge) ?? (min + max) / 2);
@@ -230,7 +239,7 @@ function MetricScrubber({ editor, edgeIds, firstEdge, domain, s }: {
   };
   return (
     <label style={{ ...s.rowCss, marginTop: 6 }}>
-      <span style={{ color: s.labelColor }}>Metric</span>
+      <span style={{ color: s.labelColor }}>{m.metric}</span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
         <input data-testid="flow-metric" type="range" min={min} max={max} step={Math.abs(max - min) / 100 || 1} value={clamp(value, min, max)} onChange={(e) => onInput(Number(e.target.value))} style={s.slider} />
         <span style={{ color: s.accent, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{Math.round(value)}</span>

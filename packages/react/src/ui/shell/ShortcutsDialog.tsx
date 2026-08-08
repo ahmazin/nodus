@@ -17,9 +17,10 @@ import {
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@nodus-dev/core';
+import type { DeepPartial, Editor } from '@nodus-dev/core';
 import { IconButton } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 import { CloseIcon, HelpIcon } from './icons.js';
 
 export interface ShortcutRow {
@@ -76,13 +77,16 @@ export interface ShortcutsDialogProps {
   onClose: () => void;
   sections?: ShortcutSection[];
   tokens?: UiTokens;
+  /** Localized string overrides for this dialog (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 export function ShortcutsDialog(
-  { editor, open, onClose, sections = DEFAULT_SHORTCUTS, tokens }: ShortcutsDialogProps,
+  { editor, open, onClose, sections = DEFAULT_SHORTCUTS, tokens, messages }: ShortcutsDialogProps,
 ): ReactElement | null {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).shortcuts;
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Move focus in on open (to the first focusable — the close button); restore it to the
@@ -193,13 +197,13 @@ export function ShortcutsDialog(
           }}
         >
           <h2 id={titleId} style={{ margin: 0, fontSize: t.font.size.md, fontWeight: 600 }}>
-            Keyboard shortcuts
+            {m.title}
           </h2>
           <IconButton
             tokens={t}
             size="sm"
             icon={<CloseIcon />}
-            aria-label="Close"
+            aria-label={m.close}
             onClick={onClose}
           />
         </div>
@@ -256,15 +260,18 @@ export interface ShortcutsButtonProps {
   sections?: ShortcutSection[];
   tokens?: UiTokens;
   size?: 'sm' | 'md';
+  /** Localized string overrides for the button + dialog (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   style?: CSSProperties;
 }
 
 /** A `?` icon button that opens the shortcuts dialog and manages its own open state. */
 export function ShortcutsButton(
-  { editor, sections, tokens, size = 'md', style }: ShortcutsButtonProps,
+  { editor, sections, tokens, size = 'md', messages, style }: ShortcutsButtonProps,
 ): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).shortcuts;
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -273,12 +280,12 @@ export function ShortcutsButton(
         size={size}
         variant="ghost"
         icon={<HelpIcon />}
-        aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (?)"
+        aria-label={m.buttonLabel}
+        title={m.buttonTitle}
         onClick={() => setOpen(true)}
         style={style}
       />
-      <ShortcutsDialog editor={editor} open={open} onClose={() => setOpen(false)} sections={sections} tokens={tokens} />
+      <ShortcutsDialog editor={editor} open={open} onClose={() => setOpen(false)} sections={sections} tokens={tokens} messages={messages} />
     </>
   );
 }

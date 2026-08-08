@@ -5,22 +5,26 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react';
-import type { Editor } from '@nodus-dev/core';
+import type { DeepPartial, Editor } from '@nodus-dev/core';
 import { IconButton } from '../primitives.js';
 import { useUiTokens, type UiTokens } from '../tokens.js';
 import { useValue } from '../../use-value.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 import { RedoIcon, UndoIcon } from './icons.js';
 
 export interface UndoRedoProps {
   editor: Editor;
   tokens?: UiTokens;
   size?: 'sm' | 'md';
+  /** Localized string overrides for these controls (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   style?: CSSProperties;
 }
 
-export function UndoRedo({ editor, tokens, size = 'md', style }: UndoRedoProps): ReactElement {
+export function UndoRedo({ editor, tokens, size = 'md', messages, style }: UndoRedoProps): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).history;
   // Touch history.version so this re-evaluates on every history mutation, not just count changes.
   const canUndo = useValue(() => (editor.history.version.get(), editor.history.canUndo()));
   const canRedo = useValue(() => (editor.history.version.get(), editor.history.canRedo()));
@@ -35,13 +39,13 @@ export function UndoRedo({ editor, tokens, size = 'md', style }: UndoRedoProps):
   };
 
   return (
-    <div data-nodus-ui="" role="group" aria-label="History" style={groupStyle}>
+    <div data-nodus-ui="" role="group" aria-label={m.groupLabel} style={groupStyle}>
       <IconButton
         tokens={t}
         size={size}
         icon={<UndoIcon />}
-        aria-label="Undo"
-        title="Undo (⌘Z)"
+        aria-label={m.undo}
+        title={m.undoTitle}
         disabled={!canUndo}
         onClick={() => editor.undo()}
       />
@@ -49,8 +53,8 @@ export function UndoRedo({ editor, tokens, size = 'md', style }: UndoRedoProps):
         tokens={t}
         size={size}
         icon={<RedoIcon />}
-        aria-label="Redo"
-        title="Redo (⇧⌘Z)"
+        aria-label={m.redo}
+        title={m.redoTitle}
         disabled={!canRedo}
         onClick={() => editor.redo()}
       />

@@ -8,8 +8,9 @@
  */
 
 import type { CSSProperties, HTMLAttributes, ReactElement, ReactNode } from 'react';
-import type { Editor } from '@nodus-dev/core';
+import type { DeepPartial, Editor } from '@nodus-dev/core';
 import { useUiTokens, type UiTokens } from '../tokens.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 
 export interface ToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   editor: Editor;
@@ -17,14 +18,17 @@ export interface ToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'chil
   tokens?: UiTokens;
   /** Accessible name for the toolbar landmark. */
   'aria-label'?: string;
+  /** Localized string overrides for this toolbar (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   children: ReactNode;
 }
 
 export function Toolbar(
-  { editor, tokens, style, children, 'aria-label': ariaLabel, ...rest }: ToolbarProps,
+  { editor, tokens, style, children, 'aria-label': ariaLabel, messages, ...rest }: ToolbarProps,
 ): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).toolbar;
   const barStyle: CSSProperties = {
     display: 'flex',
     flexDirection: 'row',
@@ -42,7 +46,7 @@ export function Toolbar(
     ...style,
   };
   return (
-    <div data-nodus-ui="" {...rest} role="toolbar" aria-label={ariaLabel ?? 'Main toolbar'} style={barStyle}>
+    <div data-nodus-ui="" {...rest} role="toolbar" aria-label={ariaLabel ?? m.label} style={barStyle}>
       {children}
     </div>
   );

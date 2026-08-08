@@ -13,13 +13,14 @@
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Editor } from '@nodus-dev/core';
+import { fmt, type DeepPartial, type Editor } from '@nodus-dev/core';
 import { useBranch, type BranchInfo } from './use-branch.js';
 import { unifiedDiff, type UnifiedDiffLine } from './unified-diff.js';
 import { canonicalOf, editorToCanonical } from './round-trip.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel, Button, IconButton } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 // ---------------------------------------------------------------------------
 // Diff palette — green/red tones derived per mode (tokens carry no dedicated add-green)
@@ -131,14 +132,17 @@ function relativeTime(at: number, now: number = Date.now()): string {
 export interface BranchBarProps {
   editor: Editor;
   style?: CSSProperties;
+  /** Localized string overrides for the review chrome (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 /** A branch chip + live change pill + Review button, sized for the top bar (height ~32). */
-export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
+export function BranchBar({ editor, style, messages }: BranchBarProps): ReactElement {
   useEffect(() => {
     injectGlobalStyles();
   }, []);
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).review;
   const branch = useBranch(editor);
   const [open, setOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -172,7 +176,7 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
         ...style,
       }}
     >
-      <span data-testid="branch-chip" style={chipBase} title="In-memory main branch">
+      <span data-testid="branch-chip" style={chipBase} title={m.branchChipTitle}>
         <span aria-hidden style={{ color: t.color.textFaint }}>⎇</span>
         <span style={{ color: t.color.text, fontWeight: 600 }}>{branch.branchName}</span>
       </span>
@@ -183,7 +187,7 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
           type="button"
           data-testid="review-pill"
           onClick={() => setOpen(true)}
-          title={`${branch.adds} added, ${branch.dels} removed line(s) — open review`}
+          title={fmt(m.pillTitle, { adds: branch.adds, dels: branch.dels })}
           style={{
             ...chipBase,
             cursor: 'pointer',
@@ -203,10 +207,10 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
         variant="default"
         data-testid="save-version"
         onClick={() => branch.saveVersion()}
-        title="Save the current document as a version"
+        title={m.saveVersionTitle}
         style={{ color: t.color.textMuted }}
       >
-        Save version
+        {m.saveVersion}
       </Button>
 
       <Button
@@ -215,10 +219,10 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
         variant="default"
         data-testid="review-history"
         onClick={() => setHistoryOpen(true)}
-        title="Browse and restore saved versions"
+        title={m.historyTitle}
         style={{ color: t.color.textMuted }}
       >
-        History
+        {m.history}
       </Button>
 
       <Button
@@ -229,15 +233,22 @@ export function BranchBar({ editor, style }: BranchBarProps): ReactElement {
         onClick={() => setOpen(true)}
         style={branch.dirty ? undefined : { color: t.color.textMuted }}
       >
-        Review
+        {m.review}
       </Button>
 
-      <ReviewModal editor={editor} branch={branch} open={open} onClose={() => setOpen(false)} />
+      <ReviewModal
+        editor={editor}
+        branch={branch}
+        open={open}
+        onClose={() => setOpen(false)}
+        messages={messages}
+      />
       <HistoryModal
         editor={editor}
         branch={branch}
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
+        messages={messages}
       />
     </div>
   );
@@ -252,11 +263,14 @@ export interface ReviewModalProps {
   branch: BranchInfo;
   open: boolean;
   onClose: () => void;
+  /** Localized string overrides for the review chrome (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 /** A centered, portalled unified-diff review modal. Returns `null` when closed. */
-export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps): ReactElement | null {
+export function ReviewModal({ editor, branch, open, onClose, messages }: ReviewModalProps): ReactElement | null {
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).review;
   const dc = diffColors(t);
   // Two-step confirm for the destructive Discard — `loadSnapshot` is not undoable.
   const [armed, setArmed] = useState(false);
@@ -307,7 +321,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
           data-testid="review-modal"
           role="dialog"
           aria-modal="true"
-          aria-label={`Review changes against ${branchName}`}
+          aria-label={fmt(m.dialogLabel, { branch: branchName })}
           onClick={(e) => e.stopPropagation()}
           style={{
             display: 'flex',
@@ -331,7 +345,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
             <div style={{ flex: '1 1 auto', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: t.space(2) }}>
                 <span style={{ fontSize: t.font.size.lg, fontWeight: 600, color: t.color.text }}>
-                  Review changes
+                  {m.heading}
                 </span>
                 <span
                   style={{
@@ -353,8 +367,11 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
                   color: t.color.textMuted,
                 }}
               >
-                {semantic.added.length} added · {semantic.removed.length} removed ·{' '}
-                {semantic.changed.length} changed
+                {fmt(m.summary, {
+                  added: semantic.added.length,
+                  removed: semantic.removed.length,
+                  changed: semantic.changed.length,
+                })}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: t.space(2) }}>
@@ -374,7 +391,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
               <IconButton
                 tokens={t}
                 size="sm"
-                aria-label="Close review"
+                aria-label={m.closeReview}
                 onClick={onClose}
                 icon={<span aria-hidden>✕</span>}
               />
@@ -401,7 +418,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
                   fontFamily: t.font.family,
                 }}
               >
-                No changes — working tree matches {branchName}.
+                {fmt(m.noChanges, { branch: branchName })}
               </div>
             ) : (
               <DiffRows lines={unified.lines} t={t} dc={dc} />
@@ -439,10 +456,10 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
                 background: armed ? t.color.selection : t.color.surface,
               }}
             >
-              {armed ? 'Confirm discard' : 'Discard'}
+              {armed ? m.confirmDiscard : m.discard}
             </Button>
             <Button tokens={t} size="sm" variant="default" data-testid="review-close" onClick={onClose}>
-              Close
+              {m.close}
             </Button>
             <Button
               tokens={t}
@@ -455,7 +472,7 @@ export function ReviewModal({ editor, branch, open, onClose }: ReviewModalProps)
                 onClose();
               }}
             >
-              Approve &amp; merge
+              {m.approveMerge}
             </Button>
           </div>
         </Panel>
@@ -475,6 +492,8 @@ export interface HistoryModalProps {
   branch: BranchInfo;
   open: boolean;
   onClose: () => void;
+  /** Localized string overrides for the review chrome (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 /**
@@ -482,9 +501,10 @@ export interface HistoryModalProps {
  * against the CURRENT document (reusing the Review diff rows) or restored. Returns `null` when closed.
  */
 export function HistoryModal(
-  { editor, branch, open, onClose }: HistoryModalProps,
+  { editor, branch, open, onClose, messages }: HistoryModalProps,
 ): ReactElement | null {
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).review;
   const dc = diffColors(t);
   const { versions, branchName } = branch;
 
@@ -560,7 +580,7 @@ export function HistoryModal(
           data-testid="history-modal"
           role="dialog"
           aria-modal="true"
-          aria-label={`Version history for ${branchName}`}
+          aria-label={fmt(m.historyDialogLabel, { branch: branchName })}
           onClick={(e) => e.stopPropagation()}
           style={{
             display: 'flex',
@@ -590,7 +610,7 @@ export function HistoryModal(
                   data-testid="history-back"
                   onClick={() => setViewId(null)}
                 >
-                  ← Back
+                  {m.back}
                 </Button>
               )}
               <span
@@ -603,7 +623,7 @@ export function HistoryModal(
                   whiteSpace: 'nowrap',
                 }}
               >
-                {viewing ? `${viewing.version.label} → current` : 'Version history'}
+                {viewing ? fmt(m.versionToCurrent, { label: viewing.version.label }) : m.versionHistory}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: t.space(2) }}>
@@ -623,13 +643,13 @@ export function HistoryModal(
                 </span>
               ) : (
                 <span style={{ fontSize: t.font.size.xs, color: t.color.textMuted }}>
-                  {versions.length} version{versions.length === 1 ? '' : 's'}
+                  {fmt(m.versionCount, { count: versions.length })}
                 </span>
               )}
               <IconButton
                 tokens={t}
                 size="sm"
-                aria-label="Close history"
+                aria-label={m.closeHistory}
                 onClick={onClose}
                 icon={<span aria-hidden>✕</span>}
               />
@@ -650,7 +670,7 @@ export function HistoryModal(
             >
               {viewing.unified.lines.length === 0 ? (
                 <div style={emptyStateStyle}>
-                  No differences — this version matches the current document.
+                  {m.noDifferences}
                 </div>
               ) : (
                 <DiffRows lines={viewing.unified.lines} t={t} dc={dc} />
@@ -660,7 +680,7 @@ export function HistoryModal(
             <div style={{ flex: '1 1 auto', overflow: 'auto', background: t.color.canvas }}>
               {versions.length === 0 ? (
                 <div style={emptyStateStyle}>
-                  No saved versions yet — Save version, or Approve &amp; merge to snapshot {branchName}.
+                  {fmt(m.noVersions, { branch: branchName })}
                 </div>
               ) : (
                 versions.map((v) => (
@@ -707,7 +727,7 @@ export function HistoryModal(
                       data-testid="history-view"
                       onClick={() => setViewId(v.id)}
                     >
-                      View diff
+                      {m.viewDiff}
                     </Button>
                     <Button
                       tokens={t}
@@ -716,7 +736,7 @@ export function HistoryModal(
                       data-testid="history-restore"
                       onClick={() => restore(v.id)}
                     >
-                      Restore
+                      {m.restore}
                     </Button>
                   </div>
                 ))
@@ -736,7 +756,7 @@ export function HistoryModal(
             }}
           >
             <Button tokens={t} size="sm" variant="default" data-testid="history-close" onClick={onClose}>
-              Close
+              {m.close}
             </Button>
             {viewing && (
               <Button
@@ -746,7 +766,7 @@ export function HistoryModal(
                 data-testid="history-restore"
                 onClick={() => restore(viewing.version.id)}
               >
-                Restore this version
+                {m.restoreThis}
               </Button>
             )}
           </div>

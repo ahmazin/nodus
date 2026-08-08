@@ -1,11 +1,12 @@
 /** A properties panel over the per-element style bag — appears when something is selected. */
 import { useEffect, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import type { Editor, Id, NodeRecord, StateTokens } from '@nodus-dev/core';
+import { fmt, type DeepPartial, type Editor, type Id, type NodeRecord, type StateTokens } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { FlowControls } from './flow-controls.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
 import { UiTokensProvider, Panel, Button } from './ui/primitives.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 const NODE_STATES = ['accent', 'solid', 'ghost', 'locked'];
 
@@ -28,6 +29,18 @@ function strokeStyleOf(dash: unknown): StrokeStyle {
 // native `<input type="color">` swatch, so nothing the old color inputs could do is lost.
 const SWATCH_COLORS = ['#e5675e', '#f0a53e', '#4ac26b', '#c4f24e', '#35d0e0', '#7aa2ff', '#c99bff', '#e9e9ee'] as const;
 
+// Light-mode mirror of the content palette. The dark presets read as near-white on the light canvas
+// (#f7f7f3) — the trailing neutral `#e9e9ee` IS the dark UI text color, so it is invisible/unusable
+// there. Each entry below is a darkened counterpart that clears 4.5:1 on that surface, and the last
+// is a dark neutral so it stays visible/usable in light mode. Mode dispatch mirrors flowAccent(mode).
+const SWATCH_COLORS_LIGHT = ['#c0362c', '#b45309', '#15803d', '#3f6212', '#0e7490', '#1d4ed8', '#7c3aed', '#334155'] as const;
+
+/** The content swatch palette for a given UI mode. Dark presets read as near-white on the light
+ *  canvas, so light mode gets a darkened mirror. Pure + exported so the palette is unit-testable. */
+export function swatchColors(mode: 'light' | 'dark'): readonly string[] {
+  return mode === 'light' ? SWATCH_COLORS_LIGHT : SWATCH_COLORS;
+}
+
 const HEX6 = /^#[0-9a-fA-F]{6}$/;
 const isHex6 = (v: unknown): v is string => typeof v === 'string' && HEX6.test(v);
 const cap = (s: string): string => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
@@ -36,13 +49,16 @@ export interface PropertiesProps {
   editor: Editor;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this panel (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
-export function Properties({ editor, className, style }: PropertiesProps): ReactElement | null {
+export function Properties({ editor, className, style, messages }: PropertiesProps): ReactElement | null {
   // Ensure the chrome's focus-visible ring + reduced-motion rules are installed even if the host
   // never called injectGlobalStyles (idempotent, SSR-safe).
   useEffect(() => { injectGlobalStyles(); }, []);
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).properties;
 
   // Re-render on selection change (selectedAtom.get registers the dep — selectedIdsArray uses peek(),
   // which does NOT) AND on any document mutation. The version MUST be folded into the returned snapshot,
@@ -109,21 +125,26 @@ export function Properties({ editor, className, style }: PropertiesProps): React
   // ---- action row: each button is a real editor command over the whole selection ----
   interface Action { key: string; label: string; run: () => void; icon: ReactElement; active?: boolean; danger?: boolean; show?: boolean }
   const actions: Action[] = [
-    { key: 'dup', label: 'Duplicate', run: () => editor.duplicate(ids), icon: icon(<><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>) },
-    { key: 'front', label: 'Bring to front', run: () => editor.bringToFront(ids), icon: icon(<><rect x="4" y="4" width="11" height="11" rx="2" /><path d="M9 20h11V9" /></>) },
-    { key: 'back', label: 'Send to back', run: () => editor.sendToBack(ids), icon: icon(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M15 4H4v11" /></>) },
-    { key: 'lock', label: locked ? 'Unlock' : 'Lock', run: () => (locked ? editor.unlock(ids) : editor.lock(ids)), active: locked, show: hasNode, icon: icon(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d={locked ? 'M8 11V8a4 4 0 0 1 8 0v3' : 'M8 11V8a4 4 0 0 1 7.5-2'} /></>) },
-    { key: 'del', label: 'Delete', run: () => editor.deleteRecords(ids), danger: true, icon: icon(<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13" />) },
+    { key: 'dup', label: m.actionDuplicate, run: () => editor.duplicate(ids), icon: icon(<><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>) },
+    { key: 'front', label: m.actionBringToFront, run: () => editor.bringToFront(ids), icon: icon(<><rect x="4" y="4" width="11" height="11" rx="2" /><path d="M9 20h11V9" /></>) },
+    { key: 'back', label: m.actionSendToBack, run: () => editor.sendToBack(ids), icon: icon(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M15 4H4v11" /></>) },
+    { key: 'lock', label: locked ? m.actionUnlock : m.actionLock, run: () => (locked ? editor.unlock(ids) : editor.lock(ids)), active: locked, show: hasNode, icon: icon(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d={locked ? 'M8 11V8a4 4 0 0 1 8 0v3' : 'M8 11V8a4 4 0 0 1 7.5-2'} /></>) },
+    { key: 'del', label: m.actionDelete, run: () => editor.deleteRecords(ids), danger: true, icon: icon(<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13" />) },
   ];
 
   // A fill/stroke swatch grid: presets from the content palette + a trailing native color input for
   // arbitrary colors. Swatch picks are discrete (set → commit); the native input scrubs (commit on blur).
   const swatchGrid = (name: 'fill' | 'stroke', current: unknown, apply: (v: string) => void): ReactElement => {
     const cur = typeof current === 'string' ? current.toLowerCase() : '';
-    const presetMatch = SWATCH_COLORS.some((c) => c.toLowerCase() === cur);
+    // Content presets are mode-aware: the dark palette is near-white on the light canvas.
+    const palette = t.mode === 'light' ? SWATCH_COLORS_LIGHT : SWATCH_COLORS;
+    const presetMatch = palette.some((c) => c.toLowerCase() === cur);
+    // "No value" default for the native picker — a dark ink on the light canvas, the old dark values
+    // on dark. Stroke's grey reads acceptably in both modes, so it is left mode-agnostic.
+    const noValue = name === 'fill' ? (t.mode === 'light' ? '#1a2420' : '#101319') : '#9fa2ad';
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-        {SWATCH_COLORS.map((c) => {
+        {palette.map((c) => {
           const active = c.toLowerCase() === cur;
           return (
             <button
@@ -131,7 +152,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
               data-nodus-ui=""
               type="button"
               title={c}
-              aria-label={`${cap(name)} ${c}`}
+              aria-label={fmt(m.swatchLabel, { name: cap(name), color: c })}
               aria-pressed={active}
               onClick={() => { apply(c); commit(); }}
               style={swatchStyle(active, c)}
@@ -141,8 +162,8 @@ export function Properties({ editor, className, style }: PropertiesProps): React
         <input
           data-nodus-ui=""
           type="color"
-          aria-label={`Custom ${name} color`}
-          value={isHex6(current) ? current : name === 'fill' ? '#101319' : '#9fa2ad'}
+          aria-label={fmt(m.customColor, { name })}
+          value={isHex6(current) ? current : noValue}
           onChange={(e) => apply(e.target.value)}
           onBlur={commit}
           style={swatchStyle(isHex6(current) && !presetMatch, isHex6(current) ? current : 'transparent')}
@@ -157,7 +178,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
       <input
         data-nodus-ui=""
         type="number"
-        aria-label={{ X: 'X position', Y: 'Y position', W: 'Width', H: 'Height' }[tag]}
+        aria-label={{ X: m.posX, Y: m.posY, W: m.width, H: m.height }[tag]}
         value={Math.round(value)}
         onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v)) apply(min != null ? Math.max(min, v) : v); }}
         onBlur={commit}
@@ -174,7 +195,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
         elevated
         className={className}
         role="region"
-        aria-label="Element style properties"
+        aria-label={m.regionLabel}
         // Defaults first, incoming `style` LAST so the app can dock/flatten this into a full-height
         // rail (override width/height/border/radius/shadow). padding:0 — the inner column owns padding.
         style={{ width: 240, padding: 0, display: 'flex', flexDirection: 'column', fontSize: t.font.size.sm, ...style }}
@@ -186,7 +207,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
               {cap(node ? node.type : first.typeName)}
             </span>
             <span style={{ marginLeft: 'auto', fontFamily: mono, fontSize: '10.5px', color: t.color.textFaint, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {ids.length > 1 ? `${ids.length} selected` : first.id}
+              {ids.length > 1 ? fmt(m.multiSelect, { count: ids.length }) : first.id}
             </span>
           </div>
 
@@ -211,7 +232,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
           {/* position — node-only geometry, live from the record */}
           {node && (
             <>
-              <div style={secLabel}>Position</div>
+              <div style={secLabel}>{m.position}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {geomField('X', node.x, (v) => setGeom({ x: v }))}
                 {geomField('Y', node.y, (v) => setGeom({ y: v }))}
@@ -224,13 +245,13 @@ export function Properties({ editor, className, style }: PropertiesProps): React
           )}
 
           {/* fill / stroke swatch grids */}
-          <div style={secLabel}>Fill</div>
+          <div style={secLabel}>{m.fill}</div>
           {swatchGrid('fill', st.fill, (v) => set({ fill: v }))}
-          <div style={secLabel}>Stroke</div>
+          <div style={secLabel}>{m.stroke}</div>
           {swatchGrid('stroke', st.stroke, (v) => set({ stroke: v }))}
 
           {/* stroke width */}
-          <div style={secLabel}>Stroke width</div>
+          <div style={secLabel}>{m.strokeWidth}</div>
           <input
             data-nodus-ui=""
             type="range"
@@ -242,11 +263,11 @@ export function Properties({ editor, className, style }: PropertiesProps): React
             onPointerUp={commit}
             onBlur={commit}
             style={rangeStyle}
-            aria-label="Stroke width"
+            aria-label={m.strokeWidth}
           />
 
           {/* opacity — current % shown in the label in mono */}
-          <div style={secLabel}>Opacity — <span style={{ fontFamily: mono, color: t.color.textMuted }}>{opacityPct}%</span></div>
+          <div style={secLabel}>{m.opacity} — <span style={{ fontFamily: mono, color: t.color.textMuted }}>{opacityPct}%</span></div>
           <input
             data-nodus-ui=""
             type="range"
@@ -258,12 +279,12 @@ export function Properties({ editor, className, style }: PropertiesProps): React
             onPointerUp={commit}
             onBlur={commit}
             style={rangeStyle}
-            aria-label="Opacity"
+            aria-label={m.opacity}
           />
 
           {/* stroke style — 3 segmented buttons over the dash token */}
-          <div style={secLabel}>Stroke style</div>
-          <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Stroke style">
+          <div style={secLabel}>{m.strokeStyle}</div>
+          <div style={{ display: 'flex', gap: 6 }} role="group" aria-label={m.strokeStyle}>
             {STROKE_STYLES.map((s) => (
               <button
                 key={s}
@@ -279,7 +300,7 @@ export function Properties({ editor, className, style }: PropertiesProps): React
           </div>
 
           {/* roughness — 0 = clean vector, higher = seeded hand-drawn "sketchy" outline */}
-          <div style={secLabel}>Roughness</div>
+          <div style={secLabel}>{m.roughness}</div>
           <input
             data-nodus-ui=""
             type="range"
@@ -291,28 +312,29 @@ export function Properties({ editor, className, style }: PropertiesProps): React
             onPointerUp={commit}
             onBlur={commit}
             style={rangeStyle}
-            aria-label="Roughness (hand-drawn style)"
+            aria-label={m.roughnessLabel}
           />
 
           {/* text color — a single custom-color swatch (kept: real `text` style mutation) */}
-          <div style={secLabel}>Text</div>
+          {/* fallback ink is mode-aware: light-grey vanishes on the light canvas, so use a dark ink there */}
+          <div style={secLabel}>{m.text}</div>
           <input
             data-nodus-ui=""
             type="color"
-            aria-label="Text color"
-            value={isHex6(st.text) ? st.text : '#e5e5e5'}
+            aria-label={m.textColor}
+            value={isHex6(st.text) ? st.text : t.mode === 'light' ? '#1a2420' : '#e5e5e5'}
             onChange={(e) => set({ text: e.target.value })}
             onBlur={commit}
-            style={swatchStyle(false, isHex6(st.text) ? st.text : '#e5e5e5')}
+            style={swatchStyle(false, isHex6(st.text) ? st.text : t.mode === 'light' ? '#1a2420' : '#e5e5e5')}
           />
 
           {/* node visual state — theme skin (kept: real `visual.state` mutation, node-only) */}
           {node && (
             <>
-              <div style={secLabel}>State</div>
+              <div style={secLabel}>{m.state}</div>
               <select
                 data-nodus-ui=""
-                aria-label="Node visual state"
+                aria-label={m.stateLabel}
                 value={node.visual.state}
                 onChange={(e) => {
                   const state = e.target.value;
