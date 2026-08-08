@@ -61,11 +61,23 @@ Two things keep this from being worse, and one is on the roadmap:
 
 - **The rAF loop is frame-capped.** `flowConfig.maxFps` defaults to **30**, so even on the slow path
   the loop doesn't spin the CPU trying to hit 60 — navigation stays responsive rather than locking up.
-- **Pan fast path (roadmap).** Blitting the retained layer at the new offset and repainting only the
-  exposed edge strips would make pan interactive at 2000 nodes. It's on the *Now* list, gated on
-  proving it stays pixel-identical to a direct paint; if that can't be proven cleanly it's deferred and
-  this cliff stays documented rather than hidden. **Zoom LOD** (dropping labels/detail below a zoom
-  threshold) is a *Later* follow-up.
+- **Pan fast path (roadmap, blocked on a rasterizer property).** Blitting the retained layer at the new
+  offset and repainting only the exposed edge strips would make pan interactive at 2000 nodes. A full
+  chrome/content split was prototyped and *does* eliminate the cliff (pan frames stop forcing a full
+  repaint), so the screen-space parallax/vignette are **not** the obstacle — the split repaints those
+  fresh on top. The real blocker is deeper: content node fills are gradients anti-aliased at **absolute
+  device coordinates**, so the same geometry rasterizes to slightly different low-order bits at different
+  camera positions. Two *direct* full paints at integer-device-pixel-shifted cameras already differ by up
+  to ~5 LSB in the interior (measured: 45/600 integer-shift pairs exceed a 1-LSB tolerance), so **no
+  translate-blit can be closer to a direct paint than the renderer's own ~5-LSB shift-non-invariance
+  floor** — it can't meet a strict `maxDiff ≤ 1` gate. This is why it stays deferred rather than shipped.
+  Two ways forward, each its own reviewed task: **(a)** make content rasterization integer-shift-invariant
+  — bake only `cam.z` into the content CTM and apply the integer `cam.x/cam.y` as a whole-pixel
+  post-translate (or snap gradient origins to a camera-independent lattice) — after which the prototyped
+  split drops in and passes; or **(b)** consciously accept the ~5-LSB floor during an *active* pan (it is
+  imperceptible and the frame settles to a byte-exact full repaint the instant the pan stops), which is a
+  visual-fidelity-bar decision for the maintainers, not an automatic one. **Zoom LOD** (dropping
+  labels/detail below a zoom threshold) is a *Later* follow-up.
 
 There is **no CI performance gate yet** — the bench exists to measure and to catch regressions once
 it's wired in; it does not currently block merges.
