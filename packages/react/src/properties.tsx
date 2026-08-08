@@ -359,7 +359,7 @@ export function Properties({ editor, className, style, messages }: PropertiesPro
             style={{ marginTop: 16, width: '100%' }}
             onClick={() => { editor.clearStyle(ids, { capture: 'later' }); commit(); }}
           >
-            Clear style
+            {m.clearStyle}
           </Button>
 
           <FlowControls editor={editor} ids={ids} />

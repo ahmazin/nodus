@@ -64,7 +64,7 @@ export function FlowScaleEditor({ editor, edgeIds, firstEdge, messages }: FlowSc
   return (
     <div style={{ marginTop: 4 }}>
       {row(
-        'Data-driven',
+        m.dataDriven,
         <input data-testid="flow-datadriven" type="checkbox" checked={dataOn} onChange={(e) => writeScale(e.target.checked ? DEFAULT_SCALE : undefined, 'immediately')} style={s.checkbox} />,
       )}
 
@@ -73,7 +73,7 @@ export function FlowScaleEditor({ editor, edgeIds, firstEdge, messages }: FlowSc
           <RampStrip scale={scale} onDrag={patchScale} onCommit={commit} s={s} />
 
           {row(
-            'Domain',
+            m.domain,
             <span style={{ display: 'flex', gap: 6 }}>
               <input data-testid="flow-domain-min" type="number" style={s.numField} value={domain[0]} onChange={(e) => { const n = num(e.target.value); if (n !== null) patchScale({ domain: [n, domain[1]] }); }} onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} onBlur={commit} />
               <input data-testid="flow-domain-max" type="number" style={s.numField} value={domain[1]} onChange={(e) => { const n = num(e.target.value); if (n !== null) patchScale({ domain: [domain[0], n] }); }} onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} onBlur={commit} />
@@ -85,7 +85,7 @@ export function FlowScaleEditor({ editor, edgeIds, firstEdge, messages }: FlowSc
           <RangeRow label={m.size} testid="size" value={scale.size} fallback={[2, 6]} onToggle={(v) => patchScale({ size: v }, 'immediately')} onEdit={(v) => patchScale({ size: v })} onCommit={commit} s={s} />
 
           {row(
-            'Gradient',
+            m.gradient,
             <input data-testid="flow-gradient" type="checkbox" checked={!!scale.gradient} onChange={(e) => patchScale({ gradient: e.target.checked }, 'immediately')} style={s.checkbox} />,
           )}
 

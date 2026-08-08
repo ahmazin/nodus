@@ -472,7 +472,7 @@ export function CloudIconPicker({ editor, catalog, glyphColor, variant = 'popove
             </div>
           )}
           <div style={S.footer}>
-            {results.length} of {catalog.length} · ↑↓←→ to move · Enter to add · drag to place
+            {fmt(m.footerHelp, { count: results.length, total: catalog.length })}
           </div>
         </div>
       )}

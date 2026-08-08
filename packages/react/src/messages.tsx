@@ -111,6 +111,8 @@ export interface ReactMessages {
     recent: string;
     /** Empty-results text. Tokens: `{provider}`, `{query}`. */
     empty: string;
+    /** Footer help / keyboard hint. Tokens: `{count}`, `{total}`. */
+    footerHelp: string;
   };
   /** Stencil picker (reusable saved selections + built-in shapes). */
   stencils: {
@@ -136,6 +138,10 @@ export interface ReactMessages {
     recentLabel: string;
     /** Footer help/keyboard hint. Tokens: `{count}`, `{total}`. */
     footerHelp: string;
+    /** `window.prompt` title shown when saving the current selection as a new stencil. */
+    namePrompt: string;
+    /** Default stencil name pre-filled in the save prompt. */
+    nameDefault: string;
   };
   /** Git-review / version-history chrome (in-app diff & merge). */
   review: {
@@ -248,6 +254,8 @@ export interface ReactMessages {
     stateLabel: string;
     /** Multi-selection heading. Token: `{count}`. */
     multiSelect: string;
+    /** Clear-style button label (resets an element's style to the theme default). */
+    clearStyle: string;
   };
   /** Flow / animated-edge controls. */
   flow: {
@@ -289,6 +297,12 @@ export interface ReactMessages {
     addStop: string;
     /** Metric field label. */
     metric: string;
+    /** Data-driven scale toggle row label. */
+    dataDriven: string;
+    /** Domain (min/max) row label. */
+    domain: string;
+    /** Gradient toggle row label. */
+    gradient: string;
   };
   /** Zoom controls group. */
   zoom: {
@@ -408,6 +422,7 @@ export const defaultReactMessages: ReactMessages = {
     servicesCount: '{count} services',
     recent: 'Recent',
     empty: 'No {provider}services match "{query}"',
+    footerHelp: '{count} of {total} · ↑↓←→ to move · Enter to add · drag to place',
   },
   stencils: {
     trigger: 'Stencils',
@@ -421,6 +436,8 @@ export const defaultReactMessages: ReactMessages = {
     recent: 'Recent',
     recentLabel: 'Recent stencils',
     footerHelp: '{count} of {total} · ↑↓←→ to move · Enter to add · drag to place',
+    namePrompt: 'Name this stencil',
+    nameDefault: 'My stencil',
   },
   review: {
     branchChipTitle: 'In-memory main branch',
@@ -478,6 +495,7 @@ export const defaultReactMessages: ReactMessages = {
     state: 'State',
     stateLabel: 'Node visual state',
     multiSelect: '{count} selected',
+    clearStyle: 'Clear style',
   },
   flow: {
     heading: 'Flow · {count} edges',
@@ -499,6 +517,9 @@ export const defaultReactMessages: ReactMessages = {
     removeStopN: 'Remove color stop {n}',
     addStop: '+ Add stop',
     metric: 'Metric',
+    dataDriven: 'Data-driven',
+    domain: 'Domain',
+    gradient: 'Gradient',
   },
   zoom: {
     groupLabel: 'Zoom',

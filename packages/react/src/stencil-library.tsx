@@ -249,7 +249,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
   const onSave = (): void => {
     const records = editor.captureStencil(editor.selectedIdsArray());
     if (records.length === 0) return;
-    const name = window.prompt('Name this stencil', 'My stencil')?.trim();
+    const name = window.prompt(m.namePrompt, m.nameDefault)?.trim();
     if (!name) return;
     onSaveSelection?.({ id: stencilIds.make('stencil'), name, records });
   };
