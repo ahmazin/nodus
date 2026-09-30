@@ -15,7 +15,7 @@
     "@nodus-dev/preset-diagrams": "workspace:*",
     "@nodus-dev/icons-cloud": "workspace:*",
     "@nodus-dev/layout-dagre": "workspace:*",
-    "react": "^18.3.1",
+    "react": "^19.3.0",
     "react-dom": "^18.3.1",
     "@nodus-dev/preset-draw": "workspace:*",
     "@nodus-dev/plugin-freehand": "workspace:*",
