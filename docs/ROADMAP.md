@@ -9,8 +9,8 @@ This file is the strategic roadmap; the long "what already shipped" checklist is
 ## Now — launch readiness (0.3.x)
 
 Getting the already-built engine in front of people without broken promises. **Most of this landed on
-`team/prr-remediation` (PR #2); what remains is human-gated deploy/publish** — see
-[the PRR remediation report](../docs/audits/PRR-REMEDIATION-REPORT.md).
+`team/prr-remediation` (PR #2); what remains is human-gated deploy/publish** — open tasks live in
+[`TRACKER.md`](../TRACKER.md); detail in [the PRR remediation report](audits/PRR-REMEDIATION-REPORT.md).
 
 - **Deploy** the docs/marketing site and the hosted playground at a stable public URL. — _Pages workflow
   + `/nodus` base plumbing ready; **enable GitHub Pages to go live** (human)._

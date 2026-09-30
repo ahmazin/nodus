@@ -37,6 +37,8 @@
 
 ## HUMAN-ONLY RESIDUAL (I did not and will not do these)
 
+> **Live board:** open/pending work — this residual plus the deferred items and backlog — is tracked in [`TRACKER.md`](../../TRACKER.md), which is what agents pick tasks from. The list below is the point-in-time snapshot.
+
 ### Launch-gating (M0/M1)
 1. **Merge** `team/prr-remediation` → `mainline`. ✅ Pushed + opened as **[PR #2](https://github.com/ahmazin/nodus/pull/2)** (2026-09-30) — **review + merge** it (branch is `MERGEABLE`; the red CodeQL/guardrails checks are pre-existing on `mainline`, not from this branch, and don't block since branch protection isn't enabled yet).
 2. **Enable GitHub Pages** (Settings → Pages → Source = *GitHub Actions*); the committed `pages.yml` deploys under `/nodus/`. Then verify `https://ahmazin.github.io/nodus/` + `/nodus/docs/` + `/nodus/playground/` load and nav resolves.
