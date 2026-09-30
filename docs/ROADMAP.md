@@ -8,19 +8,28 @@ This file is the strategic roadmap; the long "what already shipped" checklist is
 
 ## Now — launch readiness (0.3.x)
 
-Getting the already-built engine in front of people without broken promises:
+Getting the already-built engine in front of people without broken promises. **Most of this landed on
+`team/prr-remediation` (PR #2); what remains is human-gated deploy/publish** — see
+[the PRR remediation report](../docs/audits/PRR-REMEDIATION-REPORT.md).
 
-- **Deploy** the docs/marketing site and the hosted playground at a stable public URL.
+- **Deploy** the docs/marketing site and the hosted playground at a stable public URL. — _Pages workflow
+  + `/nodus` base plumbing ready; **enable GitHub Pages to go live** (human)._
 - **Version coherence** — every publishable package on the synchronized `0.3.x` line (see
-  [Stability & versioning](https://ahmazin.github.io/nodus/docs/versioning)).
+  [Stability & versioning](https://ahmazin.github.io/nodus/docs/versioning)). — _✅ re-baselined;
+  **publish via `release.yml`** remains (human)._
 - **Link & policy sweep** — canonical URLs, support matrix, privacy/telemetry statement, accessibility
-  statement, comparison page.
+  statement, comparison page. — _✅ landed._
 - **Correctness gates** — rotation geometry fix, first-session playground defects, export pixel cap,
-  bounded undo history, capped idle rAF.
-- **Touch** — basic two-finger pan and pinch-zoom so the public playground works on a tablet/phone.
+  bounded undo history, capped idle rAF. — _✅ landed + regression tests._
+- **Touch** — two-finger pan, pinch-zoom, and fat-finger hit-tolerance so the public playground works on
+  a tablet/phone. — _✅ landed._
+- **A11y & i18n** — aria-live selection, keyboard authoring (Enter/F2 + portable connect), non-color
+  overlays; the i18n literal sweep across all chrome panels + light-mode swatches. — _✅ landed
+  (shipped translations still to come, see Next)._
 - **Performance envelope** — a committed `pnpm bench` baseline and a published
-  [performance envelope](https://ahmazin.github.io/nodus/docs/performance); pan fast path if it can be
-  proven pixel-safe (otherwise the cliff is documented, not hidden).
+  [performance envelope](https://ahmazin.github.io/nodus/docs/performance). — _✅ landed; the pan fast
+  path was **attempted → no-go** (the renderer's absolute-coordinate gradient AA floors integer-shift
+  diffs at ~5 LSB, above a pixel-safe blit), so the cliff is documented, not hidden._
 
 ## Next — reach & migration
 
