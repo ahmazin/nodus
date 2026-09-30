@@ -468,6 +468,261 @@ async function main() {
   await page.waitForTimeout(120);
   assert((await snap(page)).nodes === beforeRecent + 1, 'clicking a recent re-places it as a node');
 
+  // ---------------------------------------------------------------------------------------------
+  // PRR wave E2 — keyboard / a11y / touch (these drive the LIVE app; the double-undo fix lives in
+  // the example lane, the host wiring in @nodus-dev/react). All fail on the pre-remediation tree.
+  // ---------------------------------------------------------------------------------------------
+
+  console.log('8g) keyboard: one Ctrl/Cmd+Z undoes exactly ONE action (no double undo) ...');
+  await page.evaluate(() => {
+    const ed = window.__editor;
+    const id = ed.store.nodes()[0].id;
+    ed.select([id]);
+    // two DIFFERENT undoable actions → two distinct history entries
+    window.__t = { id, x0: ed.store.peek(id).x };
+    ed.nudge([id], 10, 0);
+    ed.setStyle([id], { stroke: '#123456' });
+  });
+  await page.locator('[role="application"]').first().focus();
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(90);
+  {
+    const undoX = await page.evaluate(() => window.__editor.store.peek(window.__t.id).x);
+    const x0 = await page.evaluate(() => window.__t.x0);
+    // one undo pops only the setStyle → x stays x0+10. A double-undo would also pop the nudge → x0.
+    assert(undoX === x0 + 10, `one Ctrl+Z undoes exactly one action (x=${undoX}, expected ${x0 + 10})`);
+  }
+
+  console.log('8h) a11y: Escape moves focus out of the canvas (WCAG 2.1.2, no keyboard trap) ...');
+  await page.evaluate(() => window.__editor.select([]));
+  await page.locator('[role="application"]').first().focus();
+  assert(
+    await page.evaluate(() => document.activeElement?.getAttribute('role') === 'application'),
+    'canvas host holds focus after focus()',
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(60);
+  assert(
+    await page.evaluate(() => document.activeElement?.getAttribute('role') !== 'application'),
+    'Escape with nothing selected moves focus out of the canvas',
+  );
+
+  console.log('8i) a11y: aria-live region announces the selection ...');
+  assert(
+    await page.evaluate(() => !!document.querySelector('[data-testid="nodus-selection-live"][aria-live="polite"]')),
+    'aria-live selection region is present',
+  );
+  await page.evaluate(() => { const ed = window.__editor; ed.select([ed.store.nodes()[0].id]); });
+  await page.waitForTimeout(60);
+  {
+    const liveText = await page.evaluate(
+      () => document.querySelector('[data-testid="nodus-selection-live"]').textContent || '',
+    );
+    assert(/ of \d+/.test(liveText) && liveText.trim().length > 0, `aria-live announces the selection ("${liveText}")`);
+  }
+
+  console.log('8j) edge-label editor is finitely positioned (no NaN) ...');
+  // Trigger via a REAL double-click on the edge's route midpoint — the faithful user path for editing
+  // an edge label. (A programmatic beginEdit() sets the atom but does not wake the example's
+  // idle-parked render loop, so EditOverlay never re-renders; a real pointer interaction does.)
+  {
+    const at = await page.evaluate(() => {
+      const ed = window.__editor;
+      ed.zoomToFit(60);
+      ed.cancelEdit();
+      const e = ed.store.edges()[0];
+      const route = ed.sceneIndex.getItem(e.id)?.route ?? [];
+      const a = route[0];
+      const b = route[route.length - 1] ?? a;
+      const cam = ed.cameraAtom.peek();
+      const r = document.querySelector('[role="application"]').getBoundingClientRect();
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      return { sx: r.left + (mid.x - cam.x) * cam.z, sy: r.top + (mid.y - cam.y) * cam.z };
+    });
+    await page.mouse.dblclick(at.sx, at.sy);
+  }
+  await page.waitForTimeout(80);
+  {
+    const box = await page.evaluate(() => {
+      const ta = document.querySelector('[role="application"] textarea');
+      if (!ta) return null;
+      const cs = getComputedStyle(ta);
+      const r = ta.getBoundingClientRect();
+      return { left: parseFloat(cs.left), top: parseFloat(cs.top), w: r.width, h: r.height };
+    });
+    assert(
+      box && [box.left, box.top, box.w, box.h].every(Number.isFinite) && box.w > 0 && box.h > 0,
+      `edge-label editor is finitely positioned (${box ? JSON.stringify(box) : 'no textarea'})`,
+    );
+  }
+  await page.evaluate(() => window.__editor.cancelEdit());
+
+  console.log('8k) touch: two-finger pinch zooms the camera + gestures do not drag a node ...');
+  {
+    // Isolated touch-enabled page so the mouse scenarios above are untouched. Real multi-touch is
+    // driven via CDP (playwright-core's touchscreen is single-touch only).
+    const tp = await browser.newPage({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 2, hasTouch: true });
+    const tErrors = [];
+    tp.on('console', (m) => { if (m.type() === 'error') tErrors.push(m.text()); });
+    tp.on('pageerror', (e) => tErrors.push(String(e)));
+    await tp.goto(URL, { waitUntil: 'networkidle' });
+    await tp.waitForFunction(() => !!window.__editor, { timeout: 10000 });
+    await tp.waitForTimeout(200);
+    const cdp = await tp.context().newCDPSession(tp);
+    const biggestCanvas = () =>
+      tp.evaluate(() => {
+        const c = [...document.querySelectorAll('canvas')].reduce((a, b) => {
+          const ra = a.getBoundingClientRect();
+          const rb = b.getBoundingClientRect();
+          return rb.width * rb.height > ra.width * ra.height ? b : a;
+        });
+        const r = c.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      });
+    const cr = await biggestCanvas();
+    const cx = cr.x + cr.w / 2;
+    const cy = cr.y + cr.h / 2;
+
+    // (a) pinch-zoom about the canvas center
+    const z0 = await tp.evaluate(() => window.__editor.cameraAtom.peek().z);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx - 40, y: cy, id: 0 }, { x: cx + 40, y: cy, id: 1 }] });
+    for (let i = 1; i <= 6; i++) {
+      const s = 40 + i * 25;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx - s, y: cy, id: 0 }, { x: cx + s, y: cy, id: 1 }] });
+      await tp.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await tp.waitForTimeout(80);
+    const z1 = await tp.evaluate(() => window.__editor.cameraAtom.peek().z);
+    assert(z1 > z0 * 1.2, `two-finger pinch increases camera.z (${z0.toFixed(3)} → ${z1.toFixed(3)})`);
+
+    // (b) gesture isolation: a pinch starting on a node must not drag it
+    const n0 = await tp.evaluate(() => { const ed = window.__editor; ed.zoomToFit(60); const n = ed.store.nodes()[0]; return { id: n.id, x: n.x, y: n.y }; });
+    const nc = await tp.evaluate((id) => {
+      const ed = window.__editor;
+      const it = ed.sceneIndex.getItem(id);
+      const cam = ed.cameraAtom.peek();
+      const c = [...document.querySelectorAll('canvas')].reduce((a, b) => {
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        return rb.width * rb.height > ra.width * ra.height ? b : a;
+      });
+      const r = c.getBoundingClientRect();
+      const a = it.aabb;
+      return { x: r.left + (a.x + a.w / 2 - cam.x) * cam.z, y: r.top + (a.y + a.h / 2 - cam.y) * cam.z };
+    }, n0.id);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: nc.x, y: nc.y, id: 0 }] });
+    await tp.waitForTimeout(16);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: nc.x, y: nc.y, id: 0 }, { x: nc.x + 60, y: nc.y, id: 1 }] });
+    for (let i = 1; i <= 5; i++) {
+      const s = i * 20;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: nc.x - s, y: nc.y, id: 0 }, { x: nc.x + 60 + s, y: nc.y, id: 1 }] });
+      await tp.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await tp.waitForTimeout(80);
+    const nAfter = await tp.evaluate((id) => { const n = window.__editor.store.peek(id); return { x: n.x, y: n.y }; }, n0.id);
+    assert(
+      Math.abs(nAfter.x - n0.x) < 0.5 && Math.abs(nAfter.y - n0.y) < 0.5,
+      `a two-finger pinch starting on a node does not drag it (Δ=${(nAfter.x - n0.x).toFixed(2)},${(nAfter.y - n0.y).toFixed(2)})`,
+    );
+    assert(tErrors.length === 0, `no console/page errors on the touch page (saw ${tErrors.length})`);
+    await tp.close();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // PRR wave E3 — accessibility verification (A11Y-VERIFY lane). Runs axe-core (the bundled build,
+  // injected from node_modules — zero-network, no CDN, CSP-safe) against the shell chrome, plus a
+  // keyboard smoke proving Tab reaches the canvas selection and Escape is not a focus trap
+  // (WCAG 2.1.2 — the E2 keyboard-trap fix). Kept AFTER the touch block and BEFORE the twin-harness
+  // navigation so the main app page is still loaded.
+  // ---------------------------------------------------------------------------------------------
+
+  console.log('8l) a11y: axe-core reports no serious/critical violations in the shell chrome ...');
+  {
+    // Reload to a pristine shell — 8g–8k mutated the model heavily; axe should audit the clean UI.
+    await page.goto(URL, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.__editor, { timeout: 10000 });
+    await page.waitForTimeout(300);
+    // Inject the bundled axe source read from node_modules (no network — CSP/offline safe). Dynamic
+    // import of node:fs keeps this section fully self-contained.
+    const { readFileSync } = await import('node:fs');
+    const axeSource = readFileSync(join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
+    await page.addScriptTag({ content: axeSource });
+    assert(await page.evaluate(() => typeof window.axe?.run === 'function'), 'axe-core injected into the page');
+    // Audit the whole document but EXCLUDE the <canvas> — its pixels are opaque to axe and would
+    // only yield meaningless color-contrast noise. Report every violation for triage, but fail the
+    // gate only on serious/critical, which is the shell-chrome accessibility bar.
+    const axeResult = await page.evaluate(async () => {
+      const res = await window.axe.run(
+        { exclude: [['canvas']] },
+        {
+          resultTypes: ['violations'],
+          // rules that cannot meaningfully apply to a single-page canvas editor / are harness noise
+          rules: { region: { enabled: false }, 'page-has-heading-one': { enabled: false } },
+        },
+      );
+      return res.violations.map((v) => ({
+        id: v.id,
+        impact: v.impact,
+        help: v.help,
+        nodes: v.nodes.slice(0, 3).map((n) => n.target.join(' ')),
+      }));
+    });
+    const serious = axeResult.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+    if (serious.length) {
+      console.error('     axe serious/critical violations:');
+      for (const v of serious) console.error(`       [${v.impact}] ${v.id}: ${v.help} — e.g. ${v.nodes.join(', ')}`);
+    } else if (axeResult.length) {
+      // minor/moderate findings are surfaced for triage but do NOT fail the gate
+      console.log(`     (axe: ${axeResult.length} minor/moderate finding(s), not gating)`);
+    }
+    assert(serious.length === 0, `axe-core: 0 serious/critical violations in the shell chrome (found ${serious.length})`);
+    await page.screenshot({ path: join(OUT, 'verify-a11y.png') });
+  }
+
+  console.log('8m) a11y: keyboard reaches the canvas and Escape is not a focus trap ...');
+  {
+    await page.evaluate(() => window.__editor.select([]));
+    // Tab traversal must move focus INTO the canvas host (role=application) ...
+    await page.locator('[role="application"]').first().focus();
+    assert(
+      await page.evaluate(() => document.activeElement?.getAttribute('role') === 'application'),
+      'keyboard focus lands on the canvas host (role=application)',
+    );
+    // ... and Tab THROUGH the canvas cycles the selection via the reading-order traversal.
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(60);
+    const sel1 = await page.evaluate(() => window.__editor.selectedIdsArray().length);
+    assert(sel1 === 1, `Tab inside the canvas selects a node (selection size=${sel1})`);
+    const firstId = await page.evaluate(() => window.__editor.selectedIdsArray()[0]);
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(60);
+    const secondId = await page.evaluate(() => window.__editor.selectedIdsArray()[0]);
+    assert(!!secondId && secondId !== firstId, 'a second Tab advances the selection to the next node');
+    // The aria-live region must exist and announce the current selection for screen readers.
+    assert(
+      await page.evaluate(() => !!document.querySelector('[data-testid="nodus-selection-live"][aria-live="polite"]')),
+      'aria-live selection region exists',
+    );
+    {
+      const liveText = await page.evaluate(
+        () => document.querySelector('[data-testid="nodus-selection-live"]').textContent || '',
+      );
+      assert(/ of \d+/.test(liveText), `aria-live announces the Tab selection ("${liveText.trim()}")`);
+    }
+    // WCAG 2.1.2 — Escape must be able to move focus OUT of the canvas (the E2 keyboard-trap fix).
+    // First Escape clears the (Tab-built) selection; a second, now-empty Escape blurs the host.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(40);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(60);
+    assert(
+      await page.evaluate(() => document.activeElement?.getAttribute('role') !== 'application'),
+      'Escape (nothing selected) moves focus OUT of the canvas host — no keyboard trap',
+    );
+  }
+
   console.log('9b) keyboard-scope isolation (twin harness, keyboardScope="host") ...');
   await page.goto(URL + '?harness=twin', { waitUntil: 'networkidle' });
   await page.waitForFunction(

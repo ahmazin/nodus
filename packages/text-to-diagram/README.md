@@ -3,7 +3,7 @@
 Turn an LLM's structured output into a [Nodus](https://github.com/ahmazin/nodus) diagram. You give a model the exported
 Anthropic tool definition (`diagramTool`) plus `diagramSystemPrompt`; the model returns a structured
 `DiagramSpec`; you call `recordsFromSpec` to get a renderable diagram (via the
-[infra preset](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra)). This package holds **zero LLM or network code** — the
+[infra preset](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-infra)). This package holds **zero LLM or network code** — the
 actual model call stays in your app, so keys and prompts never live in the library.
 
 ## Install
@@ -78,8 +78,8 @@ try {
 
 ## See also
 
-- [`@nodus-dev/preset-infra`](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) — the node types the spec maps to.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`@nodus-dev/preset-infra`](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-infra) — the node types the spec maps to.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

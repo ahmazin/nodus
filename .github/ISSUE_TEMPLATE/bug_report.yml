@@ -1,0 +1,77 @@
+name: Bug report
+description: Report a reproducible problem in a published @nodus-dev/* package.
+title: "[bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please search
+        [existing issues](https://github.com/ahmazin/nodus/issues) first.
+
+        This form is for **reproducible bugs**. For questions or help, use
+        [Discussions](https://github.com/ahmazin/nodus/discussions) instead.
+        For **security vulnerabilities**, do **not** file here — follow
+        [SECURITY.md](https://github.com/ahmazin/nodus/blob/mainline/SECURITY.md).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is a bug, not a question (questions go to Discussions).
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true
+  - type: input
+    id: package
+    attributes:
+      label: Affected package(s) and version
+      description: e.g. `@nodus-dev/core@0.3.0`, `@nodus-dev/react@0.3.0`
+      placeholder: "@nodus-dev/core@0.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including any error message or stack trace.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest steps, code snippet, or a minimal `.nodus.json` document / payload that triggers
+        the bug. A runnable repro gets a fix fastest. This will be rendered as code, so no backticks
+        needed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, package manager, browser (if relevant), framework/React version, OS.
+      placeholder: |
+        - Node: 22.x
+        - Browser: Chrome 140
+        - React: 18.3 (if using @nodus-dev/react)
+        - OS: macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, related issues, suspected cause, or a suggested fix.
+    validations:
+      required: false

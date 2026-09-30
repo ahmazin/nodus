@@ -7,12 +7,14 @@ egress**. Nothing you paste or open is uploaded or logged by the engine.
 
 ## Reporting a vulnerability
 
-Please report suspected vulnerabilities **privately** — do not open a public issue for a security bug.
+Please report suspected vulnerabilities **privately** — do not open a public issue, pull request, or
+Discussion for a security bug.
 
-- Preferred: use the repository's **Security → Report a vulnerability** (GitHub private security
-  advisories), which keeps the report confidential until a fix ships.
-- If that is unavailable, contact the maintainers privately (see the repository's README for the
-  current security contact) rather than filing publicly.
+**The sole reporting channel is GitHub private security advisories.** Use the repository's
+**Security → Report a vulnerability** button, or go directly to
+<https://github.com/ahmazin/nodus/security/advisories/new>. This keeps the report confidential until a
+fix ships and lets us collaborate with you privately. We do not publish a security email address; the
+private advisory is the only supported path.
 
 Please include: affected package(s) and version, a minimal reproduction (a payload / `.nodus.json` /
 share link), the observed impact, and any suggested fix. We aim to acknowledge within a few business
@@ -25,8 +27,15 @@ local environment.
 
 ## Supported versions
 
-Nodus is pre-1.0 (`0.x`). Security fixes land on the latest published minor; there is no back-porting to
-older `0.x` lines during the pre-1.0 phase. Pin exact versions and upgrade to pick up fixes.
+Nodus is pre-1.0 (`0.x`). All publishable `@nodus-dev/*` packages share one synchronized version line
+(currently the `0.3.x` line). Security fixes land on the **latest published minor** of that line only;
+there is no back-porting to older `0.x` minors during the pre-1.0 phase. Pin exact versions and upgrade
+to pick up fixes.
+
+| Version | Supported |
+| --- | --- |
+| Latest published `0.x` minor | ✅ |
+| Any older `0.x` minor | ❌ (upgrade to the latest minor) |
 
 ## Threat model & hardening
 

@@ -1,6 +1,6 @@
 ---
 import SiteHead from '../components/SiteHead.astro';
-import { SITE } from '../config';
+import { SITE, withBase } from '../config';
 
 // Markdown pages pass `frontmatter` + `headings`; .astro callers may pass title/description directly.
 interface Heading {
@@ -34,6 +34,7 @@ const DOCS_NAV = [
       { title: 'Extending', href: '/docs/extending' },
       { title: 'Headless rendering', href: '/docs/headless' },
       { title: 'React binding', href: '/docs/react' },
+      { title: 'Performance', href: '/docs/performance' },
     ],
   },
   {
@@ -41,7 +42,18 @@ const DOCS_NAV = [
     items: [
       { title: 'Data schema', href: '/docs/schema' },
       { title: 'Versioning & stability', href: '/docs/versioning' },
+      { title: 'Support matrix', href: '/docs/support-matrix' },
+      { title: 'Accessibility', href: '/docs/accessibility' },
+      { title: 'Privacy & telemetry', href: '/docs/privacy' },
       { title: 'API reference', href: '/api/' },
+    ],
+  },
+  {
+    group: 'Compare & FAQ',
+    items: [
+      { title: 'How Nodus compares', href: '/docs/comparison' },
+      { title: 'Collaboration', href: '/docs/collaboration' },
+      { title: 'Troubleshooting & FAQ', href: '/docs/troubleshooting' },
     ],
   },
   {
@@ -52,7 +64,7 @@ const DOCS_NAV = [
     ],
   },
 ];
-const isActive = (href: string) => pathname === href.replace(/\/$/, '');
+const isActive = (href: string) => pathname === withBase(href).replace(/\/$/, '');
 
 // Flatten for prev/next.
 const flat = DOCS_NAV.flatMap((s) => s.items);
@@ -71,7 +83,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
 
     <header class="hdr">
       <div class="hdr-inner">
-        <a href="/" class="brand" aria-label="Nodus home">
+        <a href={withBase('/')} class="brand" aria-label="Nodus home">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="5" cy="6.5" r="2.5" style="fill:var(--accent)"></circle>
             <circle cx="18.5" cy="6" r="2.3" style="stroke:var(--fg)" stroke-width="1.6"></circle>
@@ -82,9 +94,9 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
           <span class="pill">docs</span>
         </a>
         <nav class="hdr-nav">
-          <a href="/#features">Features</a>
-          <a href="/#compare">Compare</a>
-          <a href="/docs" aria-current="page">Docs</a>
+          <a href={withBase('/#features')}>Features</a>
+          <a href={withBase('/#compare')}>Compare</a>
+          <a href={withBase('/docs')} aria-current="page">Docs</a>
         </nav>
         <div class="hdr-actions">
           <button id="nd-theme-toggle" aria-label="Toggle theme" aria-pressed="false" class="icon-btn">
@@ -105,7 +117,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
             <ul>
               {sec.items.map((it) => (
                 <li>
-                  <a href={it.href} class:list={['side-link', { active: isActive(it.href) }]} aria-current={isActive(it.href) ? 'page' : undefined}>
+                  <a href={withBase(it.href)} class:list={['side-link', { active: isActive(it.href) }]} aria-current={isActive(it.href) ? 'page' : undefined}>
                     {it.title}
                   </a>
                 </li>
@@ -126,7 +138,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
         {(prev || next) && (
           <nav class="prevnext" aria-label="Pagination">
             {prev ? (
-              <a class="pn prev" href={prev.href}>
+              <a class="pn prev" href={withBase(prev.href)}>
                 <span>← Previous</span>
                 <strong>{prev.title}</strong>
               </a>
@@ -134,7 +146,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
               <span></span>
             )}
             {next ? (
-              <a class="pn next" href={next.href}>
+              <a class="pn next" href={withBase(next.href)}>
                 <span>Next →</span>
                 <strong>{next.title}</strong>
               </a>

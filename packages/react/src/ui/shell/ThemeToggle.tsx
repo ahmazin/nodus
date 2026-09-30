@@ -9,10 +9,11 @@
  */
 
 import type { CSSProperties, ReactElement } from 'react';
-import type { Editor, Theme } from '@nodus-dev/core';
+import type { DeepPartial, Editor, Theme } from '@nodus-dev/core';
 import { IconButton } from '../primitives.js';
 import { modeOfTheme, useUiTokens, type UiTokens } from '../tokens.js';
 import { useValue } from '../../use-value.js';
+import { useMessages, type ReactMessages } from '../../messages.js';
 import { MoonIcon, SunIcon } from './icons.js';
 
 export interface ThemeToggleProps {
@@ -23,12 +24,15 @@ export interface ThemeToggleProps {
   dark: Theme;
   tokens?: UiTokens;
   size?: 'sm' | 'md';
+  /** Localized string overrides for this toggle (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   style?: CSSProperties;
 }
 
-export function ThemeToggle({ editor, light, dark, tokens, size = 'md', style }: ThemeToggleProps): ReactElement {
+export function ThemeToggle({ editor, light, dark, tokens, size = 'md', messages, style }: ThemeToggleProps): ReactElement {
   const themed = useUiTokens(editor);
   const t = tokens ?? themed;
+  const m = useMessages(editor, messages).theme;
   const mode = useValue(() => modeOfTheme(editor.themeAtom.get()));
   const isDark = mode === 'dark';
 
@@ -41,8 +45,8 @@ export function ThemeToggle({ editor, light, dark, tokens, size = 'md', style }:
       variant="ghost"
       active={isDark}
       icon={isDark ? <SunIcon /> : <MoonIcon />}
-      aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-      title={isDark ? 'Light theme' : 'Dark theme'}
+      aria-label={isDark ? m.toLight : m.toDark}
+      title={isDark ? m.lightTitle : m.darkTitle}
       onClick={toggle}
       style={style}
     />

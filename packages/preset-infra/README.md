@@ -61,8 +61,8 @@ type.
 
 ## See also
 
-- [Extending Nodus](https://nodus.dev/docs/extending) — write your own node/edge types, routers, layouts, plugins.
-- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@nodus-dev/react`](https://github.com/ahmazin/nodus/tree/main/packages/react) for the browser host.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) — write your own node/edge types, routers, layouts, plugins.
+- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core) · [`@nodus-dev/react`](https://github.com/ahmazin/nodus/tree/mainline/packages/react) for the browser host.
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

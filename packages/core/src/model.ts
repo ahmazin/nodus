@@ -121,6 +121,10 @@ export interface FlowRuntimeConfig {
   respectReducedMotion: boolean;
   /** Optional cap (fps) on the self-perpetuating flow ticks; undefined = display refresh. */
   maxFps?: number;
+  /** Animate the selection halo/marching-ants (default true). `false` renders the selection at its
+   *  fixed, non-animated appearance and lets the rAF loop idle when nothing else is animating — the
+   *  selection halo alone no longer keeps the frame loop spinning. */
+  animateSelection?: boolean;
 }
 
 export interface BaseRecord<TN extends string = string> {

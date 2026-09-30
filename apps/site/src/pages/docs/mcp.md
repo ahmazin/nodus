@@ -1,7 +1,7 @@
 ---
 layout: ../../layouts/DocsLayout.astro
 title: MCP server
-description: Drive the Nodus engine from an AI agent — build, mutate, lay out, and export diagrams as tool calls.
+description: Drive the Nodus engine from an AI agent — build, mutate, lay out, and export diagrams as tool calls, over npx with no build step.
 ---
 
 `@nodus-dev/mcp` exposes the engine as a [Model Context Protocol](https://modelcontextprotocol.io) server,
@@ -27,8 +27,44 @@ an agent's edits review like any other change.
 
 ## Usage
 
-Wire it into any MCP-capable client as a stdio server. It isn't published to npm yet, so build it from
-the repo and point your client at the compiled entry:
+`@nodus-dev/mcp` is published to npm, so wire it into any MCP-capable client as a stdio server with
+`npx` — no clone, no build:
+
+```json
+{
+  "mcpServers": {
+    "nodus": {
+      "command": "npx",
+      "args": ["-y", "@nodus-dev/mcp"],
+      "env": { "NODUS_MCP_DATA": "/absolute/path/to/diagrams" }
+    }
+  }
+}
+```
+
+`npx -y @nodus-dev/mcp` runs the published `nodus-mcp` binary. That's the whole setup.
+
+### Where files go — the data dir
+
+The server keeps saved documents and exports under a **data directory**, and by default it will only
+write there. This keeps a diagram-authoring agent from being tricked into overwriting arbitrary files
+on your machine.
+
+- **Default location:** a `.nodus-mcp/` folder in the process's working directory, with `exports/`
+  (PNG/SVG) and `docs/` (saved `.nodus.json`) subfolders. Set **`NODUS_MCP_DATA`** to put it
+  somewhere specific (recommended — point it at the repo where your diagrams live).
+- **Writes are confined to the data dir.** `export_png` / `export_svg` refuse a `path` outside it,
+  refuse a path whose extension doesn't match the tool, and refuse to overwrite a file the session
+  didn't itself create.
+- **Opt in to writing under the working directory** by setting **`NODUS_MCP_ALLOW_CWD`** (`1`, `true`,
+  or `yes`). This adds the current working directory as an allowed write root — useful when you want
+  the agent to drop a `diagram.png` straight into your project — while the extension and
+  no-clobber guards still apply. Leave it unset for the safe default.
+
+### From source (contributors)
+
+If you're working on Nodus itself, point the client at the built entry instead of the published
+package:
 
 ```bash
 pnpm --filter @nodus-dev/mcp build   # produces packages/mcp/dist/bin.js
@@ -46,7 +82,7 @@ pnpm --filter @nodus-dev/mcp build   # produces packages/mcp/dist/bin.js
 }
 ```
 
-A typical agent flow:
+## A typical agent flow
 
 ```text
 new_diagram            → start a fresh scene

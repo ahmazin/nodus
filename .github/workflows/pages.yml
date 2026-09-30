@@ -1,0 +1,71 @@
+name: Deploy site (Pages)
+
+# Deploys the Astro marketing + docs site (with the typedoc API reference and the examples/browser
+# playground bundled in) to GitHub Pages on every push to mainline that touches the site or its
+# inputs. The interim origin is a PROJECT page (ahmazin.github.io/nodus), so the site MUST build with
+# `base: '/nodus/'` and the playground at `--base=/nodus/playground/` (SITE lane owns astro.config.mjs
+# + build.mjs); otherwise the deployed assets 404.
+#
+# HUMAN / REPO-SETTINGS PREREQUISITES (not expressible as a file — do these once in repo settings):
+#   1. Settings → Pages → Build and deployment → Source = "GitHub Actions".
+#   2. (Recommended) Settings → Rules → protect `mainline` and require the CI checks
+#      (verify / dist-consume / browser-e2e / site) before merge.
+on:
+  push:
+    branches: [mainline]
+    paths:
+      - 'apps/site/**'
+      - 'examples/browser/**'
+      - 'packages/**'
+      - 'typedoc.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deploys; never cancel an in-flight deployment (avoids a half-published site).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The published icons-cloud tarball ships EMPTY placeholder packs (licensing: no provider
+      # artwork in the npm tarball). Regenerate real packs from the committed svg/ for the DEPLOYED
+      # playground only — this repopulates packages/icons-cloud/src/generated/* in the ephemeral CI
+      # checkout (never committed). Skipped silently if the package stays held / svg absent.
+      - name: Regenerate cloud icon packs (deploy only)
+        run: pnpm build:icons || echo "build:icons skipped"
+      # Generate the API reference into apps/site/public/api BEFORE the site build so Astro copies it
+      # into dist/. Done here explicitly so the deploy is robust even if build.mjs isn't wired to it.
+      - name: Generate API reference
+        run: pnpm docs:api
+      - name: Build site
+        run: pnpm --filter @nodus-dev/site build
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: apps/site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

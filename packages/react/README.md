@@ -127,7 +127,7 @@ are always a separate opt-in (`injectGlobalStyles({ webFonts: true })`).
 ## Stability
 
 Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
-[stability policy](https://github.com/ahmazin/nodus/blob/main/docs/stability.md).
+[stability policy](https://github.com/ahmazin/nodus/blob/mainline/docs/stability.md).
 
 ## Panels
 

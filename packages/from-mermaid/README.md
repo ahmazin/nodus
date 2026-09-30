@@ -1,7 +1,7 @@
 # @nodus-dev/from-mermaid
 
 Import a [Mermaid](https://mermaid.js.org/) diagram string into [Nodus](https://github.com/ahmazin/nodus) records. It
-reuses the [`@nodus-dev/preset-diagrams`](https://github.com/ahmazin/nodus/tree/main/packages/preset-diagrams) builders (so the result renders
+reuses the [`@nodus-dev/preset-diagrams`](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-diagrams) builders (so the result renders
 with the diagram node types + theme) and lays the graph out under any registered layout engine.
 Deliberately scoped to the three subsets that cover the common cases: `flowchart` / `graph`,
 `stateDiagram(-v2)`, and `erDiagram`. Unknown lines are skipped, never thrown.
@@ -70,8 +70,8 @@ try {
 
 ## See also
 
-- [`@nodus-dev/preset-diagrams`](https://github.com/ahmazin/nodus/tree/main/packages/preset-diagrams) — the node/edge types and builders behind the import.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`@nodus-dev/preset-diagrams`](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-diagrams) — the node/edge types and builders behind the import.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

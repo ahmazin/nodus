@@ -9,12 +9,13 @@
  * Decoupled from `@nodus-dev/stencils`: the libraries arrive as a prop and persistence is the host's job.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import { Editor, isNode, renderSVG, sessionIdFactory, type NodusRecord } from '@nodus-dev/core';
+import { Editor, fmt, isNode, renderSVG, sessionIdFactory, type DeepPartial, type NodusRecord } from '@nodus-dev/core';
 import type { Stencil, StencilLibrary as StencilLibraryData } from '@nodus-dev/stencils';
 import { getCanvas } from './canvas-registry.js';
 import { useUiTokens, type UiMode, type UiTokens } from './ui/tokens.js';
 import { injectGlobalStyles } from './ui/global-styles.js';
 import { useValue } from './use-value.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 // makeId left the public barrel (it's @internal now); mint stencil ids from a session factory instead.
 const stencilIds = sessionIdFactory();
@@ -27,6 +28,8 @@ export interface StencilLibraryProps {
   onSaveSelection?: (stencil: Stencil) => void;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this picker (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
   /**
    * How the expanded palette is laid out.
    * - `'popover'` (default): a fixed-width popover floating over the page from the trigger button.
@@ -181,8 +184,9 @@ function Thumb({ editor, stencil, mode, variant }: { editor: Editor; stencil: St
   return <img src={uri} alt="" aria-hidden="true" style={S.thumb} draggable={false} />;
 }
 
-export function StencilLibrary({ editor, libraries, onSaveSelection, className, style, variant = 'popover' }: StencilLibraryProps): ReactElement | null {
+export function StencilLibrary({ editor, libraries, onSaveSelection, className, style, variant = 'popover', messages }: StencilLibraryProps): ReactElement | null {
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).stencils;
   const S = buildStyles(t, variant);
   const inline = variant === 'inline';
   useEffect(() => { injectGlobalStyles(); }, []);
@@ -218,9 +222,9 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
 
   const flat = useMemo(() => groups.flatMap((g) => g.stencils), [groups]);
   const flatIndex = useMemo(() => {
-    const m = new Map<Stencil, number>();
-    flat.forEach((s, i) => m.set(s, i));
-    return m;
+    const idx = new Map<Stencil, number>();
+    flat.forEach((s, i) => idx.set(s, i));
+    return idx;
   }, [flat]);
   const total = useMemo(() => libraries.reduce((n, lib) => n + lib.stencils.length, 0), [libraries]);
 
@@ -245,7 +249,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
   const onSave = (): void => {
     const records = editor.captureStencil(editor.selectedIdsArray());
     if (records.length === 0) return;
-    const name = window.prompt('Name this stencil', 'My stencil')?.trim();
+    const name = window.prompt(m.namePrompt, m.nameDefault)?.trim();
     if (!name) return;
     onSaveSelection?.({ id: stencilIds.make('stencil'), name, records });
   };
@@ -346,7 +350,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
         style={inline ? { ...S.toggle(open), width: '100%', textAlign: 'left' } : S.toggle(open)}
         onClick={() => setOpen((o) => !o)}
       >
-        Stencils ▾
+        {m.trigger} ▾
       </button>
       {open && (
         <div data-testid="stencil-library-panel" style={S.panel} onPointerDown={(e) => e.stopPropagation()}>
@@ -356,7 +360,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
               ref={inputRef}
               data-testid="stencil-search"
               style={S.input}
-              placeholder="Search stencils… (box, note, flowchart)"
+              placeholder={m.searchPlaceholder}
               value={query}
               role="combobox"
               aria-expanded
@@ -387,8 +391,8 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
                 data-testid="stencil-search-clear"
                 style={S.clearBtn}
                 onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-                title="Clear search"
-                aria-label="Clear search"
+                title={m.clearSearch}
+                aria-label={m.clearSearch}
               >
                 ×
               </button>
@@ -400,21 +404,21 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
             style={S.saveBtn(selCount > 0)}
             disabled={selCount === 0}
             onClick={onSave}
-            title={selCount === 0 ? 'Select something on the canvas first' : `Save ${selCount} selected as a stencil`}
+            title={selCount === 0 ? m.saveHintEmpty : fmt(m.saveHint, { count: selCount })}
           >
-            + Save selection as stencil{selCount > 0 ? ` (${selCount})` : ''}
+            + {m.saveButton}{selCount > 0 ? ` (${selCount})` : ''}
           </button>
 
           {flat.length === 0 ? (
             <div data-testid="stencil-empty" style={S.empty}>
-              {query.trim() ? <>No stencils match “{query.trim()}”</> : 'No stencils available'}
+              {query.trim() ? fmt(m.emptyQuery, { query: query.trim() }) : m.empty}
             </div>
           ) : (
             <div ref={scrollRef} id="stencil-results" data-stencil-scroll="" style={S.scroll}>
               {query.trim() === '' && recents.length > 0 && (
                 <div>
-                  <div style={S.recentLabel}>Recent</div>
-                  <div style={S.grid} role="listbox" aria-label="Recent stencils">
+                  <div style={S.recentLabel}>{m.recent}</div>
+                  <div style={S.grid} role="listbox" aria-label={m.recentLabel}>
                     {recents.map((stencil) => (
                       <div
                         key={`recent-${stencil.id}`}
@@ -442,7 +446,7 @@ export function StencilLibrary({ editor, libraries, onSaveSelection, className, 
           )}
 
           <div style={S.footer}>
-            {flat.length} of {total} · ↑↓←→ to move · Enter to add · drag to place
+            {fmt(m.footerHelp, { count: flat.length, total })}
           </div>
         </div>
       )}

@@ -33,13 +33,31 @@ renders PNGs with Skia via `@napi-rs/canvas`.
 
 ## Run it
 
+The server is published to npm, so an MCP client can launch it with **no install or build step**:
+
 ```bash
-pnpm --filter @nodus-dev/mcp build
-# then run the stdio server (an MCP client launches this for you):
-node packages/mcp/dist/bin.js
+npx -y @nodus-dev/mcp
 ```
 
-`NODUS_MCP_DATA=<dir>` sets where exports and saved docs land (default `./.nodus-mcp`).
+That starts the stdio JSON-RPC server (an MCP client normally spawns this for you). Two environment
+variables control where it may write:
+
+- **`NODUS_MCP_DATA=<dir>`** — the data dir for exports and saved docs. Defaults to `./.nodus-mcp`
+  (an `exports/` and a `docs/` subdirectory are created under it). `export_png` / `export_svg` and
+  `save_doc` / `load_doc` are confined to this dir.
+- **`NODUS_MCP_ALLOW_CWD=1`** — opt-in (accepts `1` / `true` / `yes`). By **default the server refuses
+  to write outside the data dir**; set this to also permit writes under the current working directory.
+  Either way, each tool enforces its file extension (`.png` / `.svg`) and refuses to overwrite a file
+  the session did not create.
+
+### From source (contributors)
+
+Working inside the monorepo, build the package and run the built entry directly:
+
+```bash
+pnpm --filter @nodus-dev/mcp build
+node packages/mcp/dist/bin.js
+```
 
 ## Configure an MCP client
 
@@ -49,15 +67,18 @@ node packages/mcp/dist/bin.js
 {
   "mcpServers": {
     "nodus": {
-      "command": "node",
-      "args": ["/absolute/path/to/InfraCanvas/packages/mcp/dist/bin.js"],
+      "command": "npx",
+      "args": ["-y", "@nodus-dev/mcp"],
       "env": { "NODUS_MCP_DATA": "/absolute/path/to/diagrams" }
     }
   }
 }
 ```
 
-**Claude Code** — `claude mcp add nodus -- node /absolute/path/to/InfraCanvas/packages/mcp/dist/bin.js`
+**Claude Code** — `claude mcp add nodus -- npx -y @nodus-dev/mcp`
+
+To point at a **local checkout** instead (contributors), build first and use the absolute path to the
+built entry as the command — e.g. `"command": "node", "args": ["/absolute/path/to/nodus/packages/mcp/dist/bin.js"]`.
 
 Then ask the agent to draw something:
 
@@ -88,4 +109,4 @@ const result = await dispatch(session, 'import_mermaid', { source: 'graph LR\n A
 ## Stability
 
 Pre-1.0: a **minor** bump (0.Y.0) may break, a **patch** (0.0.Z) is additive/fixes only — see the
-[stability policy](https://github.com/ahmazin/nodus/blob/main/docs/stability.md).
+[stability policy](https://github.com/ahmazin/nodus/blob/mainline/docs/stability.md).

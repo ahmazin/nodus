@@ -1,7 +1,7 @@
 # @nodus-dev/import-infra
 
 Import live infrastructure into a [Nodus](https://github.com/ahmazin/nodus) diagram. Two converters turn real infra
-descriptions into [infra preset](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) records:
+descriptions into [infra preset](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-infra) records:
 
 - `fromTerraform(showJson)` — parses `terraform show -json` (state **or** plan); resources become
   nodes, `depends_on` becomes edges.
@@ -69,8 +69,8 @@ try {
 
 ## See also
 
-- [`@nodus-dev/preset-infra`](https://github.com/ahmazin/nodus/tree/main/packages/preset-infra) — the node types the records use.
-- [Extending Nodus](https://nodus.dev/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core)
+- [`@nodus-dev/preset-infra`](https://github.com/ahmazin/nodus/tree/mainline/packages/preset-infra) — the node types the records use.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) · [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

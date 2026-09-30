@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest a new capability or enhancement for Nodus.
+title: "[feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Please search
+        [existing issues](https://github.com/ahmazin/nodus/issues) and
+        [Discussions](https://github.com/ahmazin/nodus/discussions) first — larger ideas are often best
+        explored as a Discussion before a formal request.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and discussions and this is not a duplicate.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case or pain point. Focus on the "why" before the "how".
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >
+        What would you like Nodus to do? If it fits one of the extension axes (node/edge type, router,
+        layout, plugin), say so — new engine behavior is usually a registered extension rather than a
+        core change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you have tried, or other approaches you weighed.
+    validations:
+      required: false
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you be willing to contribute this?
+      options:
+        - "Yes, I could open a PR"
+        - "Maybe, with guidance"
+        - "No, just requesting"
+    validations:
+      required: false

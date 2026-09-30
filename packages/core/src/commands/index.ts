@@ -66,22 +66,25 @@ export class CommandRegistry {
  * delete, duplicate). Auto-installed by the `Editor` unless `EditorOptions.builtins === false`.
  */
 export function installDefaultCommands(editor: Editor): void {
+  // Labels are snapshotted from the editor's (already-merged) message table at install time, so a host
+  // that passes `messages` to the constructor gets localized palette/menu labels with no other change.
+  const m = editor.messages.commands;
   const commands: Command[] = [
-    { id: 'undo', label: 'Undo', run: (e) => e.undo(), enabled: (e) => e.history.canUndo() },
-    { id: 'redo', label: 'Redo', run: (e) => e.redo(), enabled: (e) => e.history.canRedo() },
-    { id: 'zoomIn', label: 'Zoom in', run: (e) => e.zoomBy(1.2) },
-    { id: 'zoomOut', label: 'Zoom out', run: (e) => e.zoomBy(1 / 1.2) },
-    { id: 'zoomToFit', label: 'Zoom to fit', run: (e) => e.zoomToFit() },
-    { id: 'selectAll', label: 'Select all', run: (e) => e.selectAll() },
+    { id: 'undo', label: m.undo, run: (e) => e.undo(), enabled: (e) => e.history.canUndo() },
+    { id: 'redo', label: m.redo, run: (e) => e.redo(), enabled: (e) => e.history.canRedo() },
+    { id: 'zoomIn', label: m.zoomIn, run: (e) => e.zoomBy(1.2) },
+    { id: 'zoomOut', label: m.zoomOut, run: (e) => e.zoomBy(1 / 1.2) },
+    { id: 'zoomToFit', label: m.zoomToFit, run: (e) => e.zoomToFit() },
+    { id: 'selectAll', label: m.selectAll, run: (e) => e.selectAll() },
     {
       id: 'delete',
-      label: 'Delete',
+      label: m.delete,
       run: (e) => e.deleteRecords(e.selectedIdsArray()),
       enabled: (e) => e.selectedIdsArray().length > 0,
     },
     {
       id: 'duplicate',
-      label: 'Duplicate',
+      label: m.duplicate,
       run: (e) => {
         e.duplicate();
       },

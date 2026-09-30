@@ -1,9 +1,9 @@
 {
   "name": "@nodus-dev/icons-cloud",
-  "version": "1.0.0",
-  "license": "SEE LICENSE IN LICENSE",
+  "version": "0.3.0",
   "private": true,
   "_publishHold": "HELD FROM npm PUBLISH pending a licensing decision: this package bundles derived AWS/Azure/GCP provider artwork, whose icon terms permit end-user diagramming but not clearly third-party registry redistribution. See PRE-PUBLICATION-AUDIT.md H4. Consumed locally by examples/browser via workspace:* — no PUBLISHED @nodus-dev/* package depends on it (react is decoupled via the catalog prop). To ship: resolve the terms (or gate to placeholder packs) and remove this flag.",
+  "license": "SEE LICENSE IN LICENSE",
   "files": [
     "dist",
     "LICENSE",
@@ -105,7 +105,7 @@
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/icons-cloud#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/mainline/packages/icons-cloud#readme",
   "bugs": {
     "url": "https://github.com/ahmazin/nodus/issues"
   }

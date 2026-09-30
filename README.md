@@ -54,6 +54,9 @@ everything else. The infra-architecture tool that seeded it (**InfraCanvas**) no
 - **Headless-first** — the core has zero framework or DOM dependencies; a thin `@nodus-dev/react` binding
   adds the canvas host and inline text overlay.
 
+> **Comparing tools?** See [how Nodus compares](https://ahmazin.github.io/nodus/docs/comparison) to
+> Excalidraw, tldraw, React Flow, and Mermaid.
+
 ## Packages
 
 pnpm workspace monorepo. Each package points `main`/`types` at `./src/index.ts`, and Vite/Vitest alias
@@ -129,6 +132,14 @@ and hosts the inline label editor. The full interactive demo is in
   playground — toolbar, tool-rail, live minimap, cloud-icon insert, and multi-select — driven entirely
   through the public <code>Editor</code> API. Run <code>pnpm dev</code> → http://localhost:5188.</em></sub>
 </p>
+
+### Starter templates
+
+Copy-paste-ready minimal setups — each is a standalone project you can lift out of the repo:
+
+- [`examples/minimal-react`](./examples/minimal-react) — the React binding in a Vite app.
+- [`examples/minimal-headless`](./examples/minimal-headless) — Node, no DOM, PNG export.
+- [`examples/minimal-vanilla`](./examples/minimal-vanilla) — the core on a plain `<canvas>`, no framework.
 
 ## Git-native diagrams
 
@@ -226,12 +237,26 @@ See [`@nodus-dev/core`](./packages/core#readme) for the full architecture and ex
 
 ## Stability
 
-Every `@nodus-dev/*` package is **pre-1.0 (0.x)** — a minor bump (`0.Y.0`) may break; a patch (`0.0.Z`) is
+Every `@nodus-dev/*` package is **pre-1.0 (0.x)** — a minor bump (`0.Y.0`) may break; a patch (`0.Y.Z`) is
 additive or fixes only. Canonical `*.nodus.json` bytes are a versioned contract (a byte change is
 breaking). See [`docs/stability.md`](./docs/stability.md) for the full policy — the public-API
 boundary, deprecations, and the canonical-byte contract — and [`RELEASING.md`](./RELEASING.md) for the
 changesets release flow.
 
+## Accessibility
+
+Nodus ships a focusable `role="application"` canvas host, keyboard traversal with auto-pan,
+focus-trapped dialogs, end-to-end reduced-motion support, and measured WCAG contrast tokens. Known
+gaps are tracked openly — canvas content is currently screen-reader-silent, and edge-connect /
+label-edit remain pointer-only. See [`ACCESSIBILITY.md`](./ACCESSIBILITY.md) for the current, honest
+status statement.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+**Third-party content.** The MIT grant covers Nodus's own code. It does **not** cover the
+cloud-provider (AWS / Azure / GCP) icon artwork under `packages/icons-cloud/` — that artwork is
+governed by each provider's icon terms (see the package's `LICENSE`, `NOTICE`, and `LICENSES/`), and
+`@nodus-dev/icons-cloud` is held from npm pending a redistribution-terms decision. `@nodus-dev/layout-elk`
+depends on **elkjs (EPL-2.0)**. See [`NOTICE`](./NOTICE) for the full third-party summary.

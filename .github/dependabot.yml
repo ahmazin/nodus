@@ -1,0 +1,20 @@
+# Dependabot keeps dependencies and pinned GitHub Actions current.
+#   - npm: one root entry covers the whole pnpm workspace (Dependabot reads the pnpm-lock.yaml at the
+#     repo root). Dev-dependency bumps are grouped into a single PR to cut noise.
+#   - github-actions: bumps the SHA-pinned `uses:` refs in .github/workflows/** (pins keep supply
+#     chain fixed; this updater is how they move forward safely, preserving the `# vX` tag comment).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      dev-deps:
+        dependency-type: development
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10

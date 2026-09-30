@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev/react",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "files": [
     "dist"
   ],
@@ -44,8 +44,23 @@
   },
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "size": "size-limit"
   },
+  "size-limit": [
+    {
+      "name": "react binding ESM (gzip, peers external)",
+      "path": "dist/index.js",
+      "limit": "60 KB",
+      "gzip": true,
+      "ignore": [
+        "react",
+        "react-dom",
+        "@nodus-dev/core",
+        "@nodus-dev/stencils"
+      ]
+    }
+  ],
   "publishConfig": {
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -67,7 +82,7 @@
   "engines": {
     "node": ">=20"
   },
-  "homepage": "https://github.com/ahmazin/nodus/tree/main/packages/react#readme",
+  "homepage": "https://github.com/ahmazin/nodus/tree/mainline/packages/react#readme",
   "bugs": {
     "url": "https://github.com/ahmazin/nodus/issues"
   }

@@ -104,7 +104,7 @@ export const darkInfraTheme: Theme = {
   },
   overlays: {
     met: { stroke: '#10b981', glow: '#10b981' },
-    partial: { stroke: '#f59e0b', glow: '#f59e0b' },
+    partial: { stroke: '#f59e0b', glow: '#f59e0b', dash: [5, 3] },
     missed: { stroke: '#ef4444', glow: '#ef4444' },
   },
   focus: { strokeWidth: 2, glow: '#ffffff' },
@@ -170,7 +170,7 @@ export const infraLightTheme: Theme = {
   },
   overlays: {
     met: { stroke: '#059669', glow: '#10b981' },
-    partial: { stroke: '#d97706', glow: '#f59e0b' },
+    partial: { stroke: '#d97706', glow: '#f59e0b', dash: [5, 3] },
     missed: { stroke: '#dc2626', glow: '#ef4444' },
   },
   // White glow is invisible on a light canvas — focus reads via the accent glow instead. Uses the

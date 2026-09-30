@@ -21,6 +21,9 @@ export { getCanvas, registerCanvas } from './canvas-registry.js';
 export { useValue } from './use-value.js';
 export { useNodusEditor } from './use-nodus-editor.js';
 
+// i18n — react chrome message table + provider + hook (layers on core's Editor.messages)
+export { defaultReactMessages, MessagesProvider, useMessages, type ReactMessages } from './messages.js';
+
 // panels
 export { Minimap, type MinimapProps } from './minimap.js';
 export { CommandPalette, defaultCommands, OPEN_COMMAND_PALETTE_EVENT, type Command, type CommandPaletteProps } from './command-palette.js';

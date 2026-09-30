@@ -3,7 +3,7 @@
  * any stdio/protocol code so it can be unit-tested directly. `dispatch(session, name, args)` runs one
  * tool and returns MCP `content` blocks.
  */
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
 import { Editor, diff, renderSVG, themePack, toCanonicalString, type CreateCanvas, type Endpoint, type FlowScale, type FlowSpec, type Id, type NodeRecord, type NodusRecord, type Vec2 } from '@nodus-dev/core';
@@ -63,14 +63,36 @@ export class DiagramSession {
   readonly exportsDir: string;
   readonly docsDir: string;
   exportSeq = 0;
+  /** When false (default), file writes are confined to exportsDir/docsDir; cwd is NOT a write root.
+   *  Opt in via the `NODUS_MCP_ALLOW_CWD` env (wired in bin.ts) to also permit writes under cwd. */
+  readonly allowCwd: boolean;
+  /** Absolute paths this session created — the only existing files it is allowed to overwrite. */
+  readonly writtenPaths = new Set<string>();
 
-  constructor(opts: { dataDir?: string } = {}) {
+  constructor(opts: { dataDir?: string; allowCwd?: boolean } = {}) {
     const base = opts.dataDir ?? join(process.cwd(), '.nodus-mcp');
     this.exportsDir = join(base, 'exports');
     this.docsDir = join(base, 'docs');
+    this.allowCwd = opts.allowCwd === true;
     mkdirSync(this.exportsDir, { recursive: true });
     mkdirSync(this.docsDir, { recursive: true });
     this.reset('diagrams');
+  }
+
+  /**
+   * Resolve + validate a caller-supplied export path. Default-deny: writes are confined to
+   * exportsDir/docsDir (cwd only when `allowCwd`). Enforces the per-tool extension, and refuses to
+   * clobber a file this session did not itself create (a confused-deputy guard so a client can't
+   * trick the server into overwriting e.g. package.json). With no path, falls back to the data dir.
+   */
+  resolveExportPath(arg: unknown, ext: '.png' | '.svg', fallbackName: string): { path: string } | { error: string } {
+    if (arg == null) return { path: join(this.exportsDir, fallbackName) };
+    const roots = this.allowCwd ? [this.exportsDir, this.docsDir, process.cwd()] : [this.exportsDir, this.docsDir];
+    const abs = containedPath(String(arg), roots);
+    if (!abs) return { error: `refusing to write outside the export data dir${this.allowCwd ? ' or working directory' : ''}: ${String(arg)}` };
+    if (!abs.toLowerCase().endsWith(ext)) return { error: `export path must end with ${ext}: ${String(arg)}` };
+    if (existsSync(abs) && !this.writtenPaths.has(abs)) return { error: `refusing to overwrite an existing file this session did not create: ${abs}` };
+    return { path: abs };
   }
 
   reset(preset: Preset): void {
@@ -413,15 +435,12 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
           flow: args.flow != null ? args.flow === true : ed.hasFlow(), // show the traffic snapshot by default
           time: finiteNum(args.time) ?? 0,
         });
-        let path: string;
-        if (args.path != null) {
-          const contained = containedPath(String(args.path), [process.cwd(), session.exportsDir, session.docsDir]);
-          if (!contained) return fail(`refusing to write outside the working directory or data dir: ${args.path}`);
-          path = contained;
-        } else {
-          path = join(session.exportsDir, `diagram-${++session.exportSeq}.png`);
-        }
+        const r = session.resolveExportPath(args.path, '.png', `diagram-${session.exportSeq + 1}.png`);
+        if ('error' in r) return fail(r.error);
+        if (args.path == null) session.exportSeq++;
+        const path = r.path;
         writeFileSync(path, png);
+        session.writtenPaths.add(path);
         const content: Content[] = [{ type: 'text', text: `Saved PNG (${png.length} bytes) to ${path}` }];
         if (args.inline !== false) content.push({ type: 'image', data: Buffer.from(png).toString('base64'), mimeType: 'image/png' });
         return { content };
@@ -528,15 +547,12 @@ export async function dispatch(session: DiagramSession, name: string, args: Reco
       case 'export_svg': {
         if (!ed.sceneIndex.contentBounds()) return fail('nothing to export — the diagram is empty');
         const svg = renderSVG(ed);
-        let path: string;
-        if (args.path != null) {
-          const contained = containedPath(String(args.path), [process.cwd(), session.exportsDir, session.docsDir]);
-          if (!contained) return fail(`refusing to write outside the working directory or data dir: ${args.path}`);
-          path = contained;
-        } else {
-          path = join(session.exportsDir, `diagram-${++session.exportSeq}.svg`);
-        }
+        const r = session.resolveExportPath(args.path, '.svg', `diagram-${session.exportSeq + 1}.svg`);
+        if ('error' in r) return fail(r.error);
+        if (args.path == null) session.exportSeq++;
+        const path = r.path;
         writeFileSync(path, svg);
+        session.writtenPaths.add(path);
         return { content: [{ type: 'text', text: `Saved SVG (${svg.length} bytes) to ${path}` }, { type: 'text', text: svg }] };
       }
       case 'author_from_spec': {

@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -106,14 +106,72 @@ describe('nodus-mcp: review regressions', () => {
     expect(asJson(await call(s, 'list_elements')).nodes).toHaveLength(2);
   });
 
-  it('export_png refuses to write outside the working dir / data dir', async () => {
+  it('export_png refuses to write outside the data dir; a legit export to exportsDir succeeds', async () => {
     const s = new DiagramSession({ dataDir });
     await call(s, 'import_mermaid', { source: 'graph TD\n A --> B' });
     const bad = await call(s, 'export_png', { path: '/etc/nodus-should-not-write.png', inline: false });
     expect(bad.isError).toBe(true);
-    expect(bad.content[0]!.text).toMatch(/refusing to write/);
+    expect(bad.content[0]!.text).toMatch(/refusing to write outside/);
     const good = await call(s, 'export_png', { path: join(s.exportsDir, 'ok.png'), inline: false });
     expect(good.isError).toBeUndefined();
+    expect(existsSync(join(s.exportsDir, 'ok.png'))).toBe(true);
+  });
+
+  it('SECURITY: export_png cannot be tricked into overwriting a cwd file (e.g. package.json)', async () => {
+    // Confused-deputy: a client requesting an export to package.json under cwd must be default-denied
+    // (cwd is not a write root without NODUS_MCP_ALLOW_CWD) and the file's bytes must be untouched.
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph TD\n A --> B' });
+    const target = join(process.cwd(), 'package.json');
+    const before = readFileSync(target);
+    const attack = await call(s, 'export_png', { path: target, inline: false });
+    expect(attack.isError).toBe(true);
+    expect(attack.content[0]!.text).toMatch(/refusing to (write outside|overwrite)/);
+    expect(readFileSync(target).equals(before)).toBe(true); // bytes unchanged
+  });
+
+  it('SECURITY: cwd writes are default-denied but opt-in via allowCwd, and enforce extension', async () => {
+    // default-deny: an export to cwd is rejected
+    const denied = new DiagramSession({ dataDir });
+    await call(denied, 'import_mermaid', { source: 'graph TD\n A --> B' });
+    const outside = await call(denied, 'export_png', { path: join(process.cwd(), 'nodus-denied.png'), inline: false });
+    expect(outside.isError).toBe(true);
+    expect(outside.content[0]!.text).toMatch(/refusing to write outside/);
+
+    // opt-in: allowCwd lets a fresh cwd file be written
+    const allowed = new DiagramSession({ dataDir, allowCwd: true });
+    await call(allowed, 'import_mermaid', { source: 'graph TD\n A --> B' });
+    const target = join(process.cwd(), `nodus-test-${Math.random().toString(36).slice(2)}.png`);
+    try {
+      const ok = await call(allowed, 'export_png', { path: target, inline: false });
+      expect(ok.isError).toBeUndefined();
+      expect(existsSync(target)).toBe(true);
+      // extension enforcement: wrong extension is rejected for each tool
+      const wrongPng = await call(allowed, 'export_png', { path: join(allowed.exportsDir, 'foo.txt'), inline: false });
+      expect(wrongPng.isError).toBe(true);
+      expect(wrongPng.content[0]!.text).toMatch(/must end with \.png/);
+      const wrongSvg = await call(allowed, 'export_svg', { path: join(allowed.exportsDir, 'foo.png') });
+      expect(wrongSvg.isError).toBe(true);
+      expect(wrongSvg.content[0]!.text).toMatch(/must end with \.svg/);
+    } finally {
+      rmSync(target, { force: true });
+    }
+  });
+
+  it('SECURITY: refuses to overwrite a pre-existing file the session did not create, but re-exports its own', async () => {
+    const s = new DiagramSession({ dataDir });
+    await call(s, 'import_mermaid', { source: 'graph TD\n A --> B' });
+    // A path the session created itself may be re-exported over.
+    const self = join(s.exportsDir, `self-${Math.random().toString(36).slice(2)}.png`);
+    expect((await call(s, 'export_png', { path: self, inline: false })).isError).toBeUndefined();
+    expect((await call(s, 'export_png', { path: self, inline: false })).isError).toBeUndefined();
+    // A file that already exists but the session did NOT create is refused.
+    const foreign = join(s.exportsDir, `foreign-${Math.random().toString(36).slice(2)}.png`);
+    writeFileSync(foreign, 'not ours');
+    const clobber = await call(s, 'export_png', { path: foreign, inline: false });
+    expect(clobber.isError).toBe(true);
+    expect(clobber.content[0]!.text).toMatch(/did not create/);
+    expect(readFileSync(foreign, 'utf8')).toBe('not ours'); // untouched
   });
 
   it('an empty node reference fails closed (does not delete/rename the first unlabeled node)', async () => {

@@ -8,9 +8,10 @@
  * not a popover. Decoupled from `@nodus-dev/stencils`: templates arrive as a prop.
  */
 import { useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
-import { Editor, renderSVG } from '@nodus-dev/core';
+import { Editor, renderSVG, type DeepPartial } from '@nodus-dev/core';
 import type { Template } from '@nodus-dev/stencils';
 import { useUiTokens, type UiMode, type UiTokens } from './ui/tokens.js';
+import { useMessages, type ReactMessages } from './messages.js';
 
 export interface TemplatesGalleryProps {
   editor: Editor;
@@ -19,6 +20,8 @@ export interface TemplatesGalleryProps {
   onBeforeOpen?: () => boolean | Promise<boolean>;
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this gallery (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
 const CARD_H = 118; // preview box height in css px
@@ -99,7 +102,7 @@ function buildStyles(t: UiTokens): Styles {
 }
 
 /** A single template card: rendered snapshot preview + name + description, opens on click. */
-function Card({ editor, template, mode, onOpen }: { editor: Editor; template: Template; mode: UiMode; onOpen: () => void }): ReactElement {
+function Card({ editor, template, mode, onOpen, blankLabel }: { editor: Editor; template: Template; mode: UiMode; onOpen: () => void; blankLabel: string }): ReactElement {
   const S = buildStyles(useUiTokens(editor));
   const uri = useMemo(() => templateThumb(editor, template, mode), [editor, template, mode]);
   return (
@@ -114,7 +117,7 @@ function Card({ editor, template, mode, onOpen }: { editor: Editor; template: Te
         {uri ? (
           <img src={uri} alt="" aria-hidden="true" style={S.thumb} draggable={false} />
         ) : (
-          <span style={S.placeholder}>Blank canvas</span>
+          <span style={S.placeholder}>{blankLabel}</span>
         )}
       </div>
       <span style={S.name}>{template.name}</span>
@@ -123,9 +126,10 @@ function Card({ editor, template, mode, onOpen }: { editor: Editor; template: Te
   );
 }
 
-export function TemplatesGallery({ editor, templates, onBeforeOpen, className, style }: TemplatesGalleryProps): ReactElement | null {
+export function TemplatesGallery({ editor, templates, onBeforeOpen, className, style, messages }: TemplatesGalleryProps): ReactElement | null {
   const t = useUiTokens(editor); // subscribes to the theme atom → re-renders (and re-keys thumbnails) on a light/dark flip
   const S = buildStyles(t);
+  const m = useMessages(editor, messages).templates;
   const openingRef = useRef(false); // guard against a re-entrant open while `onBeforeOpen` is awaited
 
   const open = (template: Template): void => {
@@ -144,11 +148,11 @@ export function TemplatesGallery({ editor, templates, onBeforeOpen, className, s
   return (
     <div data-nodus-ui="" className={className} style={{ ...S.panel, ...style }} data-testid="templates-gallery">
       {templates.length === 0 ? (
-        <div style={S.empty}>No templates available</div>
+        <div style={S.empty}>{m.empty}</div>
       ) : (
         <div style={S.grid}>
           {templates.map((template) => (
-            <Card key={template.id} editor={editor} template={template} mode={t.mode} onOpen={() => open(template)} />
+            <Card key={template.id} editor={editor} template={template} mode={t.mode} onOpen={() => open(template)} blankLabel={m.blank} />
           ))}
         </div>
       )}

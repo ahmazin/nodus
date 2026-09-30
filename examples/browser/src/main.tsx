@@ -48,6 +48,7 @@ import {
   Nodus,
   Properties,
   SelectIcon,
+  DEFAULT_SHORTCUTS,
   ShortcutsDialog,
   SquareIcon,
   StencilLibrary,
@@ -444,39 +445,23 @@ function LayoutGlyph(): ReactElement {
   );
 }
 
-/** Documented shortcuts, matching what this app actually binds. */
-const SHORTCUTS: ShortcutSection[] = [
-  {
-    title: 'Tools',
-    items: [
-      { keys: 'V', description: 'Select / move' },
-      { keys: 'R', description: 'Rectangle' },
-      { keys: 'E', description: 'Ellipse' },
-      { keys: 'D', description: 'Diamond' },
-      { keys: 'T', description: 'Text' },
-      { keys: 'L', description: 'Line' },
-      { keys: 'A', description: 'Arrow' },
-      { keys: 'P', description: 'Draw (freehand)' },
-    ],
-  },
-  {
-    title: 'Edit',
-    items: [
-      { keys: '⌘Z', description: 'Undo' },
-      { keys: '⇧⌘Z', description: 'Redo' },
-      { keys: ['⌫'], description: 'Delete selection' },
-    ],
-  },
-  {
-    title: 'View & files',
-    items: [
-      { keys: '⌘K', description: 'Command palette' },
-      { keys: '?', description: 'This help' },
-      { keys: '⌘O', description: 'Open .nodus.json' },
-      { keys: '⌘S', description: 'Save .nodus.json' },
-    ],
-  },
-];
+/**
+ * Documented shortcuts. Derived from the shell's canonical `DEFAULT_SHORTCUTS` (so the shared rows —
+ * tools V/R/E/D/T/L/A, ⌘Z/⇧⌘Z/⌫/nudge, ⌘K/zoom/fit/?) can never drift out of sync with what the
+ * `<Nodus>` host + core actually bind) and extended with the two bindings this playground adds on top:
+ * `P` (freehand draw, bound in the App key handler below) and ⌘O / ⌘S file open/save.
+ */
+const SHORTCUTS: ShortcutSection[] = DEFAULT_SHORTCUTS.map((section) =>
+  section.title === 'Tools'
+    ? { ...section, items: [...section.items, { keys: 'P', description: 'Draw (freehand)' }] }
+    : section,
+).concat({
+  title: 'Files',
+  items: [
+    { keys: '⌘O', description: 'Open .nodus.json' },
+    { keys: '⌘S', description: 'Save .nodus.json' },
+  ],
+});
 
 /**
  * Token-derived chrome styles for the panels / bars, mirroring the design's `renderVals` builders but
@@ -702,6 +687,19 @@ function App(): ReactElement {
   const [accent, setAccent] = useState<AccentKey>('lime');
   const [accentOpen, setAccentOpen] = useState(false);
   const [codeOpen, setCodeOpen] = useState(false);
+  // Responsive shell: below ~1100px the fixed 266px right panel + non-wrapping top bar would crush the
+  // canvas and overflow the viewport. `isNarrow` collapses the top-bar secondary controls behind the
+  // command palette and turns the right panel into a slide-in drawer (`drawerOpen`) so the canvas keeps
+  // the full width. `matchMedia` (not a resize listener) keeps this a single reactive breakpoint.
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1100px)');
+    const sync = (): void => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
   // The [dark, light] playground theme pair for the chosen accent — rebuilt only when the accent changes.
   const [darkTheme, lightTheme] = useMemo(() => themesForAccent(accent), [accent]);
   // Apply the accent live: swap in whichever rebuilt theme matches the current appearance. Runs on mount
@@ -777,6 +775,13 @@ function App(): ReactElement {
   // <CommandPalette>'s own listener.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // The <Nodus> host div's own keydown handler runs first (target/bubble phase, before this
+      // window listener) and `preventDefault()`s the shortcuts it services — undo/redo, nudge, zoom,
+      // Tab. Skipping any already-handled event here is what stops ⌘Z/⇧⌘Z from firing twice (a
+      // double undo/redo) whenever the canvas holds focus. When focus is OFF the canvas the host
+      // listener never fires, `defaultPrevented` stays false, and this window handler still services
+      // the app-wide ⌘Z / ⌘O / ⌘S / `?` bindings.
+      if (e.defaultPrevented) return;
       if (editor.editingAtom.peek()) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -1065,6 +1070,21 @@ function App(): ReactElement {
     width: '100%',
   };
 
+  // When narrow, the right panel / wide code panel render as an absolutely-positioned slide-in drawer
+  // over the canvas (toggled by `drawerOpen`) instead of an in-flow column — the canvas keeps the full
+  // width and nothing pushes the layout past the viewport. A solid `panel` background (not the glass
+  // blur used for the docked column) keeps the overlaid content legible against the canvas behind it.
+  const drawerStyle: CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    transform: drawerOpen ? 'translateX(0)' : 'translateX(100%)',
+    transition: 'transform 220ms ease',
+    zIndex: 36,
+    boxShadow: t.shadow.panel,
+  };
+
   return (
     <UiTokensProvider tokens={t}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: t.color.canvas, color: t.color.text, fontFamily: t.font.family }}>
@@ -1103,13 +1123,17 @@ function App(): ReactElement {
               play
             </span>
           </span>
-          <span style={c.divider} />
-          {/* Live-doc indicator: pulsing green dot + filename, then the live node/selection status. */}
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.font.mono, fontSize: '12.5px', color: t.color.textMuted, minWidth: 0 }}>
-            <span className="nd-pulse-dot" style={{ width: 7, height: 7, borderRadius: 99, background: '#4ac26b', flexShrink: 0 }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{DOC_NAME}</span>
-          </span>
-          <span data-testid="status" style={{ fontSize: t.font.size.xs, color: t.color.textFaint, whiteSpace: 'nowrap' }}>
+          {!isNarrow && <span style={c.divider} />}
+          {/* Live-doc indicator: pulsing green dot + filename, then the live node/selection status.
+              Both are dropped when narrow to reclaim top-bar width (the counts still live in the
+              StatusBar at the bottom); `status` stays mounted with display:none so the E2E hook survives. */}
+          {!isNarrow && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.font.mono, fontSize: '12.5px', color: t.color.textMuted, minWidth: 0 }}>
+              <span className="nd-pulse-dot" style={{ width: 7, height: 7, borderRadius: 99, background: '#4ac26b', flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{DOC_NAME}</span>
+            </span>
+          )}
+          <span data-testid="status" style={{ display: isNarrow ? 'none' : undefined, fontSize: t.font.size.xs, color: t.color.textFaint, whiteSpace: 'nowrap' }}>
             {nodeCount} nodes · {selCount} selected
           </span>
           <UndoRedo editor={editor} />
@@ -1122,6 +1146,28 @@ function App(): ReactElement {
             <button type="button" data-testid="layout" onClick={() => runLayout('dagre')} title="Auto-layout (dagre)" aria-label="Auto-layout" style={c.iconBtn}>
               <LayoutGlyph />
             </button>
+            {isNarrow ? (
+              <>
+                {/* Narrow shell: the secondary controls (Sketch/Flow/accent/code/Export) collapse
+                    behind the command palette — every one of those actions is a ⌘K command — leaving
+                    just theme, search, and the drawer toggle so the top bar never overflows. */}
+                <ThemeToggle editor={editor} light={lightTheme} dark={darkTheme} />
+                <button type="button" onClick={openPalette} aria-label="Search commands" title="Search (⌘K)" style={c.iconBtn}>
+                  <SearchIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen((o) => !o)}
+                  aria-pressed={drawerOpen}
+                  aria-label="Toggle panel"
+                  title="Show panel"
+                  style={c.topBtn(drawerOpen)}
+                >
+                  Panel
+                </button>
+              </>
+            ) : (
+              <>
             <button
               type="button"
               onClick={toggleSketch}
@@ -1252,11 +1298,21 @@ function App(): ReactElement {
                 </>
               )}
             </div>
+              </>
+            )}
           </div>
         </header>
 
         {/* ===== MAIN ROW ===== */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+          {/* Drawer scrim: dims the canvas + rail behind the slide-in panel and closes it on tap. */}
+          {isNarrow && drawerOpen && (
+            <div
+              aria-hidden="true"
+              onPointerDown={() => setDrawerOpen(false)}
+              style={{ position: 'absolute', inset: 0, zIndex: 35, background: 'rgba(0,0,0,0.32)' }}
+            />
+          )}
           {/* LEFT RAIL */}
           <div
             style={{
@@ -1418,16 +1474,17 @@ function App(): ReactElement {
           {!codeOpen && (
           <div
             style={{
-              width: 266,
+              width: isNarrow ? 'min(320px, 85vw)' : 266,
               flexShrink: 0,
               borderLeft: `1px solid ${t.color.border}`,
-              background: t.color.glass,
+              background: isNarrow ? t.color.panel : t.color.glass,
               backdropFilter: `blur(${t.blur}) saturate(1.4)`,
               WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              zIndex: 30,
+              zIndex: isNarrow ? 36 : 30,
+              ...(isNarrow ? drawerStyle : null),
             }}
           >
             <div style={{ display: 'flex', padding: '8px 6px 0', gap: 3, borderBottom: `1px solid ${t.color.border}` }}>
@@ -1636,16 +1693,17 @@ function App(): ReactElement {
           {codeOpen && (
             <div
               style={{
-                width: 'min(430px, 45vw)',
+                width: isNarrow ? 'min(430px, 90vw)' : 'min(430px, 45vw)',
                 flexShrink: 0,
                 borderLeft: `1px solid ${t.color.border}`,
-                background: t.color.glass,
+                background: isNarrow ? t.color.panel : t.color.glass,
                 backdropFilter: `blur(${t.blur}) saturate(1.4)`,
                 WebkitBackdropFilter: `blur(${t.blur}) saturate(1.4)`,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                zIndex: 30,
+                zIndex: isNarrow ? 36 : 30,
+                ...(isNarrow ? drawerStyle : null),
               }}
             >
               <CodePanel editor={editor} style={{ height: '100%', border: 'none', borderRadius: 0, background: 'transparent' }} />

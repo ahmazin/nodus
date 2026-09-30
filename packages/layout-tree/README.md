@@ -29,10 +29,10 @@ between siblings, default 34), `rankGap` (gap between depths, default 90). The e
 
 ## See also
 
-- [Extending Nodus → Layouts](https://nodus.dev/docs/extending#3-layouts) — the layout extension axis.
-- Sibling adapters: [`@nodus-dev/layout-dagre`](https://github.com/ahmazin/nodus/tree/main/packages/layout-dagre) ·
-  [`@nodus-dev/layout-force`](https://github.com/ahmazin/nodus/tree/main/packages/layout-force) ·
-  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/main/packages/layout-elk).
+- [Extending Nodus → Layouts](https://ahmazin.github.io/nodus/docs/extending#3-layouts) — the layout extension axis.
+- Sibling adapters: [`@nodus-dev/layout-dagre`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-dagre) ·
+  [`@nodus-dev/layout-force`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-force) ·
+  [`@nodus-dev/layout-elk`](https://github.com/ahmazin/nodus/tree/mainline/packages/layout-elk).
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

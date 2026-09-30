@@ -1,0 +1,57 @@
+Nodus
+Copyright (c) 2026 Ali Malik
+
+This product's original source code is licensed under the MIT License; see the
+root LICENSE file. The MIT grant in LICENSE covers only the original Nodus code
+authored in this repository. It does NOT cover the third-party content
+enumerated below, which is licensed under other terms by its respective owners.
+
+
+================================================================================
+1. Cloud-provider architecture icons — @nodus-dev/icons-cloud
+================================================================================
+
+The package `@nodus-dev/icons-cloud` incorporates a curated subset of official
+cloud-provider service icons, and compact "vector pack" data derived from them,
+combined from the following official toolkits:
+
+  - AWS Architecture Icons     — Amazon Web Services, Inc.
+                                 https://aws.amazon.com/architecture/icons/
+  - Azure Architecture Icons   — Microsoft Corporation.
+                                 https://learn.microsoft.com/en-us/azure/architecture/icons/
+  - Google Cloud icons         — Google LLC.
+                                 https://cloud.google.com/icons
+
+This artwork is the property of its respective providers and is used under each
+provider's architecture-icon terms. It is EXCLUDED from the MIT grant in the
+root LICENSE, and this repository grants you no rights to these providers'
+trademarks or artwork. Before redistributing this material or building on the
+curated subset, you must review and accept each provider's current icon usage
+terms yourself.
+
+The authoritative attribution, per-provider terms, and provenance for this
+content live with the package:
+
+  - packages/icons-cloud/LICENSE
+  - packages/icons-cloud/NOTICE
+  - packages/icons-cloud/LICENSES/{aws,azure,gcp}.md
+  - packages/icons-cloud/provenance.json
+
+
+================================================================================
+2. elkjs — dependency of @nodus-dev/layout-elk
+================================================================================
+
+The package `@nodus-dev/layout-elk` depends on **elkjs**, the JavaScript
+distribution of the Eclipse Layout Kernel.
+
+  - elkjs is licensed under the Eclipse Public License 2.0 (EPL-2.0),
+    NOT under this repository's MIT License.
+  - Copyright the Eclipse Layout Kernel (ELK) contributors / EclipseSource.
+  - Project & license: https://github.com/eclipse/elk
+
+elkjs is installed transitively as a runtime dependency and is not bundled into
+`@nodus-dev/layout-elk`'s published tarball. `@nodus-dev/layout-elk`'s own source
+code is MIT-licensed. Consumers who install `@nodus-dev/layout-elk` receive elkjs
+under EPL-2.0 from the npm registry; the full EPL-2.0 text is distributed with
+the elkjs package itself.

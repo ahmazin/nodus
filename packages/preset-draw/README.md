@@ -41,9 +41,9 @@ Node types `rectShape` / `ellipseShape` / `diamondShape` / `textNode` (types `dr
 
 ## See also
 
-- [Extending Nodus](https://nodus.dev/docs/extending) — this package is a compact reference for authoring
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) — this package is a compact reference for authoring
   node **and** edge types.
-- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/main/packages/core) · [`@nodus-dev/react`](https://github.com/ahmazin/nodus/tree/main/packages/react)
+- [`@nodus-dev/core`](https://github.com/ahmazin/nodus/tree/mainline/packages/core) · [`@nodus-dev/react`](https://github.com/ahmazin/nodus/tree/mainline/packages/react)
 
 **Stability: pre-1.0 (0.x) — the public API may change before 1.0.**
 </content>

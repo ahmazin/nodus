@@ -37,7 +37,8 @@ function build(p: Palette): Theme {
     },
     overlays: {
       met: { stroke: '#10b981', glow: '#10b981' },
-      partial: { stroke: '#f59e0b', glow: '#f59e0b' },
+      // Non-color channel (a11y): partial adds a dashed outline so status doesn't rely on hue alone.
+      partial: { stroke: '#f59e0b', glow: '#f59e0b', dash: [5, 3] },
       missed: { stroke: '#ef4444', glow: '#ef4444' },
     },
     focus: { strokeWidth: 2.2, glow: p.accent },

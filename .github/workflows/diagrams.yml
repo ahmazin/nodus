@@ -20,11 +20,11 @@ jobs:
   diagrams:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -63,16 +63,19 @@ jobs:
 
       - name: Upload rendered previews
         if: steps.changed.outputs.files != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: diagram-renders
           path: .diagram-renders/
 
+      # Same-repo PRs get a sticky PR comment. Fork PRs run with a read-only GITHUB_TOKEN, so
+      # issues.createComment would throw "Resource not accessible by integration" and fail the job —
+      # gate this step to same-repo and fall back to the job summary for forks (next step).
       - name: Comment on PR
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.files != '' && github.event.pull_request.head.repo.full_name == github.repository
         env:
           FILES: ${{ steps.changed.outputs.files }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const files = (process.env.FILES || '').trim().split('\n').filter(Boolean);
@@ -95,3 +98,23 @@ jobs:
             } else {
               await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
             }
+
+      # Fork PRs cannot receive a PR comment (read-only token) — write the same summary to the run's
+      # job summary instead. FILES is passed via env (never interpolated into the shell body) per the
+      # injection-safety convention documented at the top of this file.
+      - name: Diagram summary (fork fallback)
+        if: steps.changed.outputs.files != '' && github.event.pull_request.head.repo.full_name != github.repository
+        env:
+          FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          {
+            echo '### 📐 Diagram changes'
+            echo ''
+            echo 'Canonical format check **passed** — these diagrams have clean, reviewable diffs.'
+            echo 'Rendered previews are attached to this run as the **diagram-renders** artifact.'
+            echo ''
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              printf -- '- `%s`\n' "$f"
+            done <<< "$FILES"
+          } >> "$GITHUB_STEP_SUMMARY"

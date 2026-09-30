@@ -1,21 +1,36 @@
 ---
 layout: ../../layouts/DocsLayout.astro
 title: Versioning & stability
-description: What you can rely on across Nodus releases — 0.x semver rules, the public-API boundary, deprecations, and the canonical-byte contract.
+description: What you can rely on across Nodus releases — the synchronized 0.3.x line, 0.x semver rules, the public-API boundary, deprecations, and the canonical-byte contract.
 ---
 
-Every `@nodus-dev/*` package is **pre-1.0 (0.x)**. The public API may change before 1.0 — this page is
-what you can rely on in the meantime, and how to read a version bump.
+Every `@nodus-dev/*` package is **pre-1.0** and published **in lockstep at one shared version** — the
+current line is **`0.3.x`**. The public API may change before 1.0; this page is what you can rely on
+in the meantime, and how to read a version bump.
+
+## Synchronized versioning
+
+The packages are designed to be used together, so they ship as a set at one shared version: a single
+release bumps every publishable `@nodus-dev/*` package to the same number. There are no independent
+per-package version lines.
+
+- **Upgrade them together** — `@nodus-dev/core`, `@nodus-dev/react`, the presets, and the layout
+  adapters at the same `0.MINOR`. Mixing lines (e.g. `core@0.3` with `react@0.2`) is unsupported.
+- **Internal ranges track the line.** `@nodus-dev/react` and `@nodus-dev/preset-infra` peer-depend on
+  `@nodus-dev/core`, and the published range is the current line (`^0.3.0`). Install `@nodus-dev/core`
+  alongside them — see [Getting started](/docs).
+- **Supported = the latest published minor.** Fixes land on the current `0.MINOR` line; before 1.0
+  there is no back-port channel, so upgrade to the latest minor for fixes.
 
 ## Semver under 0.x
 
 Nodus follows [semver](https://semver.org), with the pre-1.0 break boundary shifted down one segment.
-Until a package hits `1.0.0`:
+Until the line hits `1.0.0`:
 
 | Bump | Example | What it means for you |
 |---|---|---|
-| **minor** | `0.4.2 → 0.5.0` | **May break.** Removed/changed public API, changed canonical bytes, behavioral change. Read the CHANGELOG before upgrading. |
-| **patch** | `0.4.2 → 0.4.3` | **Additive or fixes only.** New API, bug fixes, docs — never removes or changes existing public API, never changes canonical bytes. |
+| **minor** | `0.3.0 → 0.4.0` | **May break.** Removed/changed public API, changed canonical bytes, behavioral change. Read the CHANGELOG before upgrading. |
+| **patch** | `0.3.0 → 0.3.1` | **Additive or fixes only.** New API, bug fixes, docs — never removes or changes existing public API, never changes canonical bytes. |
 
 Take patches freely within a `0.MINOR` line; review the CHANGELOG when you cross a minor. At `1.0.0`
 this becomes normal semver.
@@ -36,7 +51,7 @@ Public API is removed on a schedule. A symbol on its way out gets a `@deprecated
 the **replacement** and the **removal target**, visible on hover in your editor:
 
 ```ts
-/** @deprecated Use setEdgeRouter instead. Removed in 0.9. */
+/** @deprecated Use setEdgeRouter instead. Removed in 0.5. */
 setRouter(edgeId: Id, router: string): void;
 ```
 
@@ -53,5 +68,7 @@ format itself is documented in the [data schema](/docs/schema).
 
 ## Per-package CHANGELOGs
 
-Each published package ships a `CHANGELOG.md` so you can assess upgrade risk package-by-package rather
-than for the whole monorepo at once.
+Each published package ships its own `CHANGELOG.md` with the notes for what changed in that package.
+Because every package moves on the same shared version, a given version number means the same release
+across the whole set — the per-package CHANGELOGs just tell you *what* changed where, not a different
+version line to track.

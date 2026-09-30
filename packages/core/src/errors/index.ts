@@ -20,6 +20,7 @@ export type NodusErrorCode =
   | 'invalid-util'
   | 'invalid-migrations'
   | 'invalid-props'
+  | 'export-too-large'
   | 'schema-too-new'
   | 'invalid-snapshot'
   | 'editor-disposed'

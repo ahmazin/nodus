@@ -2,20 +2,39 @@
 
 This is the canonical statement of what you may rely on across Nodus releases, and how the public
 API changes. It governs every `@nodus-dev/*` package. The consumer-facing summary lives on the site at
-[`/docs/versioning`](../apps/site/src/pages/docs/versioning.md); the release mechanics live in
+[`/docs/versioning`](https://ahmazin.github.io/nodus/docs/versioning); the release mechanics live in
 [`RELEASING.md`](../RELEASING.md).
 
-> **Every `@nodus-dev/*` package is pre-1.0 (0.x). The public API may change before 1.0.**
+> **Every `@nodus-dev/*` package is pre-1.0 and published in lockstep at one shared version. The
+> current line is `0.3.x`. The public API may change before 1.0.**
+
+## Synchronized versioning
+
+Nodus is a monorepo of packages designed to be used together, so they are released as a **set at one
+shared version** — a single changesets release bumps every publishable `@nodus-dev/*` package to the
+same number. There are no independent per-package version lines to reconcile.
+
+What this means in practice:
+
+- **Upgrade them together.** Take `@nodus-dev/core`, `@nodus-dev/react`, the presets, and the layout
+  adapters at the same `0.MINOR` line. Mixing, say, `core@0.3` with `react@0.2` is unsupported.
+- **Internal ranges track the line.** Where one `@nodus-dev/*` package depends on another (for example
+  `@nodus-dev/react` and `@nodus-dev/preset-infra` peer-depend on `@nodus-dev/core`), the published
+  range is the current line — `^0.3.0`. In the source tree those same edges are `workspace:*` /
+  `workspace:^`, and `publishConfig` swaps them to the concrete `^0.3.0` range at publish time.
+- **Supported versions = the latest published minor.** Fixes land on the current `0.MINOR` line; there
+  is no long-term back-port branch before 1.0. Upgrade to the latest minor to get security and
+  correctness fixes.
 
 ## Semver under 0.x
 
 Nodus follows [semantic versioning](https://semver.org), but the pre-1.0 (`0.MINOR.PATCH`) rules
-shift the break boundary down one segment. Until a package reaches `1.0.0`:
+shift the break boundary down one segment. Until the line reaches `1.0.0`:
 
 | Bump | Example | Contract |
 |---|---|---|
-| **minor** | `0.4.2 → 0.5.0` | **May break.** Removed or changed public API, changed canonical bytes, behavioral changes. Read the CHANGELOG before upgrading. |
-| **patch** | `0.4.2 → 0.4.3` | **Additive or fixes only.** New public API, bug fixes, docs. Never removes or changes existing public API, never changes canonical bytes. |
+| **minor** | `0.3.0 → 0.4.0` | **May break.** Removed or changed public API, changed canonical bytes, behavioral changes. Read the CHANGELOG before upgrading. |
+| **patch** | `0.3.0 → 0.3.1` | **Additive or fixes only.** New public API, bug fixes, docs. Never removes or changes existing public API, never changes canonical bytes. |
 
 So within a `0.MINOR` line, patches are safe to take; crossing a minor is the upgrade you review. At
 `1.0.0` this shifts up to normal semver (major = break, minor = additive, patch = fix).
@@ -46,7 +65,7 @@ is the product's moat, so it is a **versioned contract**:
 - Byte-affecting changes land with regenerated golden fixtures and a changeset in the same PR — see
   [`RELEASING.md`](../RELEASING.md#canonical-byte-changes).
 - The format itself (fields, what is and isn't serialized) is documented in
-  [the data schema](../apps/site/src/pages/docs/schema.md).
+  [the data schema](https://ahmazin.github.io/nodus/docs/schema).
 
 `schemaVersion` migrations are the sanctioned way to evolve the format across a break: an older
 library refuses (rather than silently downgrades) a document written by a newer one.
@@ -61,7 +80,7 @@ Public API is removed on a schedule, never yanked out from under you:
 
    ```ts
    /**
-    * @deprecated Use {@link setEdgeRouter} instead. Removed in 0.9.
+    * @deprecated Use {@link setEdgeRouter} instead. Removed in 0.5.
     */
    setRouter(edgeId: Id, router: string): void;
    ```
@@ -71,9 +90,14 @@ Public API is removed on a schedule, never yanked out from under you:
    breaking change and lands on a minor bump with a CHANGELOG entry.
 
 Deprecations are also called out in the package CHANGELOG under the release that introduces them.
+CHANGELOGs are per-package, but because every package moves on the same shared version, a given
+version number means the same release across the whole set — the per-package notes just record what
+changed in each.
 
 ## See also
 
 - [`RELEASING.md`](../RELEASING.md) — the changesets release flow and the canonical-byte-change rule.
-- [`docs/EXTENDING.md`](./EXTENDING.md) — the extension guide (the four registry axes).
-- [Data schema](../apps/site/src/pages/docs/schema.md) — the on-disk format these promises protect.
+- [Extending Nodus](https://ahmazin.github.io/nodus/docs/extending) — the extension guide (the four
+  registry axes).
+- [Data schema](https://ahmazin.github.io/nodus/docs/schema) — the on-disk format these promises
+  protect.

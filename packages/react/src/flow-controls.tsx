@@ -1,10 +1,11 @@
 /** Per-edge flow authoring — a Flow section for the Properties panel. Basic FlowSpec controls +
  *  an animated preview strip; an Advanced disclosure holds the data-driven scale editor. */
 import { useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-import { parseRate, resolveTokens, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus-dev/core';
+import { fmt, parseRate, resolveTokens, type DeepPartial, type Editor, type EdgeRecord, type FlowSpec, type Id } from '@nodus-dev/core';
 import { useValue } from './use-value.js';
 import { buildRampCss, clamp, DEFAULT_FLOW, flowStyles, FLOW_STYLE, isHex6, type FlowStyles } from './flow-shared.js';
 import { useUiTokens, type UiTokens } from './ui/tokens.js';
+import { useMessages, type ReactMessages } from './messages.js';
 import { FlowScaleEditor } from './flow-scale-editor.js';
 
 export interface FlowControlsProps {
@@ -12,9 +13,11 @@ export interface FlowControlsProps {
   ids: Id[];
   className?: string;
   style?: CSSProperties;
+  /** Localized string overrides for this panel (deep-merged over the English defaults). */
+  messages?: DeepPartial<ReactMessages>;
 }
 
-export function FlowControls({ editor, ids, className, style: rootStyle }: FlowControlsProps): ReactElement | null {
+export function FlowControls({ editor, ids, className, style: rootStyle, messages }: FlowControlsProps): ReactElement | null {
   // Re-render on selection change AND on flow edits to the selected edges. The parent panel's
   // snapshot is only the selection string, so a same-selection value change (adding/editing flow)
   // wouldn't re-render this subtree — and React would then snap our controlled inputs back to their
@@ -29,6 +32,7 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
     return s;
   });
   const t = useUiTokens(editor);
+  const m = useMessages(editor, messages).flow;
   const s = flowStyles(t);
   const edgeIds = ids.filter((id) => editor.store.peek(id)?.typeName === 'edge');
   const first = edgeIds[0];
@@ -69,7 +73,7 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
     <div data-nodus-ui="" className={className} style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${s.border}`, fontFamily: t.font.family, color: t.color.text, ...rootStyle }}>
       <style>{FLOW_STYLE}</style>
       <div style={{ ...s.micro, marginBottom: 8 }}>
-        Flow · {edgeIds.length} edge{edgeIds.length === 1 ? '' : 's'}
+        {fmt(m.heading, { count: edgeIds.length })}
       </div>
 
       {/* signature: live preview strip — animated packets/dashes (basic) or the ramp (data-driven). */}
@@ -79,46 +83,46 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
           style={{ width: '100%', height: 24, marginBottom: 8, borderRadius: t.radius.md, border: `1px solid ${s.border}`, background: buildRampCss(flow.scale.colors ?? [], flow.scale.domain, flow.scale.gradient) }}
         />
       ) : (
-        <FlowPreview editor={editor} edgeId={first} flow={flow} styles={s} tokens={t} />
+        <FlowPreview editor={editor} edgeId={first} flow={flow} styles={s} tokens={t} offLabel={m.off} />
       )}
 
       {row(
-        'Animate',
+        m.animate,
         <input data-testid="flow-animate" type="checkbox" checked={on} onChange={(e) => setFlowOnOff(e.target.checked)} style={s.checkbox} />,
       )}
 
       {on && (
         <>
           {row(
-            'Style',
+            m.style,
             <select data-testid="flow-style" value={style} onChange={(e) => patch({ style: e.target.value as FlowSpec['style'] }, 'immediately')} style={s.select}>
               <option value="dots">dots</option>
               <option value="dash">dash</option>
             </select>,
           )}
           {row(
-            'Speed',
+            m.speed,
             <input data-testid="flow-speed" type="range" min={10} max={200} step={1} value={flow?.speed ?? 70} onChange={(e) => patch({ speed: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={s.slider} />,
           )}
           {row(
-            'Size',
+            m.size,
             <input data-testid="flow-size" type="range" min={1} max={12} step={0.5} value={flow?.size ?? 3} onChange={(e) => patch({ size: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={s.slider} />,
           )}
           {style === 'dots' &&
             row(
-              'Count',
+              m.count,
               <input data-testid="flow-count" type="range" min={1} max={30} step={1} value={flow?.count ?? 8} onChange={(e) => patch({ count: Number(e.target.value) })} onPointerUp={commit} onBlur={commit} style={s.slider} />,
             )}
           {row(
-            'Reverse',
+            m.reverse,
             <input data-testid="flow-reverse" type="checkbox" checked={!!flow?.reverse} onChange={(e) => patch({ reverse: e.target.checked }, 'immediately')} style={s.checkbox} />,
           )}
           {row(
-            'Rate',
+            m.rate,
             <input
               data-testid="flow-rate"
               type="text"
-              placeholder="e.g. 350 req/s"
+              placeholder={m.ratePlaceholder}
               value={rateDraft ?? (flow?.data != null ? `${flow.data}${flow.unit ? ` ${flow.unit}` : ''}` : '')}
               onChange={(e) => setRateDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -144,11 +148,11 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
             />,
           )}
           {row(
-            'Color',
+            m.color,
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input data-testid="flow-color" type="color" value={flow?.color && isHex6(flow.color) ? flow.color : resolvedStroke(editor, first)} onChange={(e) => patch({ color: e.target.value })} onBlur={commit} style={s.swatch} />
-              <button data-testid="flow-color-reset" title="Reset to edge stroke" style={s.ghostBtn} onClick={() => patch({ color: undefined }, 'immediately')}>
-                reset
+              <button data-testid="flow-color-reset" title={m.resetColorTitle} style={s.ghostBtn} onClick={() => patch({ color: undefined }, 'immediately')}>
+                {m.reset}
               </button>
             </span>,
           )}
@@ -161,11 +165,11 @@ export function FlowControls({ editor, ids, className, style: rootStyle }: FlowC
             style={{ ...s.micro, display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, padding: '6px 0 4px', cursor: 'pointer', width: '100%' }}
           >
             <span className="nodus-flow-chevron" style={{ transition: 'transform 160ms ease', transform: advOpen ? 'rotate(90deg)' : 'rotate(0deg)', color: s.accent }}>▸</span>
-            Advanced · data-driven
+            {m.advanced}
           </button>
           <div className="nodus-flow-disc" style={{ display: 'grid', gridTemplateRows: advOpen ? '1fr' : '0fr', transition: 'grid-template-rows 180ms ease' }}>
             <div style={{ overflow: 'hidden' }}>
-              <FlowScaleEditor editor={editor} edgeIds={edgeIds} firstEdge={first} />
+              <FlowScaleEditor editor={editor} edgeIds={edgeIds} firstEdge={first} messages={messages} />
             </div>
           </div>
         </>
@@ -195,13 +199,13 @@ function resolvedStrokeWidth(editor: Editor, edgeId: Id): number {
 }
 
 // ---- signature: the animated preview strip (basic mode) ----
-function FlowPreview({ editor, edgeId, flow, styles: s, tokens: t }: { editor: Editor; edgeId: Id; flow: FlowSpec | undefined; styles: FlowStyles; tokens: UiTokens }): ReactElement {
+function FlowPreview({ editor, edgeId, flow, styles: s, tokens: t, offLabel }: { editor: Editor; edgeId: Id; flow: FlowSpec | undefined; styles: FlowStyles; tokens: UiTokens; offLabel: string }): ReactElement {
   const track: CSSProperties = {
     position: 'relative', width: '100%', height: 24, marginBottom: 8, borderRadius: t.radius.md,
     border: `1px solid ${s.border}`, background: t.color.canvas, overflow: 'hidden',
   };
   if (!flow) {
-    return <div style={{ ...track, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.faintColor, fontSize: t.font.size.xs }}>flow off</div>;
+    return <div style={{ ...track, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.faintColor, fontSize: t.font.size.xs }}>{offLabel}</div>;
   }
   // mirror paintFlowMarkers: any set color is honored (not only 6-hex); else the resolved stroke.
   const color = flow.color ?? resolvedStroke(editor, edgeId);
