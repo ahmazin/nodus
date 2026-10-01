@@ -104,6 +104,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Require a changeset for package-source changes
+        # Dependabot PRs bump deps via its own flow and cannot author changesets; exempt them
+        # from the changeset requirement while the job's earlier steps still run and report green.
+        # Guard the step (not the whole job) and key off the stable PR author login, not github.actor.
+        if: github.event.pull_request.user.login != 'dependabot[bot]'
         run: |
           set -euo pipefail
           git fetch origin "$BASE_REF" --depth=1
