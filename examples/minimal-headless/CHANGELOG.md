@@ -1,5 +1,13 @@
 # @nodus-dev-examples/minimal-headless
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [3bbb8ce]
+  - @nodus-dev/core@0.4.0
+  - @nodus-dev/preset-infra@1.0.0
+
 ## 0.0.1
 
 ### Patch Changes

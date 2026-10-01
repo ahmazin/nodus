@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev-examples/minimal-headless",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "Render a Nodus diagram to a PNG in Node with @napi-rs/canvas — no browser.",

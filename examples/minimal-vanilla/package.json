@@ -1,6 +1,6 @@
 {
   "name": "@nodus-dev-examples/minimal-vanilla",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "Minimal headless Nodus example — build a diagram and print its canonical JSON.",
