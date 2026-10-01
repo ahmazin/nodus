@@ -33,7 +33,10 @@ export interface StdioServerOptions {
 }
 
 export function runStdioServer(session: DiagramSession = new DiagramSession(), opts: StdioServerOptions = {}): void {
-  const input = opts.input ?? process.stdin;
+  // Annotate as the declared interface (not the inferred `NodeJS.ReadableStream | ReadStream` union):
+  // @types/node 26 added typed `SocketEventMap` overloads to the concrete `ReadStream`, which makes the
+  // union's `.on`/`.setEncoding` non-callable (TS2349). `process.stdin` satisfies `ReadableStream`.
+  const input: NodeJS.ReadableStream = opts.input ?? process.stdin;
   const output = opts.output ?? process.stdout;
   const onExit = opts.onExit ?? ((code: number): void => void process.exit(code));
   let buffer = '';
