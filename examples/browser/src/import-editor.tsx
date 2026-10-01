@@ -4,7 +4,7 @@
  * plus the real parser error BEFORE anything is committed, and hands the parsed ImportAnalysis to the
  * host via onImport. Monospace, line-numbered, with a Format/Tidy button.
  */
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@nodus-dev/core';
 import { useUiTokens } from '@nodus-dev/react';
