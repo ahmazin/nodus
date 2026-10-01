@@ -36,7 +36,7 @@
     "@nodus-dev/layout-force": "workspace:^",
     "@nodus-dev/layout-tree": "workspace:^",
     "@nodus-dev/text-to-diagram": "workspace:^",
-    "@napi-rs/canvas": "^0.1.60"
+    "@napi-rs/canvas": "^1.0.9"
   },
   "scripts": {
     "build": "tsup",
