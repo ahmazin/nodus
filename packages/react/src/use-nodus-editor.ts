@@ -1,14 +1,9 @@
 /**
  * `useNodusEditor` — the turnkey lifecycle hook for owning an `Editor` from React.
  *
- * Consumers previously hand-rolled `const editor = useMemo(() => { const e = new Editor(); …; return e }, [])`,
- * which (a) leaks — nothing ever calls `editor.dispose()`, so event-bus subscriptions and flow-source
- * timers outlive the component — and (b) is fragile: any accidental `new Editor()` in render hands
- * `<Nodus>` a fresh identity every frame, thrashing its rAF loop and DOM listeners (they re-attach on
- * `editor` identity; see `nodus-host.tsx`).
- *
- * This hook is the fix: it builds the editor once (recreating only when `deps` change) and disposes the
- * old instance on unmount and on every deps change.
+ * Builds the editor once (rebuilding only when `deps` change) and disposes the old instance on a
+ * real unmount and on every deps change, so event-bus subscriptions and flow-source timers never
+ * outlive the component.
  *
  *   const editor = useNodusEditor(() => {
  *     const e = new Editor();
@@ -16,9 +11,16 @@
  *     return e;
  *   });
  *   return <Nodus editor={editor} />;
+ *
+ * STRICTMODE: React's dev StrictMode mounts, synchronously unmounts, then remounts. We must NOT
+ * dispose the editor on that fake unmount — a disposed editor's signals stop driving re-renders, and
+ * under React 19's commit/effect timing the committed tree was left bound to that dead instance
+ * (symptom: the inline label editor never opening on double-click). So disposal is DEFERRED to a
+ * microtask: a real unmount leaves it pending and frees the editor; StrictMode's immediate remount
+ * cancels it first. One live editor survives the whole cycle — no rebuild, no stranding.
  */
 
-import { useEffect, useReducer, useRef, type DependencyList } from 'react';
+import { useEffect, useRef, type DependencyList } from 'react';
 import { type Editor } from '@nodus-dev/core';
 
 /** Shallow `Object.is` comparison of two dependency tuples, matching React's own deps semantics. */
@@ -30,43 +32,45 @@ function sameDeps(a: DependencyList, b: DependencyList): boolean {
   return true;
 }
 
+interface Entry {
+  editor: Editor;
+  deps: DependencyList;
+  keep: boolean;
+}
+
 /**
  * Own an `Editor` instance across a component's lifetime.
  *
  * @param factory  Builds the editor (construct + register types/tools/plugins). Called once up front,
- *                 then again only when `deps` change or after the current editor has been disposed
- *                 (StrictMode's dev remount) — never on an ordinary re-render.
- * @param deps     When any entry changes (by `Object.is`), the current editor is disposed and `factory`
- *                 is re-run. Defaults to `[]` (built once, disposed on unmount). Must have a stable
- *                 length across renders, exactly like a `useEffect` dependency array.
+ *                 then again only when `deps` change — never on an ordinary re-render or a StrictMode
+ *                 remount.
+ * @param deps     When any entry changes (by `Object.is`), the current editor is disposed and
+ *                 `factory` is re-run. Defaults to `[]`. Must have a stable length across renders.
  * @returns        A stable `Editor` — the same live instance every render until `deps` change.
  */
 export function useNodusEditor(factory: () => Editor, deps: DependencyList = []): Editor {
-  const ref = useRef<{ editor: Editor; deps: DependencyList } | null>(null);
-  // Forces a re-render so the render guard below can rebuild after StrictMode disposes the editor.
-  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const ref = useRef<Entry | null>(null);
 
-  // Build during render — the editor is ready for the same render that mounts `<Nodus editor={editor}>`.
-  // Rebuild when there is no instance yet, when `deps` changed, OR when the current instance has been
-  // disposed. That last case is the StrictMode fix: React's dev-only mount→unmount→remount disposes the
-  // editor in the unmount cleanup, and the render guard is what swaps in a fresh one.
-  if (ref.current === null || !sameDeps(ref.current.deps, deps) || ref.current.editor.disposed) {
-    ref.current = { editor: factory(), deps };
+  // Build during render (ready for the same render that mounts `<Nodus editor={editor}>`), and only
+  // when there is no instance yet or `deps` changed. We never rebuild for a disposed editor, because
+  // disposal is deferred and cancelled on remount — the instance is never dead while still mounted.
+  if (ref.current === null || !sameDeps(ref.current.deps, deps)) {
+    ref.current = { editor: factory(), deps, keep: true };
   }
-  const editor = ref.current.editor;
+  const entry = ref.current;
+  const editor = entry.editor;
 
-  // Disposal is keyed on the editor's IDENTITY, not the user's `deps`: React runs cleanup on unmount and
-  // whenever `editor` changes, so each instance is disposed exactly once — the one THIS render captured.
-  // The StrictMode remount re-runs only this effect (never the render), leaving the ref pointing at the
-  // just-disposed editor; the setup detects that and calls `bump()` to force the re-render that lets the
-  // render guard rebuild a live instance. `Editor.dispose()` is idempotent, so no path double-frees.
   useEffect(() => {
-    if (editor.disposed) {
-      bump();
-      return;
-    }
-    return () => editor.dispose();
-  }, [editor]);
+    entry.keep = true; // (re)mounted — cancel any pending disposal (this is StrictMode's remount)
+    return () => {
+      entry.keep = false;
+      // Defer past the synchronous StrictMode unmount→remount. A real unmount (or a deps change that
+      // swapped `entry`) leaves keep=false and disposes; the immediate remount sets keep=true first.
+      queueMicrotask(() => {
+        if (!entry.keep && !editor.disposed) editor.dispose();
+      });
+    };
+  }, [editor, entry]);
 
   return editor;
 }

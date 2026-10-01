@@ -3,7 +3,10 @@
  * runs only the EFFECT again (never the render). vitest runs `environment: 'node'` with no DOM renderer
  * and react-test-renderer isn't a dependency, so we drive the REAL hook through a minimal hook runtime
  * (a `vi.mock('react')` providing controllable useRef/useReducer/useEffect) and replay that exact
- * lifecycle. The hook must end holding a LIVE editor, having disposed the one StrictMode tore down.
+ * lifecycle. Disposal is DEFERRED to a microtask so StrictMode's immediate remount can cancel it: the
+ * hook keeps ONE live editor across the cycle (no dispose-and-rebuild churn) and frees it only on a
+ * real, uncancelled unmount — so the assertions flush microtasks (`await Promise.resolve()`) to observe
+ * the deferred disposal.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -74,23 +77,22 @@ import { Editor } from '@nodus-dev/core';
 import { useNodusEditor } from '../use-nodus-editor.js';
 
 describe('useNodusEditor — StrictMode lifecycle (C1/F2)', () => {
-  it('ends with a LIVE editor after mount → unmount(dispose) → remount', () => {
+  it('survives StrictMode mount → unmount → remount as ONE live editor (no rebuild)', async () => {
     rt.reset();
     const built: Editor[] = [];
     const component = (): Editor => useNodusEditor(() => { const e = new Editor(); built.push(e); return e; });
 
-    let current = rt.render(component) as Editor; // render 1
-    rt.commit();                                   // effect setup (E1 live)
-    rt.strictModeRemount();                         // cleanup disposes E1, setup replay detects it → bump
-    current = rt.flush(component) as Editor;         // bump-driven re-render rebuilds a live E2
+    const current = rt.render(component) as Editor; // render 1
+    rt.commit();                                     // effect setup (keep = true)
+    rt.strictModeRemount();                           // cleanup schedules a DEFERRED dispose; setup replay cancels it
+    await Promise.resolve();                           // flush the microtask — the remount must have cancelled disposal
 
-    expect(built.length).toBe(2);          // factory re-ran once to replace the disposed instance
-    expect(built[0]!.disposed).toBe(true); // StrictMode disposed the first
-    expect(current.disposed).toBe(false);  // the hook hands back a live editor
-    expect(current).toBe(built[1]);
+    expect(built.length).toBe(1);          // the instance survived StrictMode — NOT disposed-and-rebuilt
+    expect(current.disposed).toBe(false);  // still live
+    expect(current).toBe(built[0]);        // the same instance the mount handed back
   });
 
-  it('a plain mount → unmount disposes the editor exactly once', () => {
+  it('disposes the editor exactly once on a real unmount (deferred to a microtask)', async () => {
     rt.reset();
     const built: Editor[] = [];
     const component = (): Editor => useNodusEditor(() => { const e = new Editor(); built.push(e); return e; });
@@ -99,7 +101,9 @@ describe('useNodusEditor — StrictMode lifecycle (C1/F2)', () => {
     rt.commit();
     expect(e.disposed).toBe(false);
     rt.unmount();
-    expect(e.disposed).toBe(true);
-    expect(built.length).toBe(1); // never rebuilt without a StrictMode remount
+    expect(e.disposed).toBe(false); // deferred — a real unmount schedules disposal, it does not run synchronously
+    await Promise.resolve();          // flush the microtask (no remount cancelled it)
+    expect(e.disposed).toBe(true);    // disposed exactly once on the real unmount
+    expect(built.length).toBe(1);     // never rebuilt
   });
 });
