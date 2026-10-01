@@ -33,6 +33,7 @@ From the report's HUMAN-ONLY runbook. These change GitHub/npm/legal state, so an
 - [ ] **A8 · P2** Delete the 17 stale `@ahmazin/*` git **tags** + GitHub Releases.
 - [ ] **A9 · P2** Add an **npm co-owner / credential escrow** for `@nodus-dev` (bus-factor 1).
 - [ ] **A10 · P3** Swap CoC/SECURITY contact from `@ahmazin` to a dedicated alias (marked in the files).
+- [ ] **A11 · P2** **Automerge prereqs** for `.github/workflows/automerge.yml` (label `automerge` exists): Settings → *Allow auto-merge*; repo secret `AUTOMERGE_TOKEN` (fine-grained PAT, this repo, Contents + Pull requests r/w — `GITHUB_TOKEN` merges don't trigger `release.yml`/`pages.yml`). **Deps: A4** — without branch protection the label merges a green PR instantly instead of waiting on checks.
 
 ---
 

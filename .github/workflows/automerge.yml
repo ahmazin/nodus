@@ -1,0 +1,39 @@
+name: Automerge
+
+# Label a PR `automerge` and GitHub squash-merges it as soon as the required checks on `mainline`
+# pass; remove the label to cancel. This uses GitHub's native auto-merge, so branch protection is
+# the actual gate — this workflow only flips the switch.
+#
+# HUMAN / REPO-SETTINGS PREREQUISITES (one-time, not expressible as a file):
+#   1. Settings → General → Pull Requests → "Allow auto-merge".
+#   2. Protect `mainline` with required checks (verify / dist-consume / browser-e2e / site) —
+#      TRACKER A4. This is what makes the label *wait*: on an unprotected branch `gh pr merge
+#      --auto` merges a green PR the instant it is labelled, so the label is an instant-merge button.
+#   3. Repo secret AUTOMERGE_TOKEN: a fine-grained PAT (Contents + Pull requests: read/write).
+#      A merge armed with GITHUB_TOKEN is attributed to github-actions[bot], and pushes by that bot
+#      do NOT trigger release.yml / pages.yml — the release pipeline would silently skip.
+#
+# `pull_request_target` (not `pull_request`) so the secret is available for PRs from forks. Safe
+# here: nothing from the PR is checked out or executed — only its numeric number is used. Only
+# triage+ users can label. Don't have Dependabot auto-apply the label via `labels:` in
+# dependabot.yml — a dependabot[bot]-actor run cannot read Actions secrets, so it would fail closed.
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  automerge:
+    if: github.event.label.name == 'automerge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - if: github.event.action == 'labeled'
+        run: gh pr merge --auto --squash "$PR"
+      - if: github.event.action == 'unlabeled'
+        run: gh pr merge --disable-auto "$PR"
