@@ -3,22 +3,15 @@
  * running Vite dev server, drives real DOM events (create, drag, rename, undo, auto-layout), and
  * asserts the editor's state responded correctly. Screenshots land in examples/output.
  */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { chromium } from 'playwright-core';
 
 const URL = 'http://localhost:5188/';
 const OUT = join(process.cwd(), 'examples', 'output');
 
-function findChromium() {
-  const base = join(homedir(), '.cache', 'ms-playwright');
-  for (const rev of ['chromium-1228', 'chromium-1208']) {
-    const p = join(base, rev, 'chrome-linux64', 'chrome');
-    if (existsSync(p)) return p;
-  }
-  throw new Error('No chromium found in playwright cache');
-}
+// Let playwright-core resolve the Chromium revision it manages (from its bundled browsers.json),
+// so a playwright-core version bump never strands this script on a hard-coded stale revision. The
+// CI browser-e2e job runs `playwright-core ... install chromium`, which fetches that exact revision.
 
 let failures = 0;
 function assert(cond, msg) {
@@ -42,7 +35,7 @@ const snap = (page) =>
   });
 
 async function main() {
-  const browser = await chromium.launch({ executablePath: findChromium(), headless: true });
+  const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 2 });
   const errors = [];
   page.on('console', (m) => {
