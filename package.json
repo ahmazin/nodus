@@ -35,22 +35,22 @@
     "docs:api": "typedoc"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.9",
+    "@changesets/cli": "^3.0.3",
     "@napi-rs/canvas": "^0.1.60",
-    "@size-limit/preset-small-lib": "^13.0.3",
-    "@types/node": "^22.10.0",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@size-limit/preset-small-lib": "^14.1.0",
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.2",
     "axe-core": "^4.13.0",
     "pixelmatch": "^7.2.0",
-    "playwright-core": "1.61.1",
+    "playwright-core": "1.63.0",
     "pngjs": "^7.0.0",
-    "size-limit": "^13.0.3",
+    "size-limit": "^14.1.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.15",
     "typedoc": "^0.28.20",
-    "typedoc-plugin-markdown": "^4.12.0",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "typedoc-plugin-markdown": "^4.13.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
