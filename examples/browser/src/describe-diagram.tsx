@@ -9,7 +9,7 @@
  * to inject a canned tool_use; the real fetch is bypassed. This is how scripts/verify-describe.mjs
  * exercises the full generate → records → add flow with no network or key.
  */
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor, NodusRecord } from '@nodus-dev/core';
 import { useUiTokens } from '@nodus-dev/react';

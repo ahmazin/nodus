@@ -22,6 +22,7 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type JSX,
   type UIEvent,
 } from 'react';
 import { fmt, type DeepPartial, type Editor } from '@nodus-dev/core';

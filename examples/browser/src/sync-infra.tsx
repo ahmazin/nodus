@@ -6,7 +6,7 @@
  * preview; Apply reconciles the diagram in one undoable step, preserving your layout for unchanged
  * and changed nodes. Non-source (manually added) records are never touched.
  */
-import { useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor, NodusRecord } from '@nodus-dev/core';
 import { useUiTokens, showToast } from '@nodus-dev/react';
