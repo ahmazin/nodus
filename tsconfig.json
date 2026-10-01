@@ -11,58 +11,57 @@
     "types": [
       "node"
     ],
-    "baseUrl": ".",
     "paths": {
       "@nodus-dev/core": [
-        "packages/core/src/index.ts"
+        "./packages/core/src/index.ts"
       ],
       "@nodus-dev/icons-cloud": [
-        "packages/icons-cloud/src/index.ts"
+        "./packages/icons-cloud/src/index.ts"
       ],
       "@nodus-dev/react": [
-        "packages/react/src/index.tsx"
+        "./packages/react/src/index.tsx"
       ],
       "@nodus-dev/preset-infra": [
-        "packages/preset-infra/src/index.ts"
+        "./packages/preset-infra/src/index.ts"
       ],
       "@nodus-dev/layout-dagre": [
-        "packages/layout-dagre/src/index.ts"
+        "./packages/layout-dagre/src/index.ts"
       ],
       "@nodus-dev/layout-tree": [
-        "packages/layout-tree/src/index.ts"
+        "./packages/layout-tree/src/index.ts"
       ],
       "@nodus-dev/layout-force": [
-        "packages/layout-force/src/index.ts"
+        "./packages/layout-force/src/index.ts"
       ],
       "@nodus-dev/layout-elk": [
-        "packages/layout-elk/src/index.ts"
+        "./packages/layout-elk/src/index.ts"
       ],
       "@nodus-dev/plugin-freehand": [
-        "packages/plugin-freehand/src/index.ts"
+        "./packages/plugin-freehand/src/index.ts"
       ],
       "@nodus-dev/preset-diagrams": [
-        "packages/preset-diagrams/src/index.ts"
+        "./packages/preset-diagrams/src/index.ts"
       ],
       "@nodus-dev/text-to-diagram": [
-        "packages/text-to-diagram/src/index.ts"
+        "./packages/text-to-diagram/src/index.ts"
       ],
       "@nodus-dev/import-infra": [
-        "packages/import-infra/src/index.ts"
+        "./packages/import-infra/src/index.ts"
       ],
       "@nodus-dev/persistence": [
-        "packages/persistence/src/index.ts"
+        "./packages/persistence/src/index.ts"
       ],
       "@nodus-dev/preset-draw": [
-        "packages/preset-draw/src/index.ts"
+        "./packages/preset-draw/src/index.ts"
       ],
       "@nodus-dev/from-mermaid": [
-        "packages/from-mermaid/src/index.ts"
+        "./packages/from-mermaid/src/index.ts"
       ],
       "@nodus-dev/mcp": [
-        "packages/mcp/src/index.ts"
+        "./packages/mcp/src/index.ts"
       ],
       "@nodus-dev/stencils": [
-        "packages/stencils/src/index.ts"
+        "./packages/stencils/src/index.ts"
       ]
     }
   },
