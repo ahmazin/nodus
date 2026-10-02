@@ -4,7 +4,7 @@ The single source of **open / pending** work. This is the board agents pick task
 Closed work is not re-listed here — it lives in git history and in
 [`docs/audits/PRR-REMEDIATION-REPORT.md`](docs/audits/PRR-REMEDIATION-REPORT.md) (point-in-time record).
 
-- **Snapshot:** branch `team/prr-remediation` → **[PR #2](https://github.com/ahmazin/nodus/pull/2)** (unmerged).
+- **Snapshot:** **[PR #2](https://github.com/ahmazin/nodus/pull/2)** (branch `team/prr-remediation`) **merged** to `mainline` — `3bbb8ce` (2026-10-02).
   Gates green: `pnpm typecheck` · `pnpm test` **1064/1064** · site build · `browser-verify` **69/69** · `pnpm bench`.
 - **Priority:** P0 (launch-blocking) → P3 (nice-to-have). **Actor:** 🧑 human-only · 🤖 agent-ready · ⚖️ needs a decision first.
 
@@ -23,8 +23,8 @@ Closed work is not re-listed here — it lives in git history and in
 
 From the report's HUMAN-ONLY runbook. These change GitHub/npm/legal state, so an agent must not do them.
 
-- [ ] **A1 · P0** Merge **PR #2** → `mainline` (branch is `MERGEABLE`; red CodeQL/guardrails checks are pre-existing on `mainline`, not blocking).
-- [ ] **A2 · P0** Enable **GitHub Pages** (Settings → Pages → Source = *GitHub Actions*); verify `/nodus/`, `/nodus/docs/`, `/nodus/playground/` load.
+- [x] **A1 · P0** Merge **PR #2** → `mainline` (branch is `MERGEABLE`; red CodeQL/guardrails checks are pre-existing on `mainline`, not blocking). — done `3bbb8ce`
+- [x] **A2 · P0** Enable **GitHub Pages** (Settings → Pages → Source = *GitHub Actions*); verify `/nodus/`, `/nodus/docs/`, `/nodus/playground/` load. — done 2026-10-02 (Source = GitHub Actions; all 3 URLs return 200)
 - [ ] **A3 · P1** **Publish/deprecate the 0.3.0 line** via `release.yml` (not manual `npm publish`); `dist-tag` the 14 formerly-1.0.0 packages; `npm deprecate` the old 1.0.0/0.2.0. See report runbook.
 - [ ] **A4 · P1** **Branch protection** on `mainline`: require `verify` + `dist-consume` + `browser-e2e` + site build.
 - [ ] **A5 · P1** **icons-cloud publish decision** (legal): confirm redistribution posture, then empty `provenance.json`→`[]`, drop `private:true`/`_publishHold`, add `publishConfig.access:"public"`.
