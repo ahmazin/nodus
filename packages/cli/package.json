@@ -30,7 +30,7 @@
     "@nodus-dev/preset-diagrams": "workspace:^",
     "@nodus-dev/preset-infra": "workspace:^",
     "@nodus-dev/preset-draw": "workspace:^",
-    "@napi-rs/canvas": "^0.1.60"
+    "@napi-rs/canvas": "^1.0.9"
   },
   "scripts": {
     "build": "tsup",
