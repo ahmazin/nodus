@@ -12,7 +12,7 @@
     "@nodus-dev/core": "workspace:*",
     "@nodus-dev/react": "workspace:*",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
