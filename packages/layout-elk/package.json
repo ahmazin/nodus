@@ -23,7 +23,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "elkjs": "^0.12.0"
+    "elkjs": "^0.12.1"
   },
   "devDependencies": {
     "@nodus-dev/layout-force": "workspace:*",
