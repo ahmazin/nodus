@@ -23,7 +23,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "d3-force": "^3.0.0"
+    "d3-force": "^3.0.1"
   },
   "devDependencies": {
     "@types/d3-force": "^3.0.10",
